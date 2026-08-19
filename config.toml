@@ -1,0 +1,57 @@
+# ai-avatar default configuration
+# Place this file next to the binary, or the defaults embedded in the code
+# will be used.
+
+[audio]
+sample_rate = 16000
+channels = 1
+ring_buffer_samples = 160000      # 10 seconds @ 16 kHz
+vad_frame_ms = 30
+vad_energy_threshold = 0.015
+vad_silence_frames = 15
+vad_speech_frames = 3
+vad_pre_roll_frames = 5
+vad_post_roll_frames = 10
+
+[stt]
+model_path = "models/ggml-tiny.bin"
+language = "en"
+use_mock = false
+
+[llm]
+endpoint = "http://localhost:8081"
+timeout_secs = 120
+max_tokens = 256
+temperature = 0.7
+top_p = 0.9
+api_flavour = "rust"
+
+[tts]
+model_path = "models/en_US-lessac-medium.onnx"
+model_json_path = "models/en_US-lessac-medium.onnx.json"
+use_mock = false
+
+[emotion]
+blend_factor = 0.3
+debug = true
+
+[memory]
+sessions_db = "data/sessions.db"
+dendrite_db = "data/dendrite.db"
+max_history = 20
+max_context_tokens = 6000
+
+[cache]
+capacity = 100
+enabled = true
+
+[safety]
+ram_threshold = 92.0
+enabled = true
+
+[curator]
+interval_minutes = 10
+enabled = true
+
+[app]
+log_filter = "info,ai_avatar=debug"

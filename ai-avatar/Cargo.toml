@@ -1,0 +1,52 @@
+[package]
+name = "paraclea"
+version = "0.1.0"
+edition = "2021"
+authors = ["Paraclea Team"]
+description = "Paraclea — Cute AI Companion & Self-Developing Assistant Engine in Rust"
+license = "MIT"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = "0.7"
+
+# Audio I/O & Playback
+rodio = "0.19"
+cpal = "0.15"
+
+# HTTP client for Ollama and Pocket TTS API
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Time & Date
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Concurrency & Math
+parking_lot = "0.12"
+nalgebra = "0.33"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4"] }
+regex = "1.10"
+
+# System monitoring
+sysinfo = "0.35"
+
+[profile.release]
+opt-level = 3
+lto = true
+

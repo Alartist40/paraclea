@@ -1,0 +1,25 @@
+# Rust build target
+/target
+/**/target
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Local audio cache & test media
+*.wav
+*.mp3
+!aliceinwonderland_01_gerstenberg_64kb.mp3
+!okunohosomichi_01-09_basho_64kb.mp3
+
+# Models cache
+/models/*.gguf
+
+# Editor / OS files
+.DS_Store
+*.swp
+*.kate-swp
+.vscode/
+.idea/
+*.log

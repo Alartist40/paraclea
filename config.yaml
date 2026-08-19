@@ -1,0 +1,20 @@
+system:
+  name: "Paraclea"
+  version: "0.1.0"
+
+model:
+  backend: "ollama"
+  ollama:
+    url: "http://localhost:11434"
+    model: "llama3.2"
+  local:
+    path: "models"
+
+voice:
+  pocket_tts_url: "http://localhost:8000"
+  pocket_tts_voice: "alba"
+  pocket_tts_cli: "/home/xander/Documents/reference/pocket-tts/.venv/bin/pocket-tts"
+
+persona:
+  dir: "persona"
+  heartbeat_interval: 15
