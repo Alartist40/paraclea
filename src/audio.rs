@@ -5,7 +5,6 @@
 use anyhow::Result;
 use rodio::{Decoder, OutputStream, Sink};
 use std::io::Cursor;
-use tracing::{info, warn};
 
 pub struct AudioPlayer;
 
@@ -18,30 +17,20 @@ impl AudioPlayer {
 
         let (_stream, stream_handle) = match OutputStream::try_default() {
             Ok(res) => res,
-            Err(e) => {
-                warn!("Audio device initialization warning: {}", e);
-                return Ok(());
-            }
+            Err(_) => return Ok(()),
         };
 
         let sink = match Sink::try_new(&stream_handle) {
             Ok(s) => s,
-            Err(e) => {
-                warn!("Failed to create audio sink: {}", e);
-                return Ok(());
-            }
+            Err(_) => return Ok(()),
         };
 
         let cursor = Cursor::new(wav_bytes.to_vec());
         let source = match Decoder::new(cursor) {
             Ok(src) => src,
-            Err(e) => {
-                warn!("Failed to decode WAV audio: {}", e);
-                return Ok(());
-            }
+            Err(_) => return Ok(()),
         };
 
-        info!("🔊 Playing Paraclea speech audio...");
         sink.append(source);
         sink.sleep_until_end();
         Ok(())

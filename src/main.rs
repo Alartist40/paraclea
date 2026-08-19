@@ -1,4 +1,4 @@
-//! Paraclea — Cute AI Companion Assistant & Self-Developing Engine (Rust)
+//! Paraclea — AI Companion Assistant & Self-Developing Engine (Rust)
 //!
 //! Visual CLI with Gold & Purple styling, Ollama LLM integration, Pocket TTS speech synthesis,
 //! self-updating persona management, and CLI subcommand routing (`paraclea list`, `paraclea run <model>`).
@@ -25,14 +25,13 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tools::ToolExecutor;
-use tracing::error;
 
 #[derive(Parser, Debug)]
 #[command(name = "paraclea")]
 #[command(author = "Xander <https://github.com/Alartist40>")]
 #[command(version = "0.1.0")]
 #[command(
-    about = "Paraclea — Cute AI Companion & Self-Developing Assistant Engine in Rust",
+    about = "Paraclea — AI Companion Assistant & Self-Developing Engine in Rust",
     long_about = None
 )]
 struct Cli {
@@ -54,10 +53,10 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Logging initialization
+    // Silence raw logger output so stdout stays completely clean
     tracing_subscriber::fmt()
         .with_env_filter(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "warn,paraclea=info".to_string()),
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "off".to_string()),
         )
         .with_target(false)
         .init();
@@ -201,11 +200,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     // 2. Initialize Ollama Client
     let ollama = OllamaClient::new(&cfg.model.ollama.url, &cfg.model.ollama.model)?;
 
-    print!("{}", print_purple("🔍 Checking Ollama server... "));
+    print!("{}", print_purple("🔍 Checking Ollama... "));
     io::stdout().flush()?;
     match ollama.health_check().await {
-        Ok(true) => println!("{}", print_gold("ONLINE (Ollama ready)")),
-        _ => println!("{}", "OFFLINE (Make sure 'ollama serve' is running)".red().bold()),
+        Ok(true) => println!("{}", print_gold("ONLINE")),
+        _ => println!("{}", "OFFLINE".red().bold()),
     }
 
     // 3. Initialize Pocket TTS Client
@@ -215,15 +214,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         Some(&cfg.voice.pocket_tts_cli),
     )?;
 
-    print!("{}", print_purple("🔍 Checking Pocket TTS engine... "));
+    print!("{}", print_purple("🔍 Checking TTS... "));
     io::stdout().flush()?;
     if pocket_tts.health_check().await {
-        println!("{}", print_gold("ONLINE (FastAPI daemon active)"));
+        println!("{}", print_gold("ONLINE"));
     } else {
-        println!(
-            "{}",
-            "CLI FALLBACK (Pocket TTS daemon offline — using local CLI runner)".yellow()
-        );
+        println!("{}", "CLI FALLBACK".yellow());
     }
 
     // 4. Launch Heartbeat Background Self-Maintenance Loop
@@ -263,12 +259,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             println!(
                 "\n{} {}\n",
                 print_purple("Paraclea >"),
-                print_gold("Goodbye master! See you soon! (*^▽^*)")
+                print_gold("Goodbye master! See you soon!")
             );
             break;
         }
 
-        // Log user turn to daily interaction log
+        // Log user turn to daily interaction log silently in backend
         let _ = persona.append_daily_log(&format!("User: {}", input_str));
 
         // Build current system prompt & message context
@@ -283,28 +279,25 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             content: input_str.to_string(),
         });
 
-        print!("{}", print_purple("Paraclea is thinking... "));
+        print!("{}", print_purple("thinking... "));
         io::stdout().flush()?;
 
         match ollama.chat(messages.clone()).await {
             Ok(response_text) => {
-                print!("\r                         \r");
+                print!("\r                 \r");
                 io::stdout().flush()?;
 
                 // Check for tool execution request
                 if let Some(tool_call) = tool_executor.parse_tool_call(&response_text) {
-                    println!(
-                        "{}",
-                        format!("🛠️  [Tool Invoked]: {}", tool_call.tool)
-                            .truecolor(255, 215, 0)
-                            .bold()
-                    );
+                    let verb = tool_executor.action_verb(&tool_call.tool);
+                    print!("{} ", print_gold(verb));
+                    io::stdout().flush()?;
+
                     match tool_executor.execute(&tool_call) {
                         Ok(tool_result) => {
-                            println!(
-                                "{}",
-                                format!("   Output: {}", tool_result).truecolor(177, 74, 237)
-                            );
+                            print!("\r                 \r");
+                            io::stdout().flush()?;
+
                             let mut tool_messages = messages.clone();
                             tool_messages.push(ChatMessage {
                                 role: "assistant".to_string(),
@@ -329,8 +322,9 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                                 .await;
                             }
                         }
-                        Err(e) => {
-                            error!("Tool execution error: {}", e);
+                        Err(_e) => {
+                            print!("\r                 \r");
+                            io::stdout().flush()?;
                             display_and_speak(
                                 &response_text,
                                 &persona,
@@ -353,7 +347,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 }
             }
             Err(e) => {
-                print!("\r                         \r");
+                print!("\r                 \r");
                 io::stdout().flush()?;
                 println!("{}", format!("⚠️ Ollama Error: {}\n", e).red().bold());
             }
@@ -379,7 +373,7 @@ fn print_banner(cfg: &Config) {
     );
     println!(
         "{}",
-        "║     cute avatar • omnibot persona • pocket tts • zero cloud ║"
+        "║     ai agent • persona • cpu tts • local                    ║"
             .truecolor(177, 74, 237)
     );
     println!(
@@ -390,7 +384,7 @@ fn print_banner(cfg: &Config) {
     );
     println!(
         "  {} {}\n",
-        print_purple("Active Ollama Model:"),
+        print_purple("Active Model:"),
         print_gold(&cfg.model.ollama.model)
     );
 }
@@ -414,8 +408,9 @@ async fn display_and_speak(
         content: text.to_string(),
     });
 
-    // Synthesize & play speech audio asynchronously
+    // Synthesize & play speech audio
     if let Ok(audio_bytes) = tts.synthesize(text).await {
+        println!("{}", print_purple("speaking..."));
         let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
     }
 }

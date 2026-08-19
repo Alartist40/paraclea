@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use reqwest::Client;
 use std::process::Command;
 use std::time::Duration;
-use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct PocketTtsEngine {
@@ -53,7 +52,6 @@ impl PocketTtsEngine {
             let url = format!("{}/tts", self.server_url);
             let params = [("text", text), ("voice_url", &self.voice)];
 
-            debug!("Sending Pocket TTS HTTP request for text: '{}'", text);
             let resp = self
                 .client
                 .post(&url)
@@ -64,17 +62,12 @@ impl PocketTtsEngine {
 
             if resp.status().is_success() {
                 let audio_bytes = resp.bytes().await?.to_vec();
-                info!(
-                    "Pocket TTS synthesized {} audio bytes via HTTP server",
-                    audio_bytes.len()
-                );
                 return Ok(audio_bytes);
             }
         }
 
         // 2. Fallback to CLI execution if available
         if let Some(ref cli) = self.cli_path {
-            info!("Pocket TTS HTTP server inactive, attempting CLI fallback: {}", cli);
             let output = Command::new(cli)
                 .arg("generate")
                 .arg("--text")
@@ -90,22 +83,13 @@ impl PocketTtsEngine {
                     if default_wav.exists() {
                         let bytes = std::fs::read(default_wav)?;
                         let _ = std::fs::remove_file(default_wav);
-                        info!("Pocket TTS synthesized {} audio bytes via CLI", bytes.len());
                         return Ok(bytes);
                     }
                 }
-                Ok(out) => {
-                    warn!(
-                        "Pocket TTS CLI returned error code: {}",
-                        String::from_utf8_lossy(&out.stderr)
-                    );
-                }
-                Err(e) => {
-                    warn!("Failed to invoke Pocket TTS CLI binary: {}", e);
-                }
+                _ => {}
             }
         }
 
-        anyhow::bail!("Pocket TTS server (at {}) and CLI fallback are both unavailable.", self.server_url)
+        anyhow::bail!("Pocket TTS synthesis unavailable.")
     }
 }

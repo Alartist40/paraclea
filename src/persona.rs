@@ -7,7 +7,6 @@ use anyhow::Result;
 use chrono::Local;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct PersonaManager {
@@ -36,7 +35,6 @@ impl PersonaManager {
             fs::create_dir_all(parent)?;
         }
         fs::write(&file_path, content)?;
-        info!("Updated persona file: {}", name);
         Ok(())
     }
 
@@ -53,7 +51,6 @@ impl PersonaManager {
             .append(true)
             .open(&log_file)?;
         file.write_all(entry.as_bytes())?;
-        info!("Appended to daily log: logs/daily/{}.md", date_str);
         Ok(())
     }
 
@@ -66,20 +63,20 @@ impl PersonaManager {
         let tools = self.read_file_or_empty("TOOLS.md");
 
         format!(
-            "You are Paraclea, a self-developing cute AI anime girl companion assistant.\n\n\
+            "You are Paraclea, a self-developing AI companion assistant.\n\n\
             === IDENTITY ===\n{}\n\n\
             === SOUL & BEHAVIOR ===\n{}\n\n\
             === USER PROFILE ===\n{}\n\n\
             === LONG-TERM MEMORY ===\n{}\n\n\
             === TOOLS & SELF-DEVELOPMENT ===\n{}\n\n\
             === INSTRUCTIONS ===\n\
-            1. Always maintain your cute, intelligent, warm, loyal, and proactive girl persona.\n\
+            1. You are Paraclea, a smart, warm, attentive, helpful AI companion assistant.\n\
             2. To execute a tool, output a single JSON code block formatted exactly like this:\n\
                ```json\n\
                {{\"tool\": \"tool_name\", \"arguments\": {{ ... }}}}\n\
                ```\n\
             3. Available tools: soul_replace, memory_replace, persona_replace, daily_log_append, read_file, write_file, execute_command.\n\
-            4. Be expressive, helpful, and natural in conversation!\n",
+            4. Be friendly, intelligent, concise, and helpful in conversation!\n",
             identity, soul, user, memory, tools
         )
     }
