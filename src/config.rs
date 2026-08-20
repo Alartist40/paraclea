@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 pub struct Config {
     pub system: SystemConfig,
     pub model: ModelConfig,
+    #[serde(default)]
+    pub vector_db: VectorDbConfig,
     pub voice: VoiceConfig,
     pub persona: PersonaConfig,
 }
@@ -32,11 +34,42 @@ pub struct ModelConfig {
 pub struct OllamaConfig {
     pub url: String,
     pub model: String,
+    #[serde(default = "default_heavy_model")]
+    pub heavy_model: String,
+    #[serde(default = "default_embed_model")]
+    pub embed_model: String,
+}
+
+fn default_heavy_model() -> String {
+    "qwen3:8b".to_string()
+}
+
+fn default_embed_model() -> String {
+    "nomic-embed-text".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LocalConfig {
     pub path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VectorDbConfig {
+    pub qdrant_url: String,
+    pub collection_bible: String,
+    pub collection_books: String,
+    pub collection_survival: String,
+}
+
+impl Default for VectorDbConfig {
+    fn default() -> Self {
+        Self {
+            qdrant_url: "http://localhost:6333".to_string(),
+            collection_bible: "bible".to_string(),
+            collection_books: "books".to_string(),
+            collection_survival: "survival".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,12 +96,15 @@ impl Default for Config {
                 backend: "ollama".to_string(),
                 ollama: OllamaConfig {
                     url: "http://localhost:11434".to_string(),
-                    model: "llama3.2".to_string(),
+                    model: "ministral-3:3b".to_string(),
+                    heavy_model: "qwen3:8b".to_string(),
+                    embed_model: "nomic-embed-text".to_string(),
                 },
                 local: LocalConfig {
                     path: "models".to_string(),
                 },
             },
+            vector_db: VectorDbConfig::default(),
             voice: VoiceConfig {
                 pocket_tts_url: "http://localhost:8000".to_string(),
                 pocket_tts_voice: "alba".to_string(),

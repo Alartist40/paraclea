@@ -6,9 +6,17 @@ model:
   backend: "ollama"
   ollama:
     url: "http://localhost:11434"
-    model: "llama3.2"
+    model: "ministral-3:3b"
+    heavy_model: "qwen3:8b"
+    embed_model: "nomic-embed-text"
   local:
     path: "models"
+
+vector_db:
+  qdrant_url: "http://localhost:6333"
+  collection_bible: "bible"
+  collection_books: "books"
+  collection_survival: "survival"
 
 voice:
   pocket_tts_url: "http://localhost:8000"

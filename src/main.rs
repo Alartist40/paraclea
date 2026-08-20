@@ -1,14 +1,17 @@
-//! Paraclea — AI Companion Assistant & Self-Developing Engine (Rust)
+//! Paraclea — AI Companion Assistant & Self-Developing RAG Engine (Rust)
 //!
-//! Visual CLI with Gold & Purple styling, Ollama LLM integration, Pocket TTS speech synthesis,
-//! self-updating persona management, and CLI subcommand routing (`paraclea list`, `paraclea run <model>`).
+//! Visual CLI with Gold & Purple styling, Ollama LLM integration, Qdrant vector database RAG,
+//! Scripture & book-to-skill ingestion, Pocket TTS speech synthesis, and updated Proverbs 31 Helper persona.
 
 mod audio;
 mod config;
 mod heartbeat;
+mod ingest;
 mod ollama;
 mod persona;
 mod pocket_tts;
+mod qdrant;
+mod rag;
 mod tools;
 
 use anyhow::Result;
@@ -17,9 +20,12 @@ use clap::{Parser, Subcommand};
 use colored::*;
 use config::Config;
 use heartbeat::HeartbeatLoop;
+use ingest::{BibleIngestor, BookIngestor};
 use ollama::{ChatMessage, ModelEntry, OllamaClient};
 use persona::PersonaManager;
 use pocket_tts::PocketTtsEngine;
+use qdrant::QdrantClient;
+use rag::RagEngine;
 use std::io::{self, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +37,7 @@ use tools::ToolExecutor;
 #[command(author = "Xander <https://github.com/Alartist40>")]
 #[command(version = "0.1.0")]
 #[command(
-    about = "Paraclea — AI Companion Assistant & Self-Developing Engine in Rust",
+    about = "Paraclea — AI Companion Assistant & Self-Developing RAG Engine in Rust",
     long_about = None
 )]
 struct Cli {
@@ -44,16 +50,40 @@ enum Commands {
     /// List all available Ollama and local models numbered
     #[command(alias = "ls")]
     List,
-    /// Run Paraclea with a specific model by number or name (e.g. 'paraclea run 1' or 'paraclea run llama3.2')
+    /// Run Paraclea with a specific model by number or name
     Run {
         /// Model name or list number
         model: Option<String>,
+    },
+    /// Ingest a Bible JSON file into Qdrant vector database
+    IngestBible {
+        /// Path to Bible JSON file
+        input: String,
+        /// Target Qdrant collection name (default: bible)
+        #[arg(short, long, default_value = "bible")]
+        collection: String,
+    },
+    /// Ingest a book-to-skill markdown directory into Qdrant
+    IngestBook {
+        /// Path to directory containing chapter .md files
+        input: String,
+        /// Target Qdrant collection name (default: books)
+        #[arg(short, long, default_value = "books")]
+        collection: String,
+    },
+    /// Run a one-shot RAG query with Scripture/book retrieval
+    Query {
+        /// Question to ask
+        question: String,
+        /// Target collection (bible, books, survival)
+        #[arg(short, long, default_value = "bible")]
+        collection: String,
     },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Silence raw logger output so stdout stays completely clean
+    // Silence raw logger output so terminal UI stays clean
     tracing_subscriber::fmt()
         .with_env_filter(
             std::env::var("RUST_LOG").unwrap_or_else(|_| "off".to_string()),
@@ -65,30 +95,104 @@ async fn main() -> Result<()> {
     let config_path = Config::find_or_default_config_path();
     let mut cfg = Config::load(&config_path)?;
 
-    let temp_ollama = OllamaClient::new(&cfg.model.ollama.url, &cfg.model.ollama.model)?;
+    let ollama = OllamaClient::new(&cfg.model.ollama.url, &cfg.model.ollama.model)?;
+    let qdrant = QdrantClient::new(&cfg.vector_db.qdrant_url)?;
 
     match &cli.command {
         Some(Commands::List) => {
-            print_available_models(&temp_ollama).await;
+            print_available_models(&ollama).await;
             return Ok(());
         }
         Some(Commands::Run { model }) => {
-            let available = temp_ollama.fetch_available_models().await;
+            let available = ollama.fetch_available_models().await;
             if let Some(target) = model {
                 if let Err(e) = select_and_apply_model(target, &available, &mut cfg) {
                     eprintln!("{}", format!("Error: {}", e).red());
-                    print_available_models(&temp_ollama).await;
+                    print_available_models(&ollama).await;
                     return Ok(());
                 }
                 let _ = cfg.save(&config_path);
             } else {
-                print_available_models(&temp_ollama).await;
+                print_available_models(&ollama).await;
                 return Ok(());
             }
         }
+        Some(Commands::IngestBible { input, collection }) => {
+            println!("{}", print_purple("📖 Ingesting Bible dataset into Qdrant..."));
+            let ingestor = BibleIngestor::new(&ollama, &qdrant, &cfg.model.ollama.embed_model, collection);
+            match ingestor.ingest_json_file(Path::new(input)).await {
+                Ok(count) => println!(
+                    "{}",
+                    format!("✓ Indexed {} verse chunks into collection '{}'", count, collection)
+                        .truecolor(255, 215, 0)
+                        .bold()
+                ),
+                Err(e) => eprintln!("{}", format!("Ingestion failed: {}", e).red()),
+            }
+            return Ok(());
+        }
+        Some(Commands::IngestBook { input, collection }) => {
+            println!("{}", print_purple("📚 Ingesting book skill directory into Qdrant..."));
+            let ingestor = BookIngestor::new(&ollama, &qdrant, &cfg.model.ollama.embed_model);
+            match ingestor.ingest_book_directory(Path::new(input), collection).await {
+                Ok(count) => println!(
+                    "{}",
+                    format!("✓ Indexed {} chapter sections into collection '{}'", count, collection)
+                        .truecolor(255, 215, 0)
+                        .bold()
+                ),
+                Err(e) => eprintln!("{}", format!("Ingestion failed: {}", e).red()),
+            }
+            return Ok(());
+        }
+        Some(Commands::Query { question, collection }) => {
+            let rag = RagEngine::new(&ollama, &qdrant);
+            let persona_dir = if Path::new(&cfg.persona.dir).exists() {
+                cfg.persona.dir.clone()
+            } else {
+                "persona".to_string()
+            };
+            let persona = PersonaManager::new(&persona_dir)?;
+
+            let ret = rag
+                .retrieve_context(question, collection, 5, &cfg.model.ollama.embed_model)
+                .await?;
+
+            let model_to_use = rag.route_model(question, &cfg.model.ollama.model, &cfg.model.ollama.heavy_model);
+
+            let prompt = if !ret.context_text.is_empty() {
+                format!(
+                    "Use the following reference passages to answer the question. Quote verses precisely.\n\nContext:\n{}\n\nQuestion: {}\n",
+                    ret.context_text, question
+                )
+            } else {
+                question.clone()
+            };
+
+            let messages = vec![
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: persona.build_system_prompt(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: prompt,
+                },
+            ];
+
+            let answer = ollama.chat_with_model(model_to_use, messages).await?;
+            println!("{} {}\n", print_purple("Paraclea >"), answer);
+            if !ret.sources.is_empty() {
+                println!(
+                    "{} {}",
+                    print_gold("Sources:"),
+                    ret.sources.join(", ").truecolor(177, 74, 237)
+                );
+            }
+            return Ok(());
+        }
         None => {
-            // Default run mode — verify model availability
-            let available = temp_ollama.fetch_available_models().await;
+            let available = ollama.fetch_available_models().await;
             if !available.is_empty() {
                 if !available.iter().any(|m| m.target == cfg.model.ollama.model) {
                     let first_model = &available[0];
@@ -207,7 +311,19 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         _ => println!("{}", "OFFLINE".red().bold()),
     }
 
-    // 3. Initialize Pocket TTS Client
+    // 3. Initialize Qdrant Client
+    let qdrant = QdrantClient::new(&cfg.vector_db.qdrant_url)?;
+    print!("{}", print_purple("🔍 Checking Qdrant Vector DB... "));
+    io::stdout().flush()?;
+    if qdrant.health_check().await {
+        println!("{}", print_gold("ONLINE"));
+        qdrant.create_collection(&cfg.vector_db.collection_bible, 768).await.ok();
+        qdrant.create_collection(&cfg.vector_db.collection_books, 768).await.ok();
+    } else {
+        println!("{}", "STANDBY (Run './qdrant' for vector search)".yellow());
+    }
+
+    // 4. Initialize Pocket TTS Client
     let pocket_tts = PocketTtsEngine::new(
         &cfg.voice.pocket_tts_url,
         &cfg.voice.pocket_tts_voice,
@@ -222,7 +338,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         println!("{}", "CLI FALLBACK".yellow());
     }
 
-    // 4. Launch Heartbeat Background Self-Maintenance Loop
+    // 5. Launch Heartbeat Background Self-Maintenance Loop
     let shutdown = Arc::new(AtomicBool::new(false));
     let heartbeat = HeartbeatLoop::new(
         cfg.persona.heartbeat_interval,
@@ -234,10 +350,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         heartbeat.run(shutdown_hb).await;
     });
 
-    // 5. Tool Executor
+    // 6. Tool & RAG Executors
     let tool_executor = ToolExecutor::new(persona.clone());
+    let rag_engine = RagEngine::new(&ollama, &qdrant);
 
-    // 6. Interactive REPL Shell Loop
+    // 7. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
     println!(
         "\n{}\n",
@@ -264,8 +381,43 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             break;
         }
 
-        // Log user turn to daily interaction log silently in backend
+        // Log user turn to daily interaction log
         let _ = persona.append_daily_log(&format!("User: {}", input_str));
+
+        print!("{}", print_purple("retrieving... "));
+        io::stdout().flush()?;
+
+        // Perform RAG retrieval if Qdrant is online
+        let rag_ret = rag_engine
+            .retrieve_context(
+                input_str,
+                &cfg.vector_db.collection_bible,
+                4,
+                &cfg.model.ollama.embed_model,
+            )
+            .await
+            .unwrap_or_else(|_| rag::RagRetrievalResult {
+                context_text: String::new(),
+                sources: Vec::new(),
+            });
+
+        print!("\r                 \r");
+        io::stdout().flush()?;
+
+        let target_model = rag_engine.route_model(
+            input_str,
+            &cfg.model.ollama.model,
+            &cfg.model.ollama.heavy_model,
+        );
+
+        let query_prompt = if !rag_ret.context_text.is_empty() {
+            format!(
+                "Use the following reference passages to answer the question. Quote verses precisely.\n\nContext:\n{}\n\nUser Question: {}\n",
+                rag_ret.context_text, input_str
+            )
+        } else {
+            input_str.to_string()
+        };
 
         // Build current system prompt & message context
         let mut messages = Vec::new();
@@ -276,13 +428,13 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         messages.extend(history.clone());
         messages.push(ChatMessage {
             role: "user".to_string(),
-            content: input_str.to_string(),
+            content: query_prompt,
         });
 
         print!("{}", print_purple("thinking... "));
         io::stdout().flush()?;
 
-        match ollama.chat(messages.clone()).await {
+        match ollama.chat_with_model(target_model, messages.clone()).await {
             Ok(response_text) => {
                 print!("\r                 \r");
                 io::stdout().flush()?;
@@ -311,7 +463,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                                 ),
                             });
 
-                            if let Ok(final_text) = ollama.chat(tool_messages).await {
+                            if let Ok(final_text) = ollama.chat_with_model(target_model, tool_messages).await {
                                 display_and_speak(
                                     &final_text,
                                     &persona,
@@ -373,7 +525,7 @@ fn print_banner(cfg: &Config) {
     );
     println!(
         "{}",
-        "║     ai agent • persona • cpu tts • local                    ║"
+        "║     ai agent • persona • vector rag • local                 ║"
             .truecolor(177, 74, 237)
     );
     println!(

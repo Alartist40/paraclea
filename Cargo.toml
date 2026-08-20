@@ -3,7 +3,7 @@ name = "paraclea"
 version = "0.1.0"
 edition = "2021"
 authors = ["Xander <https://github.com/Alartist40>"]
-description = "Paraclea — Cute AI Companion & Self-Developing Assistant Engine in Rust"
+description = "Paraclea — AI Companion Assistant & Self-Developing RAG Engine in Rust"
 license = "MIT"
 
 [dependencies]
@@ -20,7 +20,7 @@ tokio-util = "0.7"
 rodio = "0.19"
 cpal = "0.15"
 
-# HTTP Client for Ollama & Pocket TTS
+# HTTP Client for Ollama, Qdrant & Pocket TTS
 reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
 futures-util = "0.3"
 
