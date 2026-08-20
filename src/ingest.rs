@@ -1,9 +1,10 @@
-//! Bible Database & Book-to-Skill Ingestion Engine for Paraclea
+//! Bible Database, Book-to-Skill & Unified File Ingestion Engine for Paraclea
 //!
-//! Parses Scripture JSON/CSV datasets and structured Markdown book skills,
+//! Parses Scripture JSON datasets, structured Markdown book skills, and auto-detected file formats,
 //! chunks text into overlapping semantic passages, generates embeddings via Ollama,
 //! and indexes vectors into Qdrant vector collections.
 
+use crate::detect::FileType;
 use crate::ollama::OllamaClient;
 use crate::qdrant::QdrantClient;
 use anyhow::{Context, Result};
@@ -46,7 +47,6 @@ impl<'a> BibleIngestor<'a> {
 
         let mut total_chunks = 0;
 
-        // Supported format 1: Array of verse objects: [{"book": "Genesis", "chapter": 1, "verse": 1, "text": "..."}]
         if let Some(verses_array) = json_val.as_array() {
             let mut chunk_buffer: Vec<Value> = Vec::new();
             for item in verses_array {
@@ -61,9 +61,7 @@ impl<'a> BibleIngestor<'a> {
                 self.process_verse_chunk(&chunk_buffer).await?;
                 total_chunks += 1;
             }
-        }
-        // Supported format 2: Nested Map: {"Genesis": {"1": {"1": "In the beginning..."}}}
-        else if let Some(books_map) = json_val.as_object() {
+        } else if let Some(books_map) = json_val.as_object() {
             for (book_name, chapters_val) in books_map {
                 if let Some(chapters_map) = chapters_val.as_object() {
                     for (chap_num, verses_val) in chapters_map {
@@ -176,7 +174,6 @@ impl<'a> BookIngestor<'a> {
                 let filename = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
                 let text = fs::read_to_string(&path)?;
 
-                // Split markdown text by headers or double newlines into paragraphs
                 let paragraphs: Vec<&str> = text
                     .split("\n\n")
                     .map(|p| p.trim())
@@ -206,5 +203,100 @@ impl<'a> BookIngestor<'a> {
 
         info!("Book ingestion finished: indexed {} chunks into collection '{}'", total_chunks, collection);
         Ok(total_chunks)
+    }
+}
+
+/// Unified Ingestion router auto-detecting file format and dispatching to OCR or text vectorization.
+pub async fn ingest_file(
+    ollama: &OllamaClient,
+    qdrant: &QdrantClient,
+    embed_model: &str,
+    ocr_model: &str,
+    file_path: &Path,
+    collection: &str,
+) -> Result<String> {
+    if !file_path.exists() {
+        anyhow::bail!("File not found at path: {:?}", file_path);
+    }
+
+    if file_path.is_dir() {
+        let ingestor = BookIngestor::new(ollama, qdrant, embed_model);
+        let count = ingestor.ingest_book_directory(file_path, collection).await?;
+        return Ok(format!("Indexed {} chapter sections from directory into collection '{}'", count, collection));
+    }
+
+    let file_type = FileType::from_path(file_path);
+
+    match file_type {
+        FileType::Json => {
+            let ingestor = BibleIngestor::new(ollama, qdrant, embed_model, collection);
+            let count = ingestor.ingest_json_file(file_path).await?;
+            Ok(format!("Indexed {} Bible verse chunks into collection '{}'", count, collection))
+        }
+        FileType::Image => {
+            let text = ollama.ocr_image(file_path, ocr_model).await?;
+            if text.is_empty() {
+                anyhow::bail!("OCR produced no extracted text.");
+            }
+
+            let file_stem = file_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+            qdrant.create_collection(collection, 768).await.ok();
+
+            let vector = ollama.embed(&text, embed_model).await?;
+            let point_id = format!("ocr-{}-{}", file_stem.to_lowercase(), uuid::Uuid::new_v4());
+
+            let payload = serde_json::json!({
+                "book": file_stem,
+                "chapter": 1,
+                "verses": "ocr",
+                "text": text,
+                "source": collection
+            });
+
+            qdrant.upsert(collection, serde_json::json!(point_id), vector, payload).await?;
+            Ok(format!("OCR extracted {} chars from {:?} and indexed into collection '{}'", text.len(), file_path.file_name().unwrap_or_default(), collection))
+        }
+        FileType::Text | FileType::Html | FileType::Rtf => {
+            let content = fs::read_to_string(file_path)
+                .with_context(|| format!("Failed to read text file: {:?}", file_path))?;
+
+            let file_stem = file_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+            qdrant.create_collection(collection, 768).await.ok();
+
+            let paragraphs: Vec<&str> = content
+                .split("\n\n")
+                .map(|p| p.trim())
+                .filter(|p| p.len() > 30)
+                .collect();
+
+            let mut count = 0;
+            for (idx, para) in paragraphs.iter().enumerate() {
+                let point_id = format!("{}-{}", file_stem.to_lowercase(), idx);
+                let vector = ollama.embed(para, embed_model).await?;
+
+                let payload = serde_json::json!({
+                    "book": file_stem,
+                    "chapter": idx + 1,
+                    "verses": format!("p{}", idx + 1),
+                    "text": para,
+                    "source": collection
+                });
+
+                qdrant.upsert(collection, serde_json::json!(point_id), vector, payload).await?;
+                count += 1;
+            }
+
+            Ok(format!("Indexed {} text paragraphs from {:?} into collection '{}'", count, file_path.file_name().unwrap_or_default(), collection))
+        }
+        FileType::Pdf | FileType::Epub | FileType::Docx => {
+            anyhow::bail!(
+                "Format {:?} ({}) is a binary document. Convert to text/markdown or image first.",
+                file_type,
+                file_type.label()
+            )
+        }
+        FileType::Unknown => {
+            anyhow::bail!("Unsupported file type for path {:?}", file_path)
+        }
     }
 }

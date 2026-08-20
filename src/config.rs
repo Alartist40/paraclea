@@ -38,6 +38,8 @@ pub struct OllamaConfig {
     pub heavy_model: String,
     #[serde(default = "default_embed_model")]
     pub embed_model: String,
+    #[serde(default = "default_ocr_model")]
+    pub ocr_model: String,
 }
 
 fn default_heavy_model() -> String {
@@ -46,6 +48,10 @@ fn default_heavy_model() -> String {
 
 fn default_embed_model() -> String {
     "nomic-embed-text".to_string()
+}
+
+fn default_ocr_model() -> String {
+    "frob/unlimited-ocr:q8_0".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,6 +105,7 @@ impl Default for Config {
                     model: "ministral-3:3b".to_string(),
                     heavy_model: "qwen3:8b".to_string(),
                     embed_model: "nomic-embed-text".to_string(),
+                    ocr_model: "frob/unlimited-ocr:q8_0".to_string(),
                 },
                 local: LocalConfig {
                     path: "models".to_string(),

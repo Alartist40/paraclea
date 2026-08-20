@@ -1,10 +1,11 @@
 //! Paraclea — AI Companion Assistant & Self-Developing RAG Engine (Rust)
 //!
-//! Visual CLI with Gold & Purple styling, Ollama LLM integration, Qdrant vector database RAG,
-//! Scripture & book-to-skill ingestion, Pocket TTS speech synthesis, and updated Proverbs 31 Helper persona.
+//! Visual CLI with Gold & Purple styling, Ollama LLM & Vision OCR integration, Qdrant vector DB RAG,
+//! format auto-detection, Pocket TTS speech synthesis, and updated Proverbs 31 Helper persona.
 
 mod audio;
 mod config;
+mod detect;
 mod heartbeat;
 mod ingest;
 mod ollama;
@@ -19,8 +20,9 @@ use audio::AudioPlayer;
 use clap::{Parser, Subcommand};
 use colored::*;
 use config::Config;
+use detect::FileType;
 use heartbeat::HeartbeatLoop;
-use ingest::{BibleIngestor, BookIngestor};
+use ingest::{ingest_file, BibleIngestor, BookIngestor};
 use ollama::{ChatMessage, ModelEntry, OllamaClient};
 use persona::PersonaManager;
 use pocket_tts::PocketTtsEngine;
@@ -55,6 +57,16 @@ enum Commands {
         /// Model name or list number
         model: Option<String>,
     },
+    /// Run full system diagnostics (Ollama, Qdrant, TTS, Model Registry)
+    Doctor,
+    /// Auto-detect file format and ingest into Qdrant vector database
+    Ingest {
+        /// File or directory path to ingest
+        input: String,
+        /// Target Qdrant collection name (default: books)
+        #[arg(short, long, default_value = "books")]
+        collection: String,
+    },
     /// Ingest a Bible JSON file into Qdrant vector database
     IngestBible {
         /// Path to Bible JSON file
@@ -70,6 +82,11 @@ enum Commands {
         /// Target Qdrant collection name (default: books)
         #[arg(short, long, default_value = "books")]
         collection: String,
+    },
+    /// Run vision OCR text extraction on an image document
+    Ocr {
+        /// Path to document image file
+        image: String,
     },
     /// Run a one-shot RAG query with Scripture/book retrieval
     Query {
@@ -97,6 +114,11 @@ async fn main() -> Result<()> {
 
     let ollama = OllamaClient::new(&cfg.model.ollama.url, &cfg.model.ollama.model)?;
     let qdrant = QdrantClient::new(&cfg.vector_db.qdrant_url)?;
+    let pocket_tts = PocketTtsEngine::new(
+        &cfg.voice.pocket_tts_url,
+        &cfg.voice.pocket_tts_voice,
+        Some(&cfg.voice.pocket_tts_cli),
+    )?;
 
     match &cli.command {
         Some(Commands::List) => {
@@ -116,6 +138,35 @@ async fn main() -> Result<()> {
                 print_available_models(&ollama).await;
                 return Ok(());
             }
+        }
+        Some(Commands::Doctor) => {
+            run_doctor(&cfg, &ollama, &qdrant, &pocket_tts).await;
+            return Ok(());
+        }
+        Some(Commands::Ingest { input, collection }) => {
+            let input_path = Path::new(input);
+            let ftype = FileType::from_path(input_path);
+            println!(
+                "{}",
+                format!("📦 Ingesting file {:?} ({}) into collection '{}'...", input_path.file_name().unwrap_or_default(), ftype.label(), collection)
+                    .truecolor(177, 74, 237)
+                    .bold()
+            );
+
+            match ingest_file(
+                &ollama,
+                &qdrant,
+                &cfg.model.ollama.embed_model,
+                &cfg.model.ollama.ocr_model,
+                input_path,
+                collection,
+            )
+            .await
+            {
+                Ok(msg) => println!("{}", format!("✓ {}", msg).truecolor(255, 215, 0).bold()),
+                Err(e) => eprintln!("{}", format!("Ingestion failed: {}", e).red()),
+            }
+            return Ok(());
         }
         Some(Commands::IngestBible { input, collection }) => {
             println!("{}", print_purple("📖 Ingesting Bible dataset into Qdrant..."));
@@ -142,6 +193,17 @@ async fn main() -> Result<()> {
                         .bold()
                 ),
                 Err(e) => eprintln!("{}", format!("Ingestion failed: {}", e).red()),
+            }
+            return Ok(());
+        }
+        Some(Commands::Ocr { image }) => {
+            println!("{}", print_purple("👁️ Running Ollama Vision OCR document extraction..."));
+            match ollama.ocr_image(Path::new(image), &cfg.model.ollama.ocr_model).await {
+                Ok(text) => {
+                    println!("\n{}", print_gold("=== EXTRACTED OCR MARKDOWN ==="));
+                    println!("{}\n", text);
+                }
+                Err(e) => eprintln!("{}", format!("OCR extraction failed: {}", e).red()),
             }
             return Ok(());
         }
@@ -212,6 +274,88 @@ fn print_gold(text: &str) -> ColoredString {
 
 fn print_purple(text: &str) -> ColoredString {
     text.truecolor(177, 74, 237).bold()
+}
+
+async fn run_doctor(
+    cfg: &Config,
+    ollama: &OllamaClient,
+    qdrant: &QdrantClient,
+    tts: &PocketTtsEngine,
+) {
+    println!(
+        "{}",
+        "╔══════════════════════════════════════════════════════════════╗"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!(
+        "{}",
+        "║     PARACLEA AI ASSISTANT — SYSTEM DOCTOR DIAGNOSTICS        ║"
+            .truecolor(255, 215, 0)
+            .bold()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════╝"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+
+    // 1. Ollama Check
+    let ollama_ok = ollama.health_check().await.unwrap_or(false);
+    println!(
+        "  🔍 Checking Ollama Server ({}) ... {}",
+        cfg.model.ollama.url,
+        if ollama_ok { "ONLINE".green().bold() } else { "OFFLINE".red().bold() }
+    );
+
+    // 2. Qdrant Check
+    let qdrant_ok = qdrant.health_check().await;
+    println!(
+        "  🔍 Checking Qdrant Vector DB ({}) ... {}",
+        cfg.vector_db.qdrant_url,
+        if qdrant_ok { "ONLINE".green().bold() } else { "OFFLINE (Standby)".yellow().bold() }
+    );
+
+    // 3. Pocket TTS Check
+    let tts_ok = tts.health_check().await;
+    println!(
+        "  🔍 Checking Pocket TTS Engine ({}) ... {}",
+        cfg.voice.pocket_tts_url,
+        if tts_ok { "ONLINE".green().bold() } else { "CLI FALLBACK".yellow().bold() }
+    );
+
+    // 4. Model Registry Diagnostics
+    println!("\n{}", print_purple("  🧠 Model Registry Status:"));
+    let reg = ollama.discover_models().await;
+
+    println!(
+        "     • Embedding Model:     {} ",
+        reg.embed.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
+    );
+    println!(
+        "     • Default Chat Model:  {} ",
+        reg.chat.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
+    );
+    println!(
+        "     • Heavy Reasoning:     {} ",
+        reg.heavy.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
+    );
+    println!(
+        "     • Document Vision OCR: {} ",
+        reg.ocr.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
+    );
+
+    let missing = ollama.check_missing(&reg);
+    if !missing.is_empty() {
+        println!("\n{}", "  ⚠️  Recommended models missing:".yellow().bold());
+        for item in missing {
+            println!("     - {}", item);
+        }
+    } else {
+        println!("\n{}", "  🎉 All recommended model categories present and operational!".green().bold());
+    }
+    println!();
 }
 
 async fn print_available_models(ollama: &OllamaClient) {
@@ -338,7 +482,17 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         println!("{}", "CLI FALLBACK".yellow());
     }
 
-    // 5. Launch Heartbeat Background Self-Maintenance Loop
+    // 5. Model Registry Status Output
+    let reg = ollama.discover_models().await;
+    let missing = ollama.check_missing(&reg);
+    if !missing.is_empty() {
+        println!(
+            "{}",
+            format!("⚠️  Recommended models missing: run 'paraclea doctor' for details").yellow()
+        );
+    }
+
+    // 6. Launch Heartbeat Background Self-Maintenance Loop
     let shutdown = Arc::new(AtomicBool::new(false));
     let heartbeat = HeartbeatLoop::new(
         cfg.persona.heartbeat_interval,
@@ -350,11 +504,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         heartbeat.run(shutdown_hb).await;
     });
 
-    // 6. Tool & RAG Executors
+    // 7. Tool & RAG Executors
     let tool_executor = ToolExecutor::new(persona.clone());
     let rag_engine = RagEngine::new(&ollama, &qdrant);
 
-    // 7. Interactive REPL Shell Loop
+    // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
     println!(
         "\n{}\n",
@@ -381,13 +535,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             break;
         }
 
-        // Log user turn to daily interaction log
         let _ = persona.append_daily_log(&format!("User: {}", input_str));
 
         print!("{}", print_purple("retrieving... "));
         io::stdout().flush()?;
 
-        // Perform RAG retrieval if Qdrant is online
         let rag_ret = rag_engine
             .retrieve_context(
                 input_str,
@@ -419,7 +571,6 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             input_str.to_string()
         };
 
-        // Build current system prompt & message context
         let mut messages = Vec::new();
         messages.push(ChatMessage {
             role: "system".to_string(),
@@ -439,7 +590,6 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 print!("\r                 \r");
                 io::stdout().flush()?;
 
-                // Check for tool execution request
                 if let Some(tool_call) = tool_executor.parse_tool_call(&response_text) {
                     let verb = tool_executor.action_verb(&tool_call.tool);
                     print!("{} ", print_gold(verb));
@@ -525,7 +675,7 @@ fn print_banner(cfg: &Config) {
     );
     println!(
         "{}",
-        "║     ai agent • persona • vector rag • local                 ║"
+        "║     ai agent • persona • vector rag • vision ocr • local    ║"
             .truecolor(177, 74, 237)
     );
     println!(
@@ -560,7 +710,6 @@ async fn display_and_speak(
         content: text.to_string(),
     });
 
-    // Synthesize & play speech audio
     if let Ok(audio_bytes) = tts.synthesize(text).await {
         println!("{}", print_purple("speaking..."));
         let _ = AudioPlayer::play_wav_bytes(&audio_bytes);

@@ -9,6 +9,7 @@ model:
     model: "ministral-3:3b"
     heavy_model: "qwen3:8b"
     embed_model: "nomic-embed-text"
+    ocr_model: "frob/unlimited-ocr:q8_0"
   local:
     path: "models"
 
