@@ -143,8 +143,12 @@ mkdir -p persona/logs/daily
 echo -e "${PURPLE}🔨 Building Paraclea release binary (Rust opt-level 3)...${RESET}"
 cargo build --release
 
-cp target/release/paraclea "$BIN_DIR/paraclea"
-chmod +x "$BIN_DIR/paraclea"
+mkdir -p "$INSTALL_DIR/data"
+if [ -f "data/kjv.json" ]; then
+    cp "data/kjv.json" "$INSTALL_DIR/data/kjv.json"
+fi
+
+install -m 755 target/release/paraclea "$BIN_DIR/paraclea"
 
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo -e "${GOLD}Adding $BIN_DIR to PATH in ~/.bashrc...${RESET}"
