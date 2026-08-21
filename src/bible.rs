@@ -84,6 +84,26 @@ impl BibleReader {
         })
     }
 
+    /// Automatically locate and load Bible dataset from standard global or repository paths.
+    pub fn load_auto() -> Result<Self> {
+        let candidates = vec![
+            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/data/kjv.json")),
+            Some(PathBuf::from("/home/orangepi/Documents/portfolio/paraclea/data/kjv.json")),
+            Some(PathBuf::from("data/kjv.json")),
+            Some(PathBuf::from("../data/kjv.json")),
+        ];
+
+        for cand in candidates.into_iter().flatten() {
+            if cand.exists() {
+                if let Ok(reader) = Self::load_primary(&cand) {
+                    return Ok(reader);
+                }
+            }
+        }
+
+        anyhow::bail!("Bible JSON dataset not found on system.");
+    }
+
     /// List supported languages.
     pub fn list_languages() -> Vec<LanguageOption> {
         vec![

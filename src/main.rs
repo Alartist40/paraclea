@@ -919,7 +919,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     let tool_executor = ToolExecutor::new(persona.clone());
     let rag_engine = RagEngine::new(&ollama, &qdrant);
     let config_path = PathBuf::from("config.yaml");
-    let bible_reader = BibleReader::load_primary("data/kjv.json").ok();
+    let bible_reader = BibleReader::load_auto().ok();
 
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
