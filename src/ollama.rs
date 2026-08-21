@@ -62,12 +62,19 @@ pub struct ChatMessage {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct OllamaOptions {
+    pub temperature: f32,
+    pub repeat_penalty: f32,
+    pub num_predict: i32,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct OllamaChatRequest {
     pub model: String,
     pub messages: Vec<ChatMessage>,
     pub stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
+    pub options: Option<OllamaOptions>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -268,7 +275,11 @@ impl OllamaClient {
             model: model_name.to_string(),
             messages,
             stream: false,
-            temperature: Some(0.3),
+            options: Some(OllamaOptions {
+                temperature: 0.3,
+                repeat_penalty: 1.18,
+                num_predict: 1024,
+            }),
         };
 
         debug!("Sending chat request to Ollama model '{}'", model_name);
@@ -315,7 +326,11 @@ impl OllamaClient {
             model: model_name.to_string(),
             messages,
             stream: true,
-            temperature: Some(0.3),
+            options: Some(OllamaOptions {
+                temperature: 0.3,
+                repeat_penalty: 1.18,
+                num_predict: 1024,
+            }),
         };
 
         debug!("Sending streaming chat request to Ollama model '{}'", model_name);

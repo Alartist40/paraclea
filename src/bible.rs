@@ -187,12 +187,54 @@ impl BibleReader {
             ],
         }
     }
+}
 
-    /// Search for book by name (fuzzy matching case-insensitive).
+pub const OLD_TESTAMENT_BOOKS: &[&str] = &[
+    "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
+    "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra",
+    "Nehemiah", "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon",
+    "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos",
+    "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi"
+];
+
+pub const NEW_TESTAMENT_BOOKS: &[&str] = &[
+    "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
+    "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
+    "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
+    "1 John", "2 John", "3 John", "Jude", "Revelation"
+];
+
+impl BibleReader {
+    /// Search for book by name or common alias (fuzzy matching case-insensitive).
     pub fn find_book(&self, query: &str) -> Option<&BookMeta> {
         let q = query.trim().to_lowercase();
+        let normalized = match q.as_str() {
+            "songs of solomon" | "songs of solomon " | "song of songs" | "canticles" => "song of solomon",
+            "psalm" | "psalms" => "psalms",
+            "revelations" => "revelation",
+            "1samuel" => "1 samuel",
+            "2samuel" => "2 samuel",
+            "1kings" => "1 kings",
+            "2kings" => "2 kings",
+            "1chronicles" => "1 chronicles",
+            "2chronicles" => "2 chronicles",
+            "1corinthians" => "1 corinthians",
+            "2corinthians" => "2 corinthians",
+            "1thessalonians" => "1 thessalonians",
+            "2thessalonians" => "2 thessalonians",
+            "1timothy" => "1 timothy",
+            "2timothy" => "2 timothy",
+            "1peter" => "1 peter",
+            "2peter" => "2 peter",
+            "1john" => "1 john",
+            "2john" => "2 john",
+            "3john" => "3 john",
+            _ => q.as_str(),
+        };
+
         self.books.iter().find(|b| {
-            b.name.to_lowercase() == q || b.name.to_lowercase().starts_with(&q)
+            let bn = b.name.to_lowercase();
+            bn == normalized || bn.starts_with(normalized) || normalized.starts_with(&bn)
         })
     }
 

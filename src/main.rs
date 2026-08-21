@@ -622,6 +622,90 @@ async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn prompt_select_book(reader: &BibleReader) -> Option<String> {
+    use bible::{NEW_TESTAMENT_BOOKS, OLD_TESTAMENT_BOOKS};
+
+    println!("  {}", print_gold("Select Navigation Mode:"));
+    println!("    [1] Old Testament (39 Books)");
+    println!("    [2] New Testament (27 Books)");
+    println!("    [3] Type Book Name Directly (e.g. Psalms, Song of Solomon, John)");
+
+    print!("\n{} ", print_gold("Select option [1-3] >"));
+    let _ = io::stdout().flush();
+
+    let stdin = io::stdin();
+    let mut choice_str = String::new();
+    if stdin.read_line(&mut choice_str).is_err() {
+        return None;
+    }
+
+    let choice = choice_str.trim().parse::<usize>().unwrap_or(3);
+
+    match choice {
+        1 => {
+            println!("\n  {}", print_gold("Old Testament Books:"));
+            for (idx, &b_name) in OLD_TESTAMENT_BOOKS.iter().enumerate() {
+                print!("    [{:2}] {:<18}", idx + 1, b_name);
+                if (idx + 1) % 3 == 0 {
+                    println!();
+                }
+            }
+            println!();
+
+            print!("\n{} ", print_gold("Select Old Testament Book [1-39] >"));
+            let _ = io::stdout().flush();
+
+            let mut num_str = String::new();
+            if stdin.read_line(&mut num_str).is_ok() {
+                if let Ok(idx) = num_str.trim().parse::<usize>() {
+                    if idx >= 1 && idx <= OLD_TESTAMENT_BOOKS.len() {
+                        return Some(OLD_TESTAMENT_BOOKS[idx - 1].to_string());
+                    }
+                }
+            }
+            None
+        }
+        2 => {
+            println!("\n  {}", print_gold("New Testament Books:"));
+            for (idx, &b_name) in NEW_TESTAMENT_BOOKS.iter().enumerate() {
+                print!("    [{:2}] {:<18}", idx + 1, b_name);
+                if (idx + 1) % 3 == 0 {
+                    println!();
+                }
+            }
+            println!();
+
+            print!("\n{} ", print_gold("Select New Testament Book [1-27] >"));
+            let _ = io::stdout().flush();
+
+            let mut num_str = String::new();
+            if stdin.read_line(&mut num_str).is_ok() {
+                if let Ok(idx) = num_str.trim().parse::<usize>() {
+                    if idx >= 1 && idx <= NEW_TESTAMENT_BOOKS.len() {
+                        return Some(NEW_TESTAMENT_BOOKS[idx - 1].to_string());
+                    }
+                }
+            }
+            None
+        }
+        _ => {
+            print!("{} ", print_gold("Enter Book Name (e.g. Genesis, Proverbs, Song of Solomon) >"));
+            let _ = io::stdout().flush();
+
+            let mut b_input = String::new();
+            if stdin.read_line(&mut b_input).is_ok() && !b_input.trim().is_empty() {
+                let searched = b_input.trim();
+                if let Some(b) = reader.find_book(searched) {
+                    return Some(b.name.clone());
+                } else {
+                    println!("{}", format!("⚠️ Book '{}' not found in Bible database.", searched).red());
+                }
+            }
+            None
+        }
+    }
+}
+
 async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<ChatMessage>) -> Result<()> {
     println!(
         "\n{}",
@@ -642,22 +726,20 @@ async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<C
             .bold()
     );
 
-    let stdin = io::stdin();
-    print!("{} ", print_gold("Enter Book Name (e.g. Genesis, Proverbs, John) >"));
-    io::stdout().flush()?;
+    let selected_book_name = match prompt_select_book(reader) {
+        Some(name) => name,
+        None => return Ok(()),
+    };
 
-    let mut book_input = String::new();
-    stdin.read_line(&mut book_input)?;
-    let book_name = book_input.trim();
-
-    let book_meta = match reader.find_book(book_name) {
+    let book_meta = match reader.find_book(&selected_book_name) {
         Some(b) => b,
         None => {
-            println!("{}", format!("⚠️ Book '{}' not found in Bible database.", book_name).red());
+            println!("{}", format!("⚠️ Book '{}' not found in Bible database.", selected_book_name).red());
             return Ok(());
         }
     };
 
+    let stdin = io::stdin();
     println!(
         "  📖 {}",
         print_gold(&format!("'{}' has {} chapters.", book_meta.name, book_meta.total_chapters))
@@ -755,22 +837,20 @@ async fn handle_compare_cmd(
             .bold()
     );
 
-    let stdin = io::stdin();
-    print!("{} ", print_gold("Enter Book Name (e.g. John, Genesis, Proverbs) >"));
-    io::stdout().flush()?;
+    let selected_book_name = match prompt_select_book(reader) {
+        Some(name) => name,
+        None => return Ok(()),
+    };
 
-    let mut book_input = String::new();
-    stdin.read_line(&mut book_input)?;
-    let book_name = book_input.trim();
-
-    let book_meta = match reader.find_book(book_name) {
+    let book_meta = match reader.find_book(&selected_book_name) {
         Some(b) => b,
         None => {
-            println!("{}", format!("⚠️ Book '{}' not found.", book_name).red());
+            println!("{}", format!("⚠️ Book '{}' not found.", selected_book_name).red());
             return Ok(());
         }
     };
 
+    let stdin = io::stdin();
     print!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters)));
     io::stdout().flush()?;
 
