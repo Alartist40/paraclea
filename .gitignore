@@ -23,3 +23,8 @@ __pycache__/
 .vscode/
 .idea/
 *.log
+
+# Paraclea local storage & flags
+.qdrant-initialized
+/storage
+/data/*.json

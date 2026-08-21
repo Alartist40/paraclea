@@ -255,13 +255,8 @@ async fn main() -> Result<()> {
         }
         None => {
             let available = ollama.fetch_available_models().await;
-            if !available.is_empty() {
-                if !available.iter().any(|m| m.target == cfg.model.ollama.model) {
-                    let first_model = &available[0];
-                    cfg.model.ollama.model = first_model.target.clone();
-                    let _ = cfg.save(&config_path);
-                }
-            }
+            ensure_valid_chat_model(&available, &mut cfg);
+            let _ = cfg.save(&config_path);
         }
     }
 
@@ -302,7 +297,15 @@ async fn run_doctor(
     );
 
     // 1. Ollama Check
-    let ollama_ok = ollama.health_check().await.unwrap_or(false);
+    let mut ollama_ok = ollama.health_check().await.unwrap_or(false);
+    if !ollama_ok {
+        let _ = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("nohup ollama serve > /tmp/ollama.log 2>&1 &")
+            .spawn();
+        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+        ollama_ok = ollama.health_check().await.unwrap_or(false);
+    }
     println!(
         "  🔍 Checking Ollama Server ({}) ... {}",
         cfg.model.ollama.url,
@@ -310,7 +313,20 @@ async fn run_doctor(
     );
 
     // 2. Qdrant Check
-    let qdrant_ok = qdrant.health_check().await;
+    let mut qdrant_ok = qdrant.health_check().await;
+    if !qdrant_ok {
+        if let Ok(home) = std::env::var("HOME") {
+            let qdrant_bin = std::path::PathBuf::from(home).join(".paraclea/bin/qdrant");
+            if qdrant_bin.exists() {
+                let _ = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(format!("nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_bin))
+                    .spawn();
+                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                qdrant_ok = qdrant.health_check().await;
+            }
+        }
+    }
     println!(
         "  🔍 Checking Qdrant Vector DB ({}) ... {}",
         cfg.vector_db.qdrant_url,
@@ -434,6 +450,89 @@ fn select_and_apply_model(target: &str, available: &[ModelEntry], cfg: &mut Conf
     }
 }
 
+fn ensure_valid_chat_model(ollama_models: &[ModelEntry], cfg: &mut Config) {
+    let current = cfg.model.ollama.model.to_lowercase();
+    let is_invalid = current.contains("ocr")
+        || current.contains("embed")
+        || !ollama_models.iter().any(|m| m.target == cfg.model.ollama.model);
+
+    if is_invalid {
+        if let Some(chat_entry) = ollama_models.iter().find(|m| {
+            let n = m.name.to_lowercase();
+            !n.contains("ocr") && !n.contains("embed")
+        }) {
+            cfg.model.ollama.model = chat_entry.target.clone();
+        }
+    }
+}
+
+const DYNAMIC_GREETINGS: &[&str] = &[
+    "Greetings! I am right here beside you. How may I serve and support your work today?",
+    "Welcome back! May wisdom, clarity, and peace guide our conversation today. What is on your mind?",
+    "Hello my friend! I enjoyed our last conversation and am ready whenever you are. How can I assist you?",
+    "Shalom! I'm here to lend a helping hand and thoughtful counsel. Where should we begin today?",
+    "Welcome! The day is full of purpose. What shall we focus on right now?",
+    "Good to see you! Ready to dive in whenever you are—let's accomplish something great together.",
+];
+
+const DYNAMIC_FAREWELLS: &[&str] = &[
+    "I really enjoyed our conversation! Go with strength and wisdom—talk later!",
+    "Until next time! May your work be fruitful and your heart at peace.",
+    "It was a pleasure helping you today. Take care, and I will be right here whenever you return!",
+    "Farewell for now! May your path be clear and your effort blessed. Talk soon!",
+    "Safe travels on your work today! I enjoyed our chat—reach out whenever you need me again.",
+    "Goodbye for now, my friend! Keep striving with courage and grace. Talk later!",
+];
+
+fn get_random_greeting() -> &'static str {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as usize)
+        .unwrap_or(0);
+    DYNAMIC_GREETINGS[now % DYNAMIC_GREETINGS.len()]
+}
+
+fn get_random_farewell() -> &'static str {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as usize)
+        .unwrap_or(0);
+    DYNAMIC_FAREWELLS[now % DYNAMIC_FAREWELLS.len()]
+}
+
+fn print_help_menu() {
+    println!(
+        "{}",
+        "╔══════════════════════════════════════════════════════════════╗"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!(
+        "{}",
+        "║             PARACLEA AI ASSISTANT — COMMAND MENU             ║"
+            .truecolor(255, 215, 0)
+            .bold()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════╝"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!("  {}", print_gold("Available Interactive Commands:"));
+    println!("    {} - Show this command menu & capabilities", print_purple("/help"));
+    println!("    {} - End conversation session", print_purple("/bye or /end"));
+    println!("    {} - List available Ollama and local models", print_purple("/models"));
+    println!("    {} - Switch active chat LLM", print_purple("/model <name>"));
+    println!("    {} - Run full system diagnostic health check", print_purple("/doctor"));
+    println!("    {} - Reset conversation context history", print_purple("/clear"));
+    println!("\n  {}", print_gold("RAG Vector Ingestion & CLI Commands:"));
+    println!("    • Ingest document/image: {} <file>", print_purple("paraclea ingest"));
+    println!("    • Ingest Bible JSON:    {} <kjv.json>", print_purple("paraclea ingest-bible"));
+    println!("    • One-shot RAG query:   {} \"question\"", print_purple("paraclea query"));
+    println!();
+}
+
 async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     print_banner(&cfg);
 
@@ -445,26 +544,54 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     };
     let persona = PersonaManager::new(&persona_dir)?;
 
-    // 2. Initialize Ollama Client
-    let ollama = OllamaClient::new(&cfg.model.ollama.url, &cfg.model.ollama.model)?;
+    // 2. Initialize Ollama Client & Sanitize Chat Model
+    let mut cfg = cfg;
+    let mut ollama = OllamaClient::new(&cfg.model.ollama.url, &cfg.model.ollama.model)?;
+    let available = ollama.fetch_available_models().await;
+    ensure_valid_chat_model(&available, &mut cfg);
+    ollama.model = cfg.model.ollama.model.clone();
 
     print!("{}", print_purple("🔍 Checking Ollama... "));
     io::stdout().flush()?;
-    match ollama.health_check().await {
-        Ok(true) => println!("{}", print_gold("ONLINE")),
-        _ => println!("{}", "OFFLINE".red().bold()),
+    let mut ollama_online = ollama.health_check().await.unwrap_or(false);
+    if !ollama_online {
+        let _ = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("nohup ollama serve > /tmp/ollama.log 2>&1 &")
+            .spawn();
+        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+        ollama_online = ollama.health_check().await.unwrap_or(false);
+    }
+    if ollama_online {
+        println!("{}", print_gold("ONLINE"));
+    } else {
+        println!("{}", "OFFLINE".red().bold());
     }
 
     // 3. Initialize Qdrant Client
     let qdrant = QdrantClient::new(&cfg.vector_db.qdrant_url)?;
     print!("{}", print_purple("🔍 Checking Qdrant Vector DB... "));
     io::stdout().flush()?;
-    if qdrant.health_check().await {
+    let mut qdrant_online = qdrant.health_check().await;
+    if !qdrant_online {
+        if let Ok(home) = std::env::var("HOME") {
+            let qdrant_bin = std::path::PathBuf::from(home).join(".paraclea/bin/qdrant");
+            if qdrant_bin.exists() {
+                let _ = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(format!("nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_bin))
+                    .spawn();
+                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                qdrant_online = qdrant.health_check().await;
+            }
+        }
+    }
+    if qdrant_online {
         println!("{}", print_gold("ONLINE"));
         qdrant.create_collection(&cfg.vector_db.collection_bible, 768).await.ok();
         qdrant.create_collection(&cfg.vector_db.collection_books, 768).await.ok();
     } else {
-        println!("{}", "STANDBY (Run './qdrant' for vector search)".yellow());
+        println!("{}", "STANDBY".yellow());
     }
 
     // 4. Initialize Pocket TTS Client
@@ -511,8 +638,13 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
     println!(
-        "\n{}\n",
-        print_gold("✨ Paraclea is ready! Type your message (or 'exit' to quit).")
+        "\n{} {}\n",
+        print_purple("Paraclea >"),
+        print_gold(get_random_greeting())
+    );
+    println!(
+        "{}\n",
+        print_gold("✨ Paraclea is ready! Type your message (or '/help' for options, '/bye' to quit).")
     );
 
     let stdin = io::stdin();
@@ -526,13 +658,50 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         }
 
         let input_str = user_input.trim();
-        if input_str.eq_ignore_ascii_case("exit") || input_str.eq_ignore_ascii_case("quit") {
+
+        // Strict Exit Commands (/bye, /end, /exit, /quit)
+        if input_str.eq_ignore_ascii_case("/bye")
+            || input_str.eq_ignore_ascii_case("/end")
+            || input_str.eq_ignore_ascii_case("/exit")
+            || input_str.eq_ignore_ascii_case("/quit")
+        {
             println!(
                 "\n{} {}\n",
                 print_purple("Paraclea >"),
-                print_gold("Goodbye master! See you soon!")
+                print_gold(get_random_farewell())
             );
             break;
+        }
+
+        // Interactive Slash Commands
+        if input_str.eq_ignore_ascii_case("/help") {
+            print_help_menu();
+            continue;
+        }
+
+        if input_str.eq_ignore_ascii_case("/doctor") {
+            run_doctor(&cfg, &ollama, &qdrant, &pocket_tts).await;
+            continue;
+        }
+
+        if input_str.eq_ignore_ascii_case("/models") || input_str.eq_ignore_ascii_case("/list") {
+            print_available_models(&ollama).await;
+            continue;
+        }
+
+        if input_str.starts_with("/model ") {
+            let target = input_str.trim_start_matches("/model ").trim();
+            let available_models = ollama.fetch_available_models().await;
+            if let Err(e) = select_and_apply_model(target, &available_models, &mut cfg) {
+                eprintln!("{}", format!("Error: {}", e).red());
+            }
+            continue;
+        }
+
+        if input_str.eq_ignore_ascii_case("/clear") {
+            history.clear();
+            println!("{}", print_gold("✓ Conversation context cleared."));
+            continue;
         }
 
         let _ = persona.append_daily_log(&format!("User: {}", input_str));

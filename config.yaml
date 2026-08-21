@@ -7,7 +7,7 @@ model:
   ollama:
     url: "http://localhost:11434"
     model: "ministral-3:3b"
-    heavy_model: "qwen3:8b"
+    heavy_model: "ornith:9b"
     embed_model: "nomic-embed-text"
     ocr_model: "frob/unlimited-ocr:q8_0"
   local:

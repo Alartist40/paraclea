@@ -23,7 +23,7 @@ ARCH="$(uname -m)"
 
 case $ARCH in
     x86_64)  ARCH_TAG="x86_64-unknown-linux-gnu" ;;
-    aarch64|arm64) ARCH_TAG="aarch64-unknown-linux-gnu" ;;
+    aarch64|arm64) ARCH_TAG="aarch64-unknown-linux-musl" ;;
     *) echo -e "${RED}Unsupported architecture: $ARCH${RESET}"; exit 1 ;;
 esac
 
@@ -79,6 +79,15 @@ if [ ! -f "$INSTALL_DIR/bin/qdrant" ]; then
     fi
 fi
 
+# Start Qdrant in background if not running
+if ! curl -s http://localhost:6333/collections >/dev/null 2>&1; then
+    if [ -f "$INSTALL_DIR/bin/qdrant" ]; then
+        echo -e "${PURPLE}🚀 Starting Qdrant vector database background process...${RESET}"
+        nohup "$INSTALL_DIR/bin/qdrant" > "$INSTALL_DIR/qdrant.log" 2>&1 &
+        sleep 2
+    fi
+fi
+
 # Clone or update Paraclea source repository
 if [ ! -f "Cargo.toml" ]; then
     SRC_DIR="$INSTALL_DIR/paraclea"
@@ -103,8 +112,8 @@ model:
   backend: "ollama"
   ollama:
     url: "http://localhost:11434"
-    model: "ministral-3:3b"
-    heavy_model: "qwen3:8b"
+    model: "ministral-3:8b"
+    heavy_model: "ornith:9b"
     embed_model: "nomic-embed-text"
     ocr_model: "frob/unlimited-ocr:q8_0"
   local:

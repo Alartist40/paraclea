@@ -37,8 +37,9 @@ impl<'a> BibleIngestor<'a> {
 
     /// Ingest a Bible JSON file into Qdrant vector storage.
     pub async fn ingest_json_file(&self, json_path: &Path) -> Result<usize> {
-        let content = fs::read_to_string(json_path)
+        let content_raw = fs::read_to_string(json_path)
             .with_context(|| format!("Failed to read Bible JSON file: {:?}", json_path))?;
+        let content = content_raw.trim_start_matches('\u{feff}');
 
         let json_val: Value = serde_json::from_str(&content)
             .with_context(|| "Failed to parse Bible JSON structure")?;
@@ -47,9 +48,51 @@ impl<'a> BibleIngestor<'a> {
 
         let mut total_chunks = 0;
 
-        if let Some(verses_array) = json_val.as_array() {
+        if let Some(array_val) = json_val.as_array() {
+            if let Some(first_item) = array_val.first() {
+                if first_item.get("chapters").is_some() {
+                    for book_obj in array_val {
+                        let book_name = book_obj.get("name")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or("Bible");
+                        if let Some(chapters) = book_obj.get("chapters").and_then(|c| c.as_array()) {
+                            for (c_idx, chap_val) in chapters.iter().enumerate() {
+                                let chap_num = (c_idx + 1) as u32;
+                                if let Some(verses) = chap_val.as_array() {
+                                    let mut chunk_buffer = Vec::new();
+                                    for (v_idx, verse_val) in verses.iter().enumerate() {
+                                        let verse_num = (v_idx + 1) as u32;
+                                        let text = verse_val.as_str().unwrap_or("").to_string();
+
+                                        chunk_buffer.push(serde_json::json!({
+                                            "book": book_name,
+                                            "chapter": chap_num,
+                                            "verse": verse_num,
+                                            "text": text
+                                        }));
+
+                                        if chunk_buffer.len() >= 3 {
+                                            self.process_verse_chunk(&chunk_buffer).await?;
+                                            total_chunks += 1;
+                                            chunk_buffer.clear();
+                                        }
+                                    }
+                                    if !chunk_buffer.is_empty() {
+                                        self.process_verse_chunk(&chunk_buffer).await?;
+                                        total_chunks += 1;
+                                        chunk_buffer.clear();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    info!("Bible ingestion finished: indexed {} chunks into collection '{}'", total_chunks, self.collection);
+                    return Ok(total_chunks);
+                }
+            }
+
             let mut chunk_buffer: Vec<Value> = Vec::new();
-            for item in verses_array {
+            for item in array_val {
                 chunk_buffer.push(item.clone());
                 if chunk_buffer.len() >= 3 {
                     self.process_verse_chunk(&chunk_buffer).await?;
@@ -124,7 +167,7 @@ impl<'a> BibleIngestor<'a> {
             .collect();
 
         let chunk_str = format!("{} {}:{}-{} {}", book, chap, first_v, last_v, combined_text.join(" "));
-        let point_id = format!("{}-{}-{}-{}", book.to_lowercase(), chap, first_v, last_v);
+        let point_id = uuid::Uuid::new_v4().to_string();
 
         let vector = self.ollama.embed(&chunk_str, &self.embed_model).await?;
         let payload = serde_json::json!({
@@ -181,7 +224,7 @@ impl<'a> BookIngestor<'a> {
                     .collect();
 
                 for (idx, para) in paragraphs.iter().enumerate() {
-                    let point_id = format!("{}-{}", filename.to_lowercase(), idx);
+                    let point_id = uuid::Uuid::new_v4().to_string();
                     let vector = self.ollama.embed(para, &self.embed_model).await?;
 
                     let payload = serde_json::json!({
@@ -271,7 +314,7 @@ pub async fn ingest_file(
 
             let mut count = 0;
             for (idx, para) in paragraphs.iter().enumerate() {
-                let point_id = format!("{}-{}", file_stem.to_lowercase(), idx);
+                let point_id = uuid::Uuid::new_v4().to_string();
                 let vector = ollama.embed(para, embed_model).await?;
 
                 let payload = serde_json::json!({
