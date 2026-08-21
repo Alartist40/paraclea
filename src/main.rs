@@ -475,6 +475,12 @@ const DYNAMIC_GREETINGS: &[&str] = &[
     "Shalom! I'm here to lend a helping hand and thoughtful counsel. Where should we begin today?",
     "Welcome! The day is full of purpose. What shall we focus on right now?",
     "Good to see you! Ready to dive in whenever you are—let's accomplish something great together.",
+    "Grace and peace to you today! I am tuned in and ready to assist with your studies or projects.",
+    "Ah, welcome back companion! What meaningful task shall we tackle together today?",
+    "Hello! It is a joy to walk alongside you. How can I help make your day lighter and more productive?",
+    "Welcome friend! Whether searching Scripture or solving complex code, I stand ready to assist.",
+    "Greetings! Sunshine or rain, wisdom is ready to be uncovered. Where are we heading today?",
+    "Hello again! I've kept our previous thoughts safe in memory. What is our next destination?",
 ];
 
 const DYNAMIC_FAREWELLS: &[&str] = &[
@@ -484,6 +490,12 @@ const DYNAMIC_FAREWELLS: &[&str] = &[
     "Farewell for now! May your path be clear and your effort blessed. Talk soon!",
     "Safe travels on your work today! I enjoyed our chat—reach out whenever you need me again.",
     "Goodbye for now, my friend! Keep striving with courage and grace. Talk later!",
+    "Rest well and go in peace! I will be waiting right here when you return.",
+    "Farewell, dear friend! May clarity attend your steps until we speak again.",
+    "Take good care! Remember that step by step, great things are accomplished.",
+    "Until next session! Carry truth and kindness with you wherever you go.",
+    "Goodnight/goodbye for now! Stay inspired, stay courageous.",
+    "Farewell! It has been an absolute joy working with you. Talk soon!",
 ];
 
 fn get_random_greeting() -> &'static str {
@@ -610,7 +622,7 @@ async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
     Ok(())
 }
 
-async fn handle_read_cmd(reader: &BibleReader, history: &mut Vec<ChatMessage>) -> Result<()> {
+async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<ChatMessage>) -> Result<()> {
     println!(
         "\n{}",
         "╔══════════════════════════════════════════════════════════════╗"
@@ -676,11 +688,13 @@ async fn handle_read_cmd(reader: &BibleReader, history: &mut Vec<ChatMessage>) -
     stdin.read_line(&mut verse_input)?;
     let v_str = verse_input.trim().to_lowercase();
 
+    let trans_tag = &cfg.bible.translation;
+
     if v_str == "all" || v_str.is_empty() {
-        if let Some(verses) = reader.read_chapter(&book_meta.name, chapter_num) {
+        if let Some(verses) = reader.read_translation_chapter(trans_tag, &book_meta.name, chapter_num) {
             println!(
                 "\n{}",
-                format!("=== {} Chapter {} ===", book_meta.name, chapter_num).truecolor(255, 215, 0).bold()
+                format!("=== {} Chapter {} [{}] ===", book_meta.name, chapter_num, trans_tag).truecolor(255, 215, 0).bold()
             );
             let mut full_passage = String::new();
             for (v_idx, text) in verses {
@@ -690,14 +704,14 @@ async fn handle_read_cmd(reader: &BibleReader, history: &mut Vec<ChatMessage>) -
             }
             history.push(ChatMessage {
                 role: "system".to_string(),
-                content: format!("User is reading {} Chapter {}:\n{}", book_meta.name, chapter_num, full_passage),
+                content: format!("User is reading {} Chapter {} [{}]:\n{}", book_meta.name, chapter_num, trans_tag, full_passage),
             });
             println!("\n{}", print_gold("✓ Passage loaded. Ask Paraclea any questions about this chapter!"));
         }
     } else if let Ok(verse_num) = v_str.parse::<usize>() {
         if verse_num >= 1 && verse_num <= verse_count {
-            if let Some(text) = reader.read_verse(&book_meta.name, chapter_num, verse_num) {
-                let citation = format!("{} {}:{}", book_meta.name, chapter_num, verse_num);
+            if let Some(text) = reader.read_translation_verse(trans_tag, &book_meta.name, chapter_num, verse_num) {
+                let citation = format!("{} {}:{} [{}]", book_meta.name, chapter_num, verse_num, trans_tag);
                 println!(
                     "\n{} {}",
                     citation.truecolor(255, 215, 0).bold(),
@@ -972,7 +986,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
         if input_str.eq_ignore_ascii_case("/read") {
             if let Some(ref reader) = bible_reader {
-                let _ = handle_read_cmd(reader, &mut history).await;
+                let _ = handle_read_cmd(reader, &cfg, &mut history).await;
             } else {
                 println!("{}", "⚠️ Bible database not loaded.".red());
             }
