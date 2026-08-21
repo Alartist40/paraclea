@@ -9,6 +9,7 @@ mod config;
 mod detect;
 mod heartbeat;
 mod ingest;
+mod mesh;
 mod ollama;
 mod persona;
 mod pocket_tts;
@@ -25,6 +26,7 @@ use config::Config;
 use detect::FileType;
 use heartbeat::HeartbeatLoop;
 use ingest::{ingest_file, BibleIngestor, BookIngestor};
+use mesh::ReticulumEngine;
 use ollama::{ChatMessage, ModelEntry, OllamaClient};
 use persona::PersonaManager;
 use pocket_tts::PocketTtsEngine;
@@ -560,6 +562,7 @@ fn print_help_menu() {
     println!("    {} - Configure default Bible language & translation", print_purple("/bible"));
     println!("    {} - Interactive Scripture reader with chapter/verse bounds", print_purple("/read"));
     println!("    {} - Side-by-side translation comparison & AI study commentary", print_purple("/compare"));
+    println!("    {} - Reticulum mesh status, peer discovery & identity", print_purple("/mesh [announce|peers|id]"));
     println!("    {} - End conversation session", print_purple("/bye or /end"));
     println!("    {} - List available Ollama and local models", print_purple("/models"));
     println!("    {} - Switch active chat LLM", print_purple("/model <name>"));
@@ -984,11 +987,24 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         heartbeat.run(shutdown_hb).await;
     });
 
-    // 7. Tool & RAG Executors & Bible Reader
+    // 7. Tool & RAG Executors & Bible Reader & Reticulum Mesh
     let tool_executor = ToolExecutor::new(persona.clone());
     let rag_engine = RagEngine::new(&ollama, &qdrant);
     let config_path = PathBuf::from("config.yaml");
     let bible_reader = BibleReader::load_auto().ok();
+    let mesh_engine = ReticulumEngine::new().ok();
+
+    print!("{}", print_purple("🔍 Checking Reticulum Mesh... "));
+    io::stdout().flush()?;
+    if let Some(ref mesh) = mesh_engine {
+        if let Some(ref id) = mesh.identity_hash {
+            println!("{} {}", print_gold("ONLINE"), format!("(Identity: <{}>)", id).purple());
+        } else {
+            println!("{}", print_gold("ONLINE"));
+        }
+    } else {
+        println!("{}", "STANDBY".yellow());
+    }
 
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
@@ -1050,6 +1066,40 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 let _ = handle_compare_cmd(&mut rl, reader, &ollama, &mut history).await;
             } else {
                 println!("{}", "⚠️ Bible database not loaded.".red());
+            }
+            continue;
+        }
+
+        if input_str == "/mesh" || input_str.starts_with("/mesh ") {
+            if let Some(ref mesh) = mesh_engine {
+                let arg = input_str.trim_start_matches("/mesh").trim().to_lowercase();
+                match arg.as_str() {
+                    "announce" => {
+                        println!("{}", print_purple("Broadcasting Reticulum announcement packet..."));
+                        match mesh.announce() {
+                            Ok(res) => println!("  {}", print_gold(&format!("✓ {}", res))),
+                            Err(e) => eprintln!("  {}", format!("⚠️ Announce error: {}", e).red()),
+                        }
+                    }
+                    "peers" | "paths" => {
+                        println!("\n{}", print_gold("=== Discovered Reticulum Mesh Peers ==="));
+                        match mesh.list_peers() {
+                            Ok(p) => println!("{}", p.truecolor(177, 74, 237)),
+                            Err(e) => eprintln!("{}", format!("Error: {}", e).red()),
+                        }
+                    }
+                    "id" | "identity" => {
+                        if let Some(ref id) = mesh.identity_hash {
+                            println!("\n{} {}\n", print_gold("Local Reticulum Identity Hash:"), format!("<{}>", id).truecolor(177, 74, 237).bold());
+                        }
+                    }
+                    _ => {
+                        println!("\n{}", print_gold("=== Reticulum Mesh Network Status ==="));
+                        println!("{}", mesh.status().truecolor(177, 74, 237));
+                    }
+                }
+            } else {
+                println!("{}", "⚠️ Reticulum mesh module unavailable.".red());
             }
             continue;
         }
