@@ -39,6 +39,9 @@ impl HeartbeatLoop {
         let mut timer = tokio::time::interval(self.interval);
         timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+        // Consume initial tick at t=0 so maintenance pass doesn't fire immediately on app launch
+        timer.tick().await;
+
         loop {
             timer.tick().await;
             if shutdown.load(Ordering::Relaxed) {

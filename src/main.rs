@@ -30,11 +30,33 @@ use persona::PersonaManager;
 use pocket_tts::PocketTtsEngine;
 use qdrant::QdrantClient;
 use rag::RagEngine;
+use rustyline::DefaultEditor;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tools::ToolExecutor;
+
+fn read_line_prompt(rl: &mut Option<DefaultEditor>, prompt: &str) -> String {
+    if let Some(ref mut ed) = rl {
+        match ed.readline(prompt) {
+            Ok(line) => {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    ed.add_history_entry(trimmed).ok();
+                }
+                line
+            }
+            Err(_) => String::new(),
+        }
+    } else {
+        print!("{}", prompt);
+        let _ = io::stdout().flush();
+        let mut input = String::new();
+        let _ = io::stdin().read_line(&mut input);
+        input
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "paraclea")]
@@ -550,7 +572,7 @@ fn print_help_menu() {
     println!();
 }
 
-async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
+async fn handle_bible_menu(rl: &mut Option<DefaultEditor>, cfg: &mut Config, config_path: &Path) -> Result<()> {
     println!(
         "\n{}",
         "╔══════════════════════════════════════════════════════════════╗"
@@ -576,12 +598,7 @@ async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
         println!("    [{}] {}", lang.id, lang.name);
     }
 
-    print!("\n{} ", print_gold("Select language [1-5] >"));
-    io::stdout().flush()?;
-
-    let stdin = io::stdin();
-    let mut input = String::new();
-    stdin.read_line(&mut input)?;
+    let input = read_line_prompt(rl, &format!("\n{} ", print_gold("Select language [1-5] >")));
 
     let lang_id = input.trim().parse::<usize>().unwrap_or(1);
     let selected_lang = languages.iter().find(|l| l.id == lang_id).cloned().unwrap_or(languages[0].clone());
@@ -594,11 +611,7 @@ async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
     }
     println!("    [{}] Not Sure / Recommended (Defaults to Easy Version)", translations.len() + 1);
 
-    print!("\n{} ", print_gold("Select translation >"));
-    io::stdout().flush()?;
-
-    let mut trans_input = String::new();
-    stdin.read_line(&mut trans_input)?;
+    let trans_input = read_line_prompt(rl, &format!("\n{} ", print_gold("Select translation >")));
 
     let trans_id = trans_input.trim().parse::<usize>().unwrap_or(1);
     let selected_trans = if trans_id <= translations.len() {
@@ -622,7 +635,7 @@ async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn prompt_select_book(reader: &BibleReader) -> Option<String> {
+fn prompt_select_book(rl: &mut Option<DefaultEditor>, reader: &BibleReader) -> Option<String> {
     use bible::{NEW_TESTAMENT_BOOKS, OLD_TESTAMENT_BOOKS};
 
     println!("  {}", print_gold("Select Navigation Mode:"));
@@ -630,15 +643,7 @@ fn prompt_select_book(reader: &BibleReader) -> Option<String> {
     println!("    [2] New Testament (27 Books)");
     println!("    [3] Type Book Name Directly (e.g. Psalms, Song of Solomon, John)");
 
-    print!("\n{} ", print_gold("Select option [1-3] >"));
-    let _ = io::stdout().flush();
-
-    let stdin = io::stdin();
-    let mut choice_str = String::new();
-    if stdin.read_line(&mut choice_str).is_err() {
-        return None;
-    }
-
+    let choice_str = read_line_prompt(rl, &format!("\n{} ", print_gold("Select option [1-3] >")));
     let choice = choice_str.trim().parse::<usize>().unwrap_or(3);
 
     match choice {
@@ -652,15 +657,10 @@ fn prompt_select_book(reader: &BibleReader) -> Option<String> {
             }
             println!();
 
-            print!("\n{} ", print_gold("Select Old Testament Book [1-39] >"));
-            let _ = io::stdout().flush();
-
-            let mut num_str = String::new();
-            if stdin.read_line(&mut num_str).is_ok() {
-                if let Ok(idx) = num_str.trim().parse::<usize>() {
-                    if idx >= 1 && idx <= OLD_TESTAMENT_BOOKS.len() {
-                        return Some(OLD_TESTAMENT_BOOKS[idx - 1].to_string());
-                    }
+            let num_str = read_line_prompt(rl, &format!("\n{} ", print_gold("Select Old Testament Book [1-39] >")));
+            if let Ok(idx) = num_str.trim().parse::<usize>() {
+                if idx >= 1 && idx <= OLD_TESTAMENT_BOOKS.len() {
+                    return Some(OLD_TESTAMENT_BOOKS[idx - 1].to_string());
                 }
             }
             None
@@ -675,26 +675,18 @@ fn prompt_select_book(reader: &BibleReader) -> Option<String> {
             }
             println!();
 
-            print!("\n{} ", print_gold("Select New Testament Book [1-27] >"));
-            let _ = io::stdout().flush();
-
-            let mut num_str = String::new();
-            if stdin.read_line(&mut num_str).is_ok() {
-                if let Ok(idx) = num_str.trim().parse::<usize>() {
-                    if idx >= 1 && idx <= NEW_TESTAMENT_BOOKS.len() {
-                        return Some(NEW_TESTAMENT_BOOKS[idx - 1].to_string());
-                    }
+            let num_str = read_line_prompt(rl, &format!("\n{} ", print_gold("Select New Testament Book [1-27] >")));
+            if let Ok(idx) = num_str.trim().parse::<usize>() {
+                if idx >= 1 && idx <= NEW_TESTAMENT_BOOKS.len() {
+                    return Some(NEW_TESTAMENT_BOOKS[idx - 1].to_string());
                 }
             }
             None
         }
         _ => {
-            print!("{} ", print_gold("Enter Book Name (e.g. Genesis, Proverbs, Song of Solomon) >"));
-            let _ = io::stdout().flush();
-
-            let mut b_input = String::new();
-            if stdin.read_line(&mut b_input).is_ok() && !b_input.trim().is_empty() {
-                let searched = b_input.trim();
+            let b_input = read_line_prompt(rl, &format!("{} ", print_gold("Enter Book Name (e.g. Genesis, Proverbs, Song of Solomon) >")));
+            let searched = b_input.trim();
+            if !searched.is_empty() {
                 if let Some(b) = reader.find_book(searched) {
                     return Some(b.name.clone());
                 } else {
@@ -706,7 +698,7 @@ fn prompt_select_book(reader: &BibleReader) -> Option<String> {
     }
 }
 
-async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<ChatMessage>) -> Result<()> {
+async fn handle_read_cmd(rl: &mut Option<DefaultEditor>, reader: &BibleReader, cfg: &Config, history: &mut Vec<ChatMessage>) -> Result<()> {
     println!(
         "\n{}",
         "╔══════════════════════════════════════════════════════════════╗"
@@ -726,7 +718,7 @@ async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<C
             .bold()
     );
 
-    let selected_book_name = match prompt_select_book(reader) {
+    let selected_book_name = match prompt_select_book(rl, reader) {
         Some(name) => name,
         None => return Ok(()),
     };
@@ -739,17 +731,12 @@ async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<C
         }
     };
 
-    let stdin = io::stdin();
     println!(
         "  📖 {}",
         print_gold(&format!("'{}' has {} chapters.", book_meta.name, book_meta.total_chapters))
     );
 
-    print!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters)));
-    io::stdout().flush()?;
-
-    let mut chap_input = String::new();
-    stdin.read_line(&mut chap_input)?;
+    let chap_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters))));
     let chapter_num: usize = chap_input.trim().parse().unwrap_or(1);
 
     if chapter_num < 1 || chapter_num > book_meta.total_chapters {
@@ -763,11 +750,7 @@ async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<C
         print_gold(&format!("'{} Chapter {}' has {} verses.", book_meta.name, chapter_num, verse_count))
     );
 
-    print!("{} ", print_gold(&format!("Select Verse (1-{}, or 'all' for full chapter) >", verse_count)));
-    io::stdout().flush()?;
-
-    let mut verse_input = String::new();
-    stdin.read_line(&mut verse_input)?;
+    let verse_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select Verse (1-{}, or 'all' for full chapter) >", verse_count))));
     let v_str = verse_input.trim().to_lowercase();
 
     let trans_tag = &cfg.bible.translation;
@@ -814,6 +797,7 @@ async fn handle_read_cmd(reader: &BibleReader, cfg: &Config, history: &mut Vec<C
 }
 
 async fn handle_compare_cmd(
+    rl: &mut Option<DefaultEditor>,
     reader: &BibleReader,
     ollama: &OllamaClient,
     history: &mut Vec<ChatMessage>,
@@ -837,7 +821,7 @@ async fn handle_compare_cmd(
             .bold()
     );
 
-    let selected_book_name = match prompt_select_book(reader) {
+    let selected_book_name = match prompt_select_book(rl, reader) {
         Some(name) => name,
         None => return Ok(()),
     };
@@ -850,20 +834,11 @@ async fn handle_compare_cmd(
         }
     };
 
-    let stdin = io::stdin();
-    print!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters)));
-    io::stdout().flush()?;
-
-    let mut chap_input = String::new();
-    stdin.read_line(&mut chap_input)?;
+    let chap_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters))));
     let chapter_num: usize = chap_input.trim().parse().unwrap_or(1);
 
     let verse_count = reader.get_verse_count(&book_meta.name, chapter_num).unwrap_or(1);
-    print!("{} ", print_gold(&format!("Select Verse (1-{}) >", verse_count)));
-    io::stdout().flush()?;
-
-    let mut verse_input = String::new();
-    stdin.read_line(&mut verse_input)?;
+    let verse_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select Verse (1-{}) >", verse_count))));
     let verse_num: usize = verse_input.trim().parse().unwrap_or(1);
 
     let primary_text = reader.read_verse(&book_meta.name, chapter_num, verse_num)
@@ -1017,6 +992,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
+    let mut rl = DefaultEditor::new().ok();
+
     println!(
         "\n{} {}\n",
         print_purple("Paraclea >"),
@@ -1027,17 +1004,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         print_gold("✨ Paraclea is ready! Type your message (or '/help' for options, '/bye' to quit).")
     );
 
-    let stdin = io::stdin();
     loop {
-        print!("{} ", print_gold("You >"));
-        io::stdout().flush()?;
-
-        let mut user_input = String::new();
-        if stdin.read_line(&mut user_input).is_err() || user_input.trim().is_empty() {
+        let user_input = read_line_prompt(&mut rl, &format!("{} ", print_gold("You >")));
+        let input_str = user_input.trim();
+        if input_str.is_empty() {
             continue;
         }
-
-        let input_str = user_input.trim();
 
         // Strict Exit Commands (/bye, /end, /exit, /quit)
         if input_str.eq_ignore_ascii_case("/bye")
@@ -1060,13 +1032,13 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         }
 
         if input_str.eq_ignore_ascii_case("/bible") {
-            let _ = handle_bible_menu(&mut cfg, &config_path).await;
+            let _ = handle_bible_menu(&mut rl, &mut cfg, &config_path).await;
             continue;
         }
 
         if input_str.eq_ignore_ascii_case("/read") {
             if let Some(ref reader) = bible_reader {
-                let _ = handle_read_cmd(reader, &cfg, &mut history).await;
+                let _ = handle_read_cmd(&mut rl, reader, &cfg, &mut history).await;
             } else {
                 println!("{}", "⚠️ Bible database not loaded.".red());
             }
@@ -1075,7 +1047,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
         if input_str.eq_ignore_ascii_case("/compare") {
             if let Some(ref reader) = bible_reader {
-                let _ = handle_compare_cmd(reader, &ollama, &mut history).await;
+                let _ = handle_compare_cmd(&mut rl, reader, &ollama, &mut history).await;
             } else {
                 println!("{}", "⚠️ Bible database not loaded.".red());
             }
