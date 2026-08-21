@@ -10,12 +10,15 @@
 
 ### Key Capabilities
 - **Proverbs 31 Helper Persona**: Gentle, wise, dignified, courageous, humble, reverent, proactive, and industrious helper identity (`SOUL.md`).
+- **Reticulum Mesh Network (`/mesh`)**: Zero-trust off-grid mesh communications over local WiFi/Ethernet, serial cables, and LoRa radios without internet or central servers.
+- **Interactive Terminal Shell & Line Editing**: Native Left/Right arrow key navigation, smooth backspacing, and command history recall across all interactive prompts.
+- **140+ Bible Translations & Grid Selector**: Offline access to 140+ Bible translations across 30+ languages, interactive Old/New Testament grid selection, and side-by-side translation comparison (`/read`, `/compare`, `/bible`).
 - **Offline Qdrant Vector Engine**: Fast local vector storage (`http://localhost:6333`) for Scripture RAG, book-to-skill knowledge bases, and survival guides.
 - **Ollama Vision OCR (`frob/unlimited-ocr:q8_0`)**: Direct Base64 vision document OCR for photos of book pages, manuscript scans, and handwritten documents.
-- **File Format Auto-Detection (`src/detect.rs`)**: Automatic format detection (`.png`, `.jpg`, `.pdf`, `.md`, `.txt`, `.json`, `.html`) and intelligent processing pipeline routing.
-- **Multi-Model Routing**: Automatically routes simpler queries to lightweight models (`ministral-3:3b`) and complex theological/analytical queries to heavy reasoning models (`qwen3:8b` / `ornith:9b`).
-- **System Doctor Diagnostics (`paraclea doctor`)**: Self-diagnoses connectivity and verifies presence of all 4 key model categories (`Embedding`, `Chat`, `Heavy Reasoning`, `Document Vision OCR`).
-- **Pure Rust Core**: Lightweight, fast, memory-efficient, and free from heavy Python environment dependencies.
+- **File Format Auto-Detection (`src/detect.rs`)**: Automatic format detection (`.png`, `.jpg`, `.pdf`, `.md`, `.txt`, `.json`, `.html`, `.csv`) and intelligent processing pipeline routing.
+- **Multi-Model Routing & Anti-Loop Penalty**: Automatically routes queries to lightweight models (`ministral-3:3b`) or heavy reasoning models (`qwen3:8b`), with automatic repetition penalty to prevent LLM token looping.
+- **System Doctor Diagnostics (`paraclea doctor`)**: Self-diagnoses connectivity and verifies presence of Ollama, Qdrant, TTS, and Reticulum Mesh status.
+- **Pure Rust Core**: Single-binary native ARM64 & x86_64 performance with **0% idle CPU overhead** and instant startup.
 - **Pocket TTS Speech Synthesis**: Smooth CPU-driven speech synthesis using natural female voice presets (`alba`, `cosette`, `eve`, `mary`, `vera`).
 - **Gold & Purple UI**: Elegant terminal theme built in Rust.
 
@@ -39,8 +42,19 @@ Run `paraclea` from anywhere in your terminal:
 # Display help and version information
 paraclea --help
 
-# Run full system diagnostics (Ollama, Qdrant, TTS, Model Registry)
+# Run full system diagnostics (Ollama, Qdrant, TTS, Reticulum Mesh, Model Registry)
 paraclea doctor
+
+# Interactive Reticulum mesh commands inside Paraclea REPL:
+#   /mesh          - View live Reticulum interfaces, network speed & status
+#   /mesh announce - Broadcast an off-grid announcement packet
+#   /mesh peers    - List all discovered Reticulum mesh peers and paths
+#   /mesh identity - Show local 512-bit cryptographic identity hash
+
+# Bible reading & comparison interactive commands:
+#   /bible   - Select default language & Bible translation from 140+ versions
+#   /read    - Interactive Scripture reader with Old/New Testament book grid
+#   /compare - Side-by-side translation comparison with AI study commentary
 
 # List all available Ollama and local models
 paraclea list

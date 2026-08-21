@@ -2,6 +2,19 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.4.0] - 2026-08-21
+
+### Added
+- **Reticulum Mesh Network Module (`src/mesh.rs`)**: Integrated zero-trust off-grid mesh engine using Reticulum Network Stack (RNS). Auto-discovers local devices over WiFi/Ethernet, serial lines, and LoRa radios without internet.
+- **Reticulum Slash Commands (`/mesh`)**: Added `/mesh status`, `/mesh announce`, `/mesh peers`, and `/mesh identity` interactive commands.
+- **Full Terminal Line Editing (`rustyline`)**: Integrated `rustyline::DefaultEditor` across all REPL prompts for native Left/Right arrow cursor movement, smooth backspacing, and command history scroll.
+- **140+ CSV Bible Translations (`src/bible.rs`)**: Added `CsvBibleReader` parsing 140+ offline Bible translation files across 30+ languages.
+- **Interactive Testament & Numbered Book Selector**: Added 3-tier navigation menu for Old Testament (39 books), New Testament (27 books), and direct search with alias normalization ("songs of solomon" -> "Song of Solomon").
+
+### Fixed
+- **LLM Infinite Token Repetition Glitch**: Added `OllamaOptions` with `repeat_penalty: 1.18` and `num_predict: 1024` to eliminate repetitive phrase loops.
+- **Startup CPU/Fan Spike Fix (`src/heartbeat.rs`)**: Consumed Tokio `interval` startup tick to prevent immediate background LLM memory reflection on launch.
+
 ## [0.3.0] - 2026-08-20
 
 ### Added
