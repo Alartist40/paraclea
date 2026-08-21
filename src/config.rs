@@ -15,6 +15,8 @@ pub struct Config {
     pub vector_db: VectorDbConfig,
     pub voice: VoiceConfig,
     pub persona: PersonaConfig,
+    #[serde(default)]
+    pub bible: BibleConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -91,6 +93,31 @@ pub struct PersonaConfig {
     pub heartbeat_interval: u64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BibleConfig {
+    #[serde(default = "default_bible_language")]
+    pub language: String,
+    #[serde(default = "default_bible_translation")]
+    pub translation: String,
+}
+
+fn default_bible_language() -> String {
+    "English".to_string()
+}
+
+fn default_bible_translation() -> String {
+    "KJV".to_string()
+}
+
+impl Default for BibleConfig {
+    fn default() -> Self {
+        Self {
+            language: default_bible_language(),
+            translation: default_bible_translation(),
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -121,6 +148,7 @@ impl Default for Config {
                 dir: "persona".to_string(),
                 heartbeat_interval: 15,
             },
+            bible: BibleConfig::default(),
         }
     }
 }

@@ -298,8 +298,93 @@ impl OllamaClient {
         Ok(body.message.content)
     }
 
+    /// Send streaming chat request with target model name, invoking callback for each token delta.
+    pub async fn chat_with_model_stream<F>(
+        &self,
+        model_name: &str,
+        messages: Vec<ChatMessage>,
+        mut token_cb: F,
+    ) -> Result<String>
+    where
+        F: FnMut(&str),
+    {
+        use futures_util::StreamExt;
+
+        let url = format!("{}/api/chat", self.endpoint);
+        let req = OllamaChatRequest {
+            model: model_name.to_string(),
+            messages,
+            stream: true,
+            temperature: Some(0.3),
+        };
+
+        debug!("Sending streaming chat request to Ollama model '{}'", model_name);
+        let resp = self
+            .client
+            .post(&url)
+            .json(&req)
+            .send()
+            .await
+            .with_context(|| format!("Failed to reach Ollama at {}", url))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Ollama HTTP {}: {}", status, body);
+        }
+
+        let mut full_response = String::new();
+        let mut stream = resp.bytes_stream();
+        let mut buffer = String::new();
+
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = chunk_result.context("Error reading response stream from Ollama")?;
+            let chunk_str = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&chunk_str);
+
+            while let Some(pos) = buffer.find('\n') {
+                let line = buffer[..pos].trim().to_string();
+                buffer.drain(..pos + 1);
+
+                if line.is_empty() {
+                    continue;
+                }
+
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+                    if let Some(content) = val["message"]["content"].as_str() {
+                        if !content.is_empty() {
+                            token_cb(content);
+                            full_response.push_str(content);
+                        }
+                    }
+                }
+            }
+        }
+
+        if !buffer.trim().is_empty() {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(buffer.trim()) {
+                if let Some(content) = val["message"]["content"].as_str() {
+                    if !content.is_empty() {
+                        token_cb(content);
+                        full_response.push_str(content);
+                    }
+                }
+            }
+        }
+
+        Ok(full_response)
+    }
+
     /// Send full chat request to Ollama using default model.
     pub async fn chat(&self, messages: Vec<ChatMessage>) -> Result<String> {
         self.chat_with_model(&self.model, messages).await
+    }
+
+    /// Send streaming chat request to Ollama using default model.
+    pub async fn chat_stream<F>(&self, messages: Vec<ChatMessage>, token_cb: F) -> Result<String>
+    where
+        F: FnMut(&str),
+    {
+        self.chat_with_model_stream(&self.model, messages, token_cb).await
     }
 }

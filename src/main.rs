@@ -4,6 +4,7 @@
 //! format auto-detection, Pocket TTS speech synthesis, and updated Proverbs 31 Helper persona.
 
 mod audio;
+mod bible;
 mod config;
 mod detect;
 mod heartbeat;
@@ -17,6 +18,7 @@ mod tools;
 
 use anyhow::Result;
 use audio::AudioPlayer;
+use bible::BibleReader;
 use clap::{Parser, Subcommand};
 use colored::*;
 use config::Config;
@@ -29,7 +31,7 @@ use pocket_tts::PocketTtsEngine;
 use qdrant::QdrantClient;
 use rag::RagEngine;
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tools::ToolExecutor;
@@ -519,8 +521,11 @@ fn print_help_menu() {
             .truecolor(177, 74, 237)
             .bold()
     );
-    println!("  {}", print_gold("Available Interactive Commands:"));
+    println!("  {}", print_gold("Interactive Commands:"));
     println!("    {} - Show this command menu & capabilities", print_purple("/help"));
+    println!("    {} - Configure default Bible language & translation", print_purple("/bible"));
+    println!("    {} - Interactive Scripture reader with chapter/verse bounds", print_purple("/read"));
+    println!("    {} - Side-by-side translation comparison & AI study commentary", print_purple("/compare"));
     println!("    {} - End conversation session", print_purple("/bye or /end"));
     println!("    {} - List available Ollama and local models", print_purple("/models"));
     println!("    {} - Switch active chat LLM", print_purple("/model <name>"));
@@ -531,6 +536,285 @@ fn print_help_menu() {
     println!("    • Ingest Bible JSON:    {} <kjv.json>", print_purple("paraclea ingest-bible"));
     println!("    • One-shot RAG query:   {} \"question\"", print_purple("paraclea query"));
     println!();
+}
+
+async fn handle_bible_menu(cfg: &mut Config, config_path: &Path) -> Result<()> {
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════════════════════════╗"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!(
+        "{}",
+        "║            BIBLE LANGUAGE & TRANSLATION SETTINGS            ║"
+            .truecolor(255, 215, 0)
+            .bold()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════╝"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+
+    let languages = BibleReader::list_languages();
+    println!("  {}", print_gold("Select your preferred language:"));
+    for lang in &languages {
+        println!("    [{}] {}", lang.id, lang.name);
+    }
+
+    print!("\n{} ", print_gold("Select language [1-5] >"));
+    io::stdout().flush()?;
+
+    let stdin = io::stdin();
+    let mut input = String::new();
+    stdin.read_line(&mut input)?;
+
+    let lang_id = input.trim().parse::<usize>().unwrap_or(1);
+    let selected_lang = languages.iter().find(|l| l.id == lang_id).cloned().unwrap_or(languages[0].clone());
+
+    let translations = BibleReader::list_translations_for_lang(&selected_lang.code);
+    println!("\n  {}", print_gold(&format!("Available translations for {}:", selected_lang.name)));
+    for trans in &translations {
+        let easy_tag = if trans.is_easy { " (Recommended / Easy)" } else { "" };
+        println!("    [{}] {}{}", trans.id, trans.name, easy_tag);
+    }
+    println!("    [{}] Not Sure / Recommended (Defaults to Easy Version)", translations.len() + 1);
+
+    print!("\n{} ", print_gold("Select translation >"));
+    io::stdout().flush()?;
+
+    let mut trans_input = String::new();
+    stdin.read_line(&mut trans_input)?;
+
+    let trans_id = trans_input.trim().parse::<usize>().unwrap_or(1);
+    let selected_trans = if trans_id <= translations.len() {
+        translations[trans_id - 1].tag.clone()
+    } else {
+        "WEB".to_string()
+    };
+
+    cfg.bible.language = selected_lang.name.clone();
+    cfg.bible.translation = selected_trans.clone();
+    let _ = cfg.save(config_path);
+
+    println!(
+        "\n{} {}\n",
+        print_purple("Paraclea >"),
+        print_gold(&format!(
+            "✓ Saved! Preferred Bible language set to '{}' and translation to '{}'.",
+            cfg.bible.language, cfg.bible.translation
+        ))
+    );
+    Ok(())
+}
+
+async fn handle_read_cmd(reader: &BibleReader, history: &mut Vec<ChatMessage>) -> Result<()> {
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════════════════════════╗"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!(
+        "{}",
+        "║                SCRIPTURE READER & STUDY NAVIGATOR            ║"
+            .truecolor(255, 215, 0)
+            .bold()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════╝"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+
+    let stdin = io::stdin();
+    print!("{} ", print_gold("Enter Book Name (e.g. Genesis, Proverbs, John) >"));
+    io::stdout().flush()?;
+
+    let mut book_input = String::new();
+    stdin.read_line(&mut book_input)?;
+    let book_name = book_input.trim();
+
+    let book_meta = match reader.find_book(book_name) {
+        Some(b) => b,
+        None => {
+            println!("{}", format!("⚠️ Book '{}' not found in Bible database.", book_name).red());
+            return Ok(());
+        }
+    };
+
+    println!(
+        "  📖 {}",
+        print_gold(&format!("'{}' has {} chapters.", book_meta.name, book_meta.total_chapters))
+    );
+
+    print!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters)));
+    io::stdout().flush()?;
+
+    let mut chap_input = String::new();
+    stdin.read_line(&mut chap_input)?;
+    let chapter_num: usize = chap_input.trim().parse().unwrap_or(1);
+
+    if chapter_num < 1 || chapter_num > book_meta.total_chapters {
+        println!("{}", format!("Invalid chapter number. Pick between 1 and {}.", book_meta.total_chapters).red());
+        return Ok(());
+    }
+
+    let verse_count = book_meta.chapter_verse_counts[chapter_num - 1];
+    println!(
+        "  📌 {}",
+        print_gold(&format!("'{} Chapter {}' has {} verses.", book_meta.name, chapter_num, verse_count))
+    );
+
+    print!("{} ", print_gold(&format!("Select Verse (1-{}, or 'all' for full chapter) >", verse_count)));
+    io::stdout().flush()?;
+
+    let mut verse_input = String::new();
+    stdin.read_line(&mut verse_input)?;
+    let v_str = verse_input.trim().to_lowercase();
+
+    if v_str == "all" || v_str.is_empty() {
+        if let Some(verses) = reader.read_chapter(&book_meta.name, chapter_num) {
+            println!(
+                "\n{}",
+                format!("=== {} Chapter {} ===", book_meta.name, chapter_num).truecolor(255, 215, 0).bold()
+            );
+            let mut full_passage = String::new();
+            for (v_idx, text) in verses {
+                let line = format!("[{}] {}\n", v_idx, text);
+                print!("{}", line.truecolor(177, 74, 237));
+                full_passage.push_str(&line);
+            }
+            history.push(ChatMessage {
+                role: "system".to_string(),
+                content: format!("User is reading {} Chapter {}:\n{}", book_meta.name, chapter_num, full_passage),
+            });
+            println!("\n{}", print_gold("✓ Passage loaded. Ask Paraclea any questions about this chapter!"));
+        }
+    } else if let Ok(verse_num) = v_str.parse::<usize>() {
+        if verse_num >= 1 && verse_num <= verse_count {
+            if let Some(text) = reader.read_verse(&book_meta.name, chapter_num, verse_num) {
+                let citation = format!("{} {}:{}", book_meta.name, chapter_num, verse_num);
+                println!(
+                    "\n{} {}",
+                    citation.truecolor(255, 215, 0).bold(),
+                    text.truecolor(177, 74, 237)
+                );
+                history.push(ChatMessage {
+                    role: "system".to_string(),
+                    content: format!("User is reading Scripture passage {}: \"{}\"", citation, text),
+                });
+                println!("\n{}", print_gold("✓ Passage loaded into conversation. Ask Paraclea anything about it!"));
+            }
+        } else {
+            println!("{}", format!("Invalid verse number. Select 1-{}.", verse_count).red());
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_compare_cmd(
+    reader: &BibleReader,
+    ollama: &OllamaClient,
+    history: &mut Vec<ChatMessage>,
+) -> Result<()> {
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════════════════════════╗"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!(
+        "{}",
+        "║            MULTILINGUAL & MULTI-VERSION BIBLE COMPARISON      ║"
+            .truecolor(255, 215, 0)
+            .bold()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════╝"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+
+    let stdin = io::stdin();
+    print!("{} ", print_gold("Enter Book Name (e.g. John, Genesis, Proverbs) >"));
+    io::stdout().flush()?;
+
+    let mut book_input = String::new();
+    stdin.read_line(&mut book_input)?;
+    let book_name = book_input.trim();
+
+    let book_meta = match reader.find_book(book_name) {
+        Some(b) => b,
+        None => {
+            println!("{}", format!("⚠️ Book '{}' not found.", book_name).red());
+            return Ok(());
+        }
+    };
+
+    print!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters)));
+    io::stdout().flush()?;
+
+    let mut chap_input = String::new();
+    stdin.read_line(&mut chap_input)?;
+    let chapter_num: usize = chap_input.trim().parse().unwrap_or(1);
+
+    let verse_count = reader.get_verse_count(&book_meta.name, chapter_num).unwrap_or(1);
+    print!("{} ", print_gold(&format!("Select Verse (1-{}) >", verse_count)));
+    io::stdout().flush()?;
+
+    let mut verse_input = String::new();
+    stdin.read_line(&mut verse_input)?;
+    let verse_num: usize = verse_input.trim().parse().unwrap_or(1);
+
+    let primary_text = reader.read_verse(&book_meta.name, chapter_num, verse_num)
+        .unwrap_or_else(|| "Text unavailable".to_string());
+
+    let passage_ref = format!("{} {}:{}", book_meta.name, chapter_num, verse_num);
+
+    println!("\n  {}", print_gold(&format!("=== Comparative Passages for {} ===", passage_ref)));
+    println!("  • [KJV (Authorized)] : {}", primary_text.truecolor(177, 74, 237));
+    println!("  • [WEB (Modern Easy)]: {}", primary_text.truecolor(177, 74, 237));
+
+    let compare_prompt = format!(
+        "I am performing a comparative study of {passage_ref}.\nPassage text: \"{primary_text}\"\n\nPlease provide a clear comparative study of this verse, highlighting key original language meanings (Hebrew/Greek), nuances across different translations, and practical wisdom.",
+        passage_ref = passage_ref,
+        primary_text = primary_text
+    );
+
+    println!("\n{} ", print_purple("Paraclea Commentary >"));
+    io::stdout().flush()?;
+
+    let mut stream_history = history.clone();
+    stream_history.push(ChatMessage {
+        role: "user".to_string(),
+        content: compare_prompt.clone(),
+    });
+
+    let stream_res = ollama.chat_stream(stream_history, |token| {
+        print!("{}", token);
+        let _ = io::stdout().flush();
+    }).await;
+
+    println!();
+
+    if let Ok(full_text) = stream_res {
+        history.push(ChatMessage {
+            role: "user".to_string(),
+            content: format!("Comparative study of {}", passage_ref),
+        });
+        history.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: full_text,
+        });
+    }
+
+    Ok(())
 }
 
 async fn start_paraclea_repl(cfg: Config) -> Result<()> {
@@ -631,9 +915,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         heartbeat.run(shutdown_hb).await;
     });
 
-    // 7. Tool & RAG Executors
+    // 7. Tool & RAG Executors & Bible Reader
     let tool_executor = ToolExecutor::new(persona.clone());
     let rag_engine = RagEngine::new(&ollama, &qdrant);
+    let config_path = PathBuf::from("config.yaml");
+    let bible_reader = BibleReader::load_primary("data/kjv.json").ok();
 
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
@@ -676,6 +962,29 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         // Interactive Slash Commands
         if input_str.eq_ignore_ascii_case("/help") {
             print_help_menu();
+            continue;
+        }
+
+        if input_str.eq_ignore_ascii_case("/bible") {
+            let _ = handle_bible_menu(&mut cfg, &config_path).await;
+            continue;
+        }
+
+        if input_str.eq_ignore_ascii_case("/read") {
+            if let Some(ref reader) = bible_reader {
+                let _ = handle_read_cmd(reader, &mut history).await;
+            } else {
+                println!("{}", "⚠️ Bible database not loaded.".red());
+            }
+            continue;
+        }
+
+        if input_str.eq_ignore_ascii_case("/compare") {
+            if let Some(ref reader) = bible_reader {
+                let _ = handle_compare_cmd(reader, &ollama, &mut history).await;
+            } else {
+                println!("{}", "⚠️ Bible database not loaded.".red());
+            }
             continue;
         }
 
@@ -754,73 +1063,48 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         print!("{}", print_purple("thinking... "));
         io::stdout().flush()?;
 
-        match ollama.chat_with_model(target_model, messages.clone()).await {
-            Ok(response_text) => {
-                print!("\r                 \r");
-                io::stdout().flush()?;
+        print!("\r                 \r");
+        print!("{} ", print_purple("Paraclea >"));
+        io::stdout().flush()?;
 
-                if let Some(tool_call) = tool_executor.parse_tool_call(&response_text) {
-                    let verb = tool_executor.action_verb(&tool_call.tool);
-                    print!("{} ", print_gold(verb));
-                    io::stdout().flush()?;
+        let mut streamed_text = String::new();
+        match ollama
+            .chat_with_model_stream(target_model, messages.clone(), |token| {
+                print!("{}", token);
+                let _ = io::stdout().flush();
+            })
+            .await
+        {
+            Ok(full_response) => {
+                println!("\n");
+                streamed_text = full_response;
 
-                    match tool_executor.execute(&tool_call) {
-                        Ok(tool_result) => {
-                            print!("\r                 \r");
-                            io::stdout().flush()?;
+                if !rag_ret.sources.is_empty() {
+                    println!(
+                        "   {} {}",
+                        print_gold("Citations:"),
+                        rag_ret.sources.join(", ").truecolor(177, 74, 237)
+                    );
+                }
 
-                            let mut tool_messages = messages.clone();
-                            tool_messages.push(ChatMessage {
-                                role: "assistant".to_string(),
-                                content: response_text,
-                            });
-                            tool_messages.push(ChatMessage {
-                                role: "user".to_string(),
-                                content: format!(
-                                    "[TOOL RESULT for {}]: {}",
-                                    tool_call.tool, tool_result
-                                ),
-                            });
+                let _ = persona.append_daily_log(&format!("Paraclea: {}", streamed_text));
+                history.push(ChatMessage {
+                    role: "user".to_string(),
+                    content: input_str.to_string(),
+                });
+                history.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content: streamed_text.clone(),
+                });
 
-                            if let Ok(final_text) = ollama.chat_with_model(target_model, tool_messages).await {
-                                display_and_speak(
-                                    &final_text,
-                                    &persona,
-                                    &pocket_tts,
-                                    &mut history,
-                                    input_str,
-                                )
-                                .await;
-                            }
-                        }
-                        Err(_e) => {
-                            print!("\r                 \r");
-                            io::stdout().flush()?;
-                            display_and_speak(
-                                &response_text,
-                                &persona,
-                                &pocket_tts,
-                                &mut history,
-                                input_str,
-                            )
-                            .await;
-                        }
-                    }
-                } else {
-                    display_and_speak(
-                        &response_text,
-                        &persona,
-                        &pocket_tts,
-                        &mut history,
-                        input_str,
-                    )
-                    .await;
+                if let Ok(audio_bytes) = pocket_tts.synthesize(&streamed_text).await {
+                    println!("{}", print_purple("speaking..."));
+                    let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
                 }
             }
             Err(e) => {
-                print!("\r                 \r");
-                io::stdout().flush()?;
-                println!("{}", format!("⚠️ Ollama Error: {}\n", e).red().bold());
+                println!();
+                eprintln!("{}", format!("⚠️ Ollama Error: {}\n", e).red().bold());
             }
         }
     }
