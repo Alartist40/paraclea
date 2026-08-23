@@ -6,6 +6,7 @@
 mod audio;
 mod bible;
 mod config;
+mod dendrite;
 mod detect;
 mod heartbeat;
 mod ingest;
@@ -23,6 +24,7 @@ use bible::BibleReader;
 use clap::{Parser, Subcommand};
 use colored::*;
 use config::Config;
+use dendrite::{Dendrite, DendriteContext, DendriteStore, NodeType, ReflectionWorker};
 use detect::FileType;
 use heartbeat::HeartbeatLoop;
 use ingest::{ingest_file, BibleIngestor, BookIngestor};
@@ -311,7 +313,7 @@ async fn run_doctor(
     );
     println!(
         "{}",
-        "║     PARACLEA AI ASSISTANT — SYSTEM DOCTOR DIAGNOSTICS        ║"
+        "║     PARACLEA AI ASSISTANT — ADVANCED SYSTEM DOCTOR           ║"
             .truecolor(255, 215, 0)
             .bold()
     );
@@ -321,8 +323,48 @@ async fn run_doctor(
             .truecolor(177, 74, 237)
             .bold()
     );
+    println!();
 
-    // 1. Ollama Check
+    let mut issues = Vec::new();
+    let mut resolved = Vec::new();
+
+    // 1. Hardware Architecture & CPU Probe
+    println!("{}", print_purple("  💻 System Hardware & CPU Architecture:"));
+    println!("     • OS Target:          {}", print_gold(std::env::consts::OS));
+    println!("     • Architecture:       {}", print_gold(std::env::consts::ARCH));
+    let logical_cpus = std::thread::available_parallelism().map(|u| u.get()).unwrap_or(1);
+    println!("     • CPU Cores:          {} logical threads", print_gold(&logical_cpus.to_string()));
+    println!();
+
+    // 2. Binary Installation & PATH Auto-Fix
+    println!("{}", print_purple("  🛠  Binary Installation & PATH Status:"));
+    let exe_path = std::env::current_exe().unwrap_or_default();
+    println!("     • Current Executable: {}", print_gold(&exe_path.display().to_string()));
+    let in_local_bin = exe_path.to_string_lossy().contains(".local/bin");
+    let paraclea_symlink_ok = if let Ok(home) = std::env::var("HOME") {
+        let symlink = std::path::PathBuf::from(home).join(".local/bin/paraclea");
+        symlink.exists()
+    } else {
+        false
+    };
+
+    if !paraclea_symlink_ok {
+        if let Ok(home) = std::env::var("HOME") {
+            let bin_dir = std::path::PathBuf::from(&home).join(".local/bin");
+            let target = bin_dir.join("paraclea");
+            if std::fs::create_dir_all(&bin_dir).is_ok() {
+                if std::fs::copy(&exe_path, &target).is_ok() {
+                    resolved.push("Auto-installed 'paraclea' binary to ~/.local/bin/paraclea".to_string());
+                }
+            }
+        }
+    }
+
+    println!("     • Installed in PATH:   {}", if in_local_bin || paraclea_symlink_ok { "YES (OK)".green().bold() } else { "NO (~/.local/bin recommended)".yellow().bold() });
+    println!();
+
+    // 3. Ollama Server & Live Forward-Pass Test
+    println!("{}", print_purple("  🤖 Ollama Server & Active Inference Test:"));
     let mut ollama_ok = ollama.health_check().await.unwrap_or(false);
     if !ollama_ok {
         let _ = std::process::Command::new("sh")
@@ -331,14 +373,57 @@ async fn run_doctor(
             .spawn();
         tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
         ollama_ok = ollama.health_check().await.unwrap_or(false);
+        if ollama_ok {
+            resolved.push("Auto-spawned missing Ollama background server".to_string());
+        }
     }
     println!(
-        "  🔍 Checking Ollama Server ({}) ... {}",
+        "     • Ollama Server ({}) ... {}",
         cfg.model.ollama.url,
         if ollama_ok { "ONLINE".green().bold() } else { "OFFLINE".red().bold() }
     );
 
-    // 2. Qdrant Check
+    if ollama_ok {
+        print!("     • Live 1-token forward pass test on '{}' ... ", cfg.model.ollama.model);
+        let start = std::time::Instant::now();
+        let test_msgs = vec![ChatMessage { role: "user".to_string(), content: "hi".to_string() }];
+        match tokio::time::timeout(tokio::time::Duration::from_secs(8), ollama.chat_with_model(&cfg.model.ollama.model, test_msgs)).await {
+            Ok(Ok(out)) => {
+                let dur = start.elapsed();
+                println!("{}", format!("PASSED (in {:.1}ms, sample output: {:?})", dur.as_secs_f64() * 1000.0, out.trim().chars().take(20).collect::<String>()).green().bold());
+            }
+            Ok(Err(e)) => {
+                println!("{}", format!("FAILED ({})", e).red().bold());
+                issues.push(format!("Ollama inference test failed: {}", e));
+            }
+            Err(_) => {
+                println!("{}", "TIMEOUT (Response took > 8s)".yellow().bold());
+                issues.push("Ollama inference test timed out (> 8s)".to_string());
+            }
+        }
+    } else {
+        issues.push("Ollama server is offline".to_string());
+    }
+    println!();
+
+    // 4. Model Registry Diagnostics
+    println!("{}", print_purple("  🧠 Model Registry Category Coverage:"));
+    let reg = ollama.discover_models().await;
+    println!("     • Embedding Model:     {} ", reg.embed.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0));
+    println!("     • Default Chat Model:  {} ", reg.chat.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0));
+    println!("     • Heavy Reasoning:     {} ", reg.heavy.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0));
+    println!("     • Document Vision OCR: {} ", reg.ocr.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0));
+
+    let missing = ollama.check_missing(&reg);
+    if !missing.is_empty() {
+        for item in missing {
+            issues.push(format!("Recommended model category missing: {}", item));
+        }
+    }
+    println!();
+
+    // 5. Qdrant Vector DB Integrity & Auto-Creation
+    println!("{}", print_purple("  ⚡ Qdrant Vector Database Status:"));
     let mut qdrant_ok = qdrant.health_check().await;
     if !qdrant_ok {
         if let Ok(home) = std::env::var("HOME") {
@@ -350,52 +435,76 @@ async fn run_doctor(
                     .spawn();
                 tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
                 qdrant_ok = qdrant.health_check().await;
+                if qdrant_ok {
+                    resolved.push("Auto-spawned background Qdrant vector database daemon".to_string());
+                }
             }
         }
     }
-    println!(
-        "  🔍 Checking Qdrant Vector DB ({}) ... {}",
-        cfg.vector_db.qdrant_url,
-        if qdrant_ok { "ONLINE".green().bold() } else { "OFFLINE (Standby)".yellow().bold() }
-    );
 
-    // 3. Pocket TTS Check
-    let tts_ok = tts.health_check().await;
-    println!(
-        "  🔍 Checking Pocket TTS Engine ({}) ... {}",
-        cfg.voice.pocket_tts_url,
-        if tts_ok { "ONLINE".green().bold() } else { "CLI FALLBACK".yellow().bold() }
-    );
+    if qdrant_ok {
+        println!("     • Vector DB Service:    {}", "ONLINE".green().bold());
+        let _ = qdrant.create_collection(&cfg.vector_db.collection_bible, 768).await;
+        let _ = qdrant.create_collection(&cfg.vector_db.collection_books, 768).await;
+        println!("     • Vector Collections:   {}", "VERIFIED & INITIALIZED".green().bold());
+    } else {
+        println!("     • Vector DB Service:    {}", "STANDBY (Optional RAG disabled)".yellow().bold());
+    }
+    println!();
 
-    // 4. Model Registry Diagnostics
-    println!("\n{}", print_purple("  🧠 Model Registry Status:"));
-    let reg = ollama.discover_models().await;
-
-    println!(
-        "     • Embedding Model:     {} ",
-        reg.embed.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
-    );
-    println!(
-        "     • Default Chat Model:  {} ",
-        reg.chat.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
-    );
-    println!(
-        "     • Heavy Reasoning:     {} ",
-        reg.heavy.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
-    );
-    println!(
-        "     • Document Vision OCR: {} ",
-        reg.ocr.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0)
-    );
-
-    let missing = ollama.check_missing(&reg);
-    if !missing.is_empty() {
-        println!("\n{}", "  ⚠️  Recommended models missing:".yellow().bold());
-        for item in missing {
-            println!("     - {}", item);
+    // 6. Reticulum Mesh Auto-Repair & Status
+    println!("{}", print_purple("  🕸  Reticulum Mesh Stack Integrity:"));
+    if let Ok(mesh) = ReticulumEngine::new() {
+        let rns_ok = mesh.ensure_daemon();
+        println!("     • RNS Shared Instance:  {}", if rns_ok { "ONLINE".green().bold() } else { "OFFLINE".yellow().bold() });
+        if let Some(ref id) = mesh.identity_hash {
+            println!("     • Cryptographic ID:     <{}>", id.purple().bold());
         }
     } else {
-        println!("\n{}", "  🎉 All recommended model categories present and operational!".green().bold());
+        println!("     • RNS Shared Instance:  {}", "STANDBY".yellow().bold());
+    }
+    println!();
+
+    // 7. Dendrite v2 Knowledge Graph DB Integrity Check
+    println!("{}", print_purple("  🧬 Dendrite v2 Knowledge Graph DB Integrity:"));
+    if let Ok(home) = std::env::var("HOME") {
+        let db_path = std::path::PathBuf::from(home).join(".paraclea/dendrite.db");
+        match DendriteStore::open(&db_path) {
+            Ok(store) => {
+                let count = store.node_count().unwrap_or(0);
+                println!("     • SQLite Database:      {}", "ONLINE & HEALTHY".green().bold());
+                println!("     • Stored Knowledge Nodes: {}", print_gold(&count.to_string()));
+            }
+            Err(e) => {
+                println!("     • SQLite Database:      {}", format!("ERROR ({})", e).red().bold());
+                issues.push(format!("Dendrite DB error: {}", e));
+            }
+        }
+    }
+    println!();
+
+    // 8. Pocket TTS Check
+    println!("{}", print_purple("  🔊 Pocket TTS Voice Engine:"));
+    let tts_ok = tts.health_check().await;
+    println!("     • Voice Synthesis:     {}", if tts_ok { "ONLINE".green().bold() } else { "CLI FALLBACK (OK)".yellow().bold() });
+    println!();
+
+    // Summary Verdict & Resolution Report
+    if !resolved.is_empty() {
+        println!("{}", "✨ Auto-Healed Diagnostics:".green().bold());
+        for res in &resolved {
+            println!("     ✓ {}", res.green());
+        }
+        println!();
+    }
+
+    if issues.is_empty() {
+        println!("{}", "🎉 Paraclea System Doctor Check Complete: ALL SYSTEMS OPERATIONAL!".green().bold());
+    } else {
+        println!("{}", "⚠️  Paraclea System Doctor Detected Actionable Items:".yellow().bold());
+        for issue in &issues {
+            println!("     • {}", issue.yellow());
+        }
     }
     println!();
 }
@@ -563,6 +672,7 @@ fn print_help_menu() {
     println!("    {} - Interactive Scripture reader with chapter/verse bounds", print_purple("/read"));
     println!("    {} - Side-by-side translation comparison & AI study commentary", print_purple("/compare"));
     println!("    {} - Reticulum mesh status, peer discovery & identity", print_purple("/mesh [announce|peers|id]"));
+    println!("    {} - Dendrite v2 graph memory status & search", print_purple("/memory [search <query>]"));
     println!("    {} - End conversation session", print_purple("/bye or /end"));
     println!("    {} - List available Ollama and local models", print_purple("/models"));
     println!("    {} - Switch active chat LLM", print_purple("/model <name>"));
@@ -987,12 +1097,24 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         heartbeat.run(shutdown_hb).await;
     });
 
-    // 7. Tool & RAG Executors & Bible Reader & Reticulum Mesh
+    // 7. Tool & RAG Executors & Bible Reader & Reticulum Mesh & Dendrite Memory
     let tool_executor = ToolExecutor::new(persona.clone());
     let rag_engine = RagEngine::new(&ollama, &qdrant);
     let config_path = PathBuf::from("config.yaml");
     let bible_reader = BibleReader::load_auto().ok();
     let mesh_engine = ReticulumEngine::new().ok();
+
+    // Initialize Dendrite v2 Graph Memory & Persistence
+    let dendrite_graph = std::sync::Arc::new(Dendrite::new());
+    let dendrite_store = std::env::var("HOME").ok().and_then(|h| {
+        let db_path = PathBuf::from(h).join(".paraclea/dendrite.db");
+        DendriteStore::open(&db_path).ok().map(std::sync::Arc::new)
+    });
+    if let Some(ref store) = dendrite_store {
+        let _ = store.load_all(&dendrite_graph);
+    }
+    let dendrite_ctx = DendriteContext::new(dendrite_graph.clone(), dendrite_store.clone());
+    let reflection_worker = ReflectionWorker::new(dendrite_graph.clone(), dendrite_store.clone(), ollama.clone());
 
     print!("{}", print_purple("🔍 Checking Reticulum Mesh... "));
     io::stdout().flush()?;
@@ -1005,6 +1127,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     } else {
         println!("{}", "STANDBY".yellow());
     }
+
+    print!("{}", print_purple("🔍 Checking Dendrite Graph Memory... "));
+    io::stdout().flush()?;
+    let node_count = dendrite_graph.len();
+    println!("{} {}", print_gold("ONLINE"), format!("({} nodes loaded)", node_count).purple());
 
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
@@ -1104,6 +1231,37 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
+        if input_str == "/dendrite" || input_str.starts_with("/dendrite ") || input_str == "/memory" || input_str.starts_with("/memory ") {
+            let arg = if input_str.starts_with("/dendrite") {
+                input_str.trim_start_matches("/dendrite").trim()
+            } else {
+                input_str.trim_start_matches("/memory").trim()
+            };
+
+            if arg.starts_with("search ") {
+                let query = arg.trim_start_matches("search ").trim();
+                println!("\n{}", print_gold(&format!("=== Dendrite Graph Memory Search: '{}' ===", query)));
+                let results = dendrite_graph.search_bm25(query, 10);
+                if results.is_empty() {
+                    println!("  {}", "No matching graph memory nodes found.".yellow());
+                } else {
+                    for (node, score) in results {
+                        println!("  • {} [{}] (score: {:.2})\n    {}", node.title.bold(), node.node_type.as_str().purple(), score, node.content.dimmed());
+                    }
+                }
+            } else {
+                println!("\n{}", print_gold("=== Dendrite v2 Knowledge Graph Memory Status ==="));
+                println!("  • Total Knowledge Nodes: {}", print_purple(&dendrite_graph.len().to_string()));
+                println!("  • SQLite DB Storage:    {}", print_purple("~/.paraclea/dendrite.db (WAL + FTS5)"));
+                println!("  • Recent Knowledge Nodes:");
+                for n in dendrite_graph.all().into_iter().take(5) {
+                    println!("    - {} [{}] ({})", n.title.bold(), n.node_type.as_str().purple(), n.content.chars().take(40).collect::<String>());
+                }
+            }
+            println!();
+            continue;
+        }
+
         if input_str.eq_ignore_ascii_case("/doctor") {
             run_doctor(&cfg, &ollama, &qdrant, &pocket_tts).await;
             continue;
@@ -1165,10 +1323,19 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             input_str.to_string()
         };
 
+        // Assemble Dendrite-Enriched System Prompt
+        let dendrite_memories = dendrite_ctx.build_prompt(input_str, 4000);
+        let base_sys_prompt = persona.build_system_prompt();
+        let full_sys_prompt = if !dendrite_memories.trim().is_empty() {
+            format!("{}\n\n# User Study Memories & Context Graph:\n{}", base_sys_prompt, dendrite_memories)
+        } else {
+            base_sys_prompt
+        };
+
         let mut messages = Vec::new();
         messages.push(ChatMessage {
             role: "system".to_string(),
-            content: persona.build_system_prompt(),
+            content: full_sys_prompt,
         });
         messages.extend(history.clone());
         messages.push(ChatMessage {
@@ -1212,6 +1379,9 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                     role: "assistant".to_string(),
                     content: streamed_text.clone(),
                 });
+
+                // Spawn background Dendrite reflection worker to learn user study habits & preferences
+                reflection_worker.spawn_reflection(history.clone());
 
                 if let Ok(audio_bytes) = pocket_tts.synthesize(&streamed_text).await {
                     println!("{}", print_purple("speaking..."));

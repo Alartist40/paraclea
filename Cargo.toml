@@ -37,6 +37,7 @@ anyhow = "1.0"
 # Utilities
 uuid = { version = "1.6", features = ["v4"] }
 regex = "1.10"
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 [profile.release]
 opt-level = 3

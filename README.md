@@ -10,6 +10,9 @@
 
 ### Key Capabilities
 - **Proverbs 31 Helper Persona**: Gentle, wise, dignified, courageous, humble, reverent, proactive, and industrious helper identity (`SOUL.md`).
+- **Dendrite v2 Knowledge Graph Memory (`/memory`)**: 4-tier persistent knowledge graph (`TurnLog`, `AtomicFact`, `Procedure`, `Identity`) with `[[wiki-links]]`, `#tags`, bi-directional backlinks, SQLite WAL mode, and FTS5 full-text search.
+- **Asynchronous Background Reflection**: Automatically distills user study habits, preferences, and key facts out-of-band without slowing down live response output.
+- **Advanced Self-Healing System Doctor (`paraclea doctor`)**: Hardware & CPU architecture probing, binary PATH validation, live 1-token forward-pass inference testing, vector DB & mesh auto-repair, and SQLite integrity checks.
 - **Reticulum Mesh Network (`/mesh`)**: Zero-trust off-grid mesh communications over local WiFi/Ethernet, serial cables, and LoRa radios without internet or central servers.
 - **Interactive Terminal Shell & Line Editing**: Native Left/Right arrow key navigation, smooth backspacing, and command history recall across all interactive prompts.
 - **140+ Bible Translations & Grid Selector**: Offline access to 140+ Bible translations across 30+ languages, interactive Old/New Testament grid selection, and side-by-side translation comparison (`/read`, `/compare`, `/bible`).
@@ -17,7 +20,6 @@
 - **Ollama Vision OCR (`frob/unlimited-ocr:q8_0`)**: Direct Base64 vision document OCR for photos of book pages, manuscript scans, and handwritten documents.
 - **File Format Auto-Detection (`src/detect.rs`)**: Automatic format detection (`.png`, `.jpg`, `.pdf`, `.md`, `.txt`, `.json`, `.html`, `.csv`) and intelligent processing pipeline routing.
 - **Multi-Model Routing & Anti-Loop Penalty**: Automatically routes queries to lightweight models (`ministral-3:3b`) or heavy reasoning models (`qwen3:8b`), with automatic repetition penalty to prevent LLM token looping.
-- **System Doctor Diagnostics (`paraclea doctor`)**: Self-diagnoses connectivity and verifies presence of Ollama, Qdrant, TTS, and Reticulum Mesh status.
 - **Pure Rust Core**: Single-binary native ARM64 & x86_64 performance with **0% idle CPU overhead** and instant startup.
 - **Pocket TTS Speech Synthesis**: Smooth CPU-driven speech synthesis using natural female voice presets (`alba`, `cosette`, `eve`, `mary`, `vera`).
 - **Gold & Purple UI**: Elegant terminal theme built in Rust.

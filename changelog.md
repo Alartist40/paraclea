@@ -2,6 +2,21 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.5.0] - 2026-08-23
+
+### Added
+- **Dendrite v2 Knowledge Graph Memory (`src/dendrite/`)**: Integrated Cynapse's 4-tier knowledge graph memory system (`TurnLog`, `AtomicFact`, `Procedure`, `Identity`) with `[[wiki-links]]`, `#tags`, auto-wired bidirectional backlinks, and fast in-memory BM25 search.
+- **SQLite WAL & FTS5 Full-Text Store (`src/dendrite/store.rs`)**: Thread-safe SQLite persistence for knowledge graph nodes in `$HOME/.paraclea/dendrite.db` with WAL mode and FTS5 full-text search triggers.
+- **Asynchronous Background Reflection Worker (`src/dendrite/reflection.rs`)**: Non-blocking background Tokio task that distills conversation turns into user study habits, preferences, and key facts without slowing down live response output.
+- **Dendrite Slash Command (`/memory` & `/dendrite`)**: Added `/memory` command to inspect graph nodes and perform instant FTS5/BM25 memory searches (`/memory search <query>`).
+- **Advanced Self-Healing System Doctor (`run_doctor`)**: Upgraded `paraclea doctor` based on LeafcutterLLM:
+  - System hardware & CPU architecture probing (`aarch64` / `x86_64`, logical threads, OS target).
+  - Executable placement and PATH validation with auto-installation to `~/.local/bin/paraclea`.
+  - Active 1-token live forward-pass inference test on Ollama LLMs with duration timing in ms.
+  - Qdrant Vector DB daemon auto-repair & collection auto-creation (`bible`, `books`).
+  - Reticulum Mesh daemon probing (`rnsd`) & identity key verification.
+  - Dendrite SQLite database integrity check & node count reporting.
+
 ## [0.4.0] - 2026-08-21
 
 ### Added

@@ -1,188 +1,273 @@
-//! SQLite persistence layer for DENDRITE with FTS5 full-text search.
+//! DENDRITE SQLite persistence for Paraclea.
+//!
+//! Stores knowledge graph nodes and full-text search indices in `$HOME/.paraclea/dendrite.db`.
 
-use crate::dendrite::{Node, NodeType};
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use tracing::{info, warn};
+use rusqlite::{params, Connection, OpenFlags};
+use std::path::Path;
+use std::sync::{Mutex, MutexGuard};
+use std::time::Duration;
 
+use crate::dendrite::graph::{Dendrite, Node, NodeType};
+
+const SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS dendrite_nodes (
+    id         TEXT PRIMARY KEY,
+    title      TEXT NOT NULL,
+    content    TEXT NOT NULL DEFAULT '',
+    type       TEXT NOT NULL DEFAULT 'custom',
+    tags       TEXT NOT NULL DEFAULT '[]',
+    links      TEXT NOT NULL DEFAULT '[]',
+    backlinks  TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_dendrite_updated ON dendrite_nodes(updated_at DESC);
+"#;
+
+const FTS5_SCHEMA: &str = r#"
+CREATE VIRTUAL TABLE IF NOT EXISTS dendrite_fts USING fts5(
+    id         UNINDEXED,
+    title,
+    content,
+    tags,
+    tokenize = 'porter unicode61'
+);
+"#;
+
+const FTS_FALLBACK_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS dendrite_fts_fallback (
+    id    TEXT PRIMARY KEY,
+    title TEXT,
+    content TEXT,
+    tags  TEXT
+);
+"#;
+
+const TRIGGERS: &str = r#"
+CREATE TRIGGER IF NOT EXISTS dendrite_nodes_ai
+AFTER INSERT ON dendrite_nodes BEGIN
+    INSERT INTO dendrite_fts(id, title, content, tags)
+    VALUES (new.id, new.title, new.content, new.tags);
+END;
+
+CREATE TRIGGER IF NOT EXISTS dendrite_nodes_au
+AFTER UPDATE ON dendrite_nodes BEGIN
+    DELETE FROM dendrite_fts WHERE id = old.id;
+    INSERT INTO dendrite_fts(id, title, content, tags)
+    VALUES (new.id, new.title, new.content, new.tags);
+END;
+
+CREATE TRIGGER IF NOT EXISTS dendrite_nodes_ad
+AFTER DELETE ON dendrite_nodes BEGIN
+    DELETE FROM dendrite_fts WHERE id = old.id;
+END;
+"#;
+
+/// Persists DENDRITE nodes to SQLite.
 pub struct DendriteStore {
-    conn: Connection,
-    has_fts5: bool,
+    conn: Mutex<Connection>,
+    has_fts: bool,
+}
+
+fn lock_conn(conn: &Mutex<Connection>) -> MutexGuard<'_, Connection> {
+    conn.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl DendriteStore {
-    pub fn open(path: PathBuf) -> Result<Self> {
-        std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new(".")))?;
-        let conn = Connection::open(&path)
-            .with_context(|| format!("failed to open dendrite db at {}", path.display()))?;
+    pub fn open<P: AsRef<Path>>(db_path: P) -> Result<DendriteStore> {
+        if let Some(parent) = db_path.as_ref().parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
 
-        // Main nodes table.
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS dendrite_nodes (
-                id         TEXT PRIMARY KEY,
-                title      TEXT NOT NULL,
-                content    TEXT NOT NULL DEFAULT '',
-                type       TEXT NOT NULL DEFAULT 'custom',
-                tags       TEXT NOT NULL DEFAULT '[]',
-                links      TEXT NOT NULL DEFAULT '[]',
-                backlinks  TEXT NOT NULL DEFAULT '[]',
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            )",
-            [],
-        )?;
+        let conn = Connection::open_with_flags(
+            db_path.as_ref(),
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_CREATE
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .context("open graph db")?;
+        conn.busy_timeout(Duration::from_millis(5000))
+            .context("set busy_timeout")?;
+        conn.pragma_update(None, "journal_mode", "WAL")
+            .context("enable WAL")?;
 
-        // Try FTS5; fall back to a simple fallback table.
-        let has_fts5 = match conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS dendrite_fts USING fts5(
-                id UNINDEXED,
-                title,
-                content,
-                tags,
-                tokenize = 'porter unicode61'
-            )",
-            [],
-        ) {
-            Ok(_) => {
-                // Set up triggers to keep FTS index in sync.
-                let _ = conn.execute(
-                    "CREATE TRIGGER IF NOT EXISTS dendrite_fts_insert
-                     AFTER INSERT ON dendrite_nodes BEGIN
-                       INSERT INTO dendrite_fts(id, title, content, tags)
-                       VALUES (NEW.id, NEW.title, NEW.content, NEW.tags);
-                     END",
-                    [],
-                );
-                let _ = conn.execute(
-                    "CREATE TRIGGER IF NOT EXISTS dendrite_fts_update
-                     AFTER UPDATE ON dendrite_nodes BEGIN
-                       UPDATE dendrite_fts SET title=NEW.title, content=NEW.content, tags=NEW.tags
-                       WHERE id=NEW.id;
-                     END",
-                    [],
-                );
-                let _ = conn.execute(
-                    "CREATE TRIGGER IF NOT EXISTS dendrite_fts_delete
-                     AFTER DELETE ON dendrite_nodes BEGIN
-                       DELETE FROM dendrite_fts WHERE id=OLD.id;
-                     END",
-                    [],
-                );
-                info!("Dendrite FTS5 index active");
-                true
-            }
-            Err(e) => {
-                warn!("FTS5 not available ({}), falling back to substring search", e);
-                conn.execute(
-                    "CREATE TABLE IF NOT EXISTS dendrite_fts_fallback (
-                        id TEXT PRIMARY KEY,
-                        title TEXT,
-                        content TEXT,
-                        tags TEXT
-                    )",
-                    [],
-                )?;
-                false
-            }
+        let mut store = DendriteStore {
+            conn: Mutex::new(conn),
+            has_fts: true,
         };
-
-        Ok(Self { conn, has_fts5 })
+        store.migrate().context("graph db migrate")?;
+        Ok(store)
     }
 
-    pub fn load_all(&self) -> Result<HashMap<String, Node>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, title, content, type, tags, links, backlinks, created_at, updated_at FROM dendrite_nodes"
-        )?;
-        let rows = stmt.query_map([], |row| {
-            let id: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let content: String = row.get(2)?;
-            let type_str: String = row.get(3)?;
-            let tags_json: String = row.get(4)?;
-            let links_json: String = row.get(5)?;
-            let backlinks_json: String = row.get(6)?;
-            let created_at: i64 = row.get(7)?;
-            let updated_at: i64 = row.get(8)?;
+    fn migrate(&mut self) -> Result<()> {
+        let conn = lock_conn(&self.conn);
+        conn.execute_batch(SCHEMA).context("create core table")?;
 
-            let node_type = type_str.parse().unwrap_or(NodeType::Custom);
-            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-            let links: Vec<String> = serde_json::from_str(&links_json).unwrap_or_default();
-            let backlinks: Vec<String> = serde_json::from_str(&backlinks_json).unwrap_or_default();
+        match conn.execute_batch(FTS5_SCHEMA) {
+            Ok(()) => {
+                self.has_fts = true;
+                conn.execute_batch(TRIGGERS).context("create fts triggers")?;
+            }
+            Err(_) => {
+                self.has_fts = false;
+                let _ = conn.execute_batch(FTS_FALLBACK_SCHEMA);
+            }
+        }
+        Ok(())
+    }
 
-            Ok((id, Node {
-                id: row.get(0)?,
-                title,
-                content,
-                node_type,
+    /// Upsert a node into SQLite. created_at is preserved on conflict.
+    pub fn save(&self, node: &Node) -> Result<()> {
+        let tags = serde_json::to_string(&node.tags)?;
+        let links = serde_json::to_string(&node.links)?;
+        let backlinks = serde_json::to_string(&node.backlinks)?;
+
+        let mut conn = lock_conn(&self.conn);
+        let tx = conn.transaction()?;
+        tx.execute(
+            r#"
+            INSERT INTO dendrite_nodes
+                (id, title, content, type, tags, links, backlinks, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                title      = excluded.title,
+                content    = excluded.content,
+                type       = excluded.type,
+                tags       = excluded.tags,
+                links      = excluded.links,
+                backlinks  = excluded.backlinks,
+                updated_at = excluded.updated_at
+            "#,
+            params![
+                node.id,
+                node.title,
+                node.content,
+                node.node_type.as_str(),
                 tags,
                 links,
                 backlinks,
-                created_at,
-                updated_at,
-            }))
-        })?;
-
-        let mut nodes = HashMap::new();
-        for row in rows {
-            let (id, node) = row?;
-            nodes.insert(id, node);
-        }
-        Ok(nodes)
-    }
-
-    pub fn save(&self, node: &Node) -> Result<()> {
-        let tags_json = serde_json::to_string(&node.tags)?;
-        let links_json = serde_json::to_string(&node.links)?;
-        let backlinks_json = serde_json::to_string(&node.backlinks)?;
-
-        self.conn.execute(
-            "INSERT INTO dendrite_nodes (id, title, content, type, tags, links, backlinks, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-             ON CONFLICT(id) DO UPDATE SET
-               title=excluded.title,
-               content=excluded.content,
-               type=excluded.type,
-               tags=excluded.tags,
-               links=excluded.links,
-               backlinks=excluded.backlinks,
-               updated_at=excluded.updated_at",
-            params![
-                node.id, node.title, node.content, node.node_type.to_string(),
-                tags_json, links_json, backlinks_json,
-                node.created_at, node.updated_at
+                node.created_at,
+                node.updated_at,
             ],
         )?;
+
+        if !self.has_fts {
+            tx.execute(
+                r#"
+                INSERT INTO dendrite_fts_fallback (id, title, content, tags)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    title = excluded.title,
+                    content = excluded.content,
+                    tags = excluded.tags
+                "#,
+                params![node.id, node.title, node.content, tags],
+            )?;
+        }
+
+        tx.commit()?;
         Ok(())
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
-        self.conn.execute("DELETE FROM dendrite_nodes WHERE id = ?1", [id])?;
+        let mut conn = lock_conn(&self.conn);
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM dendrite_nodes WHERE id = ?", [id])?;
+        if !self.has_fts {
+            tx.execute("DELETE FROM dendrite_fts_fallback WHERE id = ?", [id])?;
+        }
+        tx.commit()?;
         Ok(())
     }
 
-    pub fn fts_search(&self, query: &str) -> Result<Vec<String>> {
-        let q = query.to_lowercase();
-        if self.has_fts5 {
-            let sql = "SELECT id FROM dendrite_fts WHERE dendrite_fts MATCH ?1 LIMIT 50";
-            let mut stmt = self.conn.prepare(sql)?;
-            let rows = stmt.query_map([q], |row| {
-                let id: String = row.get(0)?;
-                Ok(id)
-            })?;
-            rows.collect::<Result<Vec<_>, _>>().context("FTS5 search failed")
-        } else {
-            // Fallback: LIKE search on fallback table.
-            let pattern = format!("%{}%", q);
-            let mut stmt = self.conn.prepare(
-                "SELECT id FROM dendrite_fts_fallback WHERE title LIKE ?1 OR content LIKE ?1 OR tags LIKE ?1 LIMIT 50"
-            )?;
-            let rows = stmt.query_map([pattern], |row| {
-                let id: String = row.get(0)?;
-                Ok(id)
-            })?;
-            rows.collect::<Result<Vec<_>, _>>().context("fallback search failed")
+    /// Hydrate all stored nodes directly into the graph's node map.
+    pub fn load_all(&self, graph: &Dendrite) -> Result<()> {
+        let conn = lock_conn(&self.conn);
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT id, title, content, type, tags, links, backlinks, created_at, updated_at
+            FROM dendrite_nodes
+            ORDER BY updated_at DESC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let node_type: String = row.get(3)?;
+            let tags: String = row.get(4)?;
+            let links: String = row.get(5)?;
+            let backlinks: String = row.get(6)?;
+            Ok(Node {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                content: row.get(2)?,
+                node_type: NodeType::from_str(&node_type),
+                tags: serde_json::from_str(&tags).unwrap_or_default(),
+                links: serde_json::from_str(&links).unwrap_or_default(),
+                backlinks: serde_json::from_str(&backlinks).unwrap_or_default(),
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?;
+
+        for node in rows {
+            let node = node.context("reading node row")?;
+            graph.insert_hydrated(node);
         }
+        Ok(())
+    }
+
+    /// Full-text search, returning matching node IDs ordered by rank.
+    pub fn fts_search(&self, query: &str, limit: usize) -> Result<Vec<String>> {
+        let limit = if limit == 0 { 10 } else { limit };
+        let conn = lock_conn(&self.conn);
+
+        if self.has_fts {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT id FROM dendrite_fts
+                WHERE dendrite_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+                "#,
+            )?;
+            let rows = stmt.query_map(params![query, limit as i64], |row| row.get(0))?;
+            let mut ids = Vec::new();
+            for row in rows {
+                if let Ok(id) = row {
+                    ids.push(id);
+                }
+            }
+            return Ok(ids);
+        }
+
+        let pattern = format!("%{query}%");
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT id FROM dendrite_fts_fallback
+            WHERE title LIKE ? OR content LIKE ? OR tags LIKE ?
+            LIMIT ?
+            "#,
+        )?;
+        let rows =
+            stmt.query_map(params![pattern, pattern, pattern, limit as i64], |row| {
+                row.get(0)
+            })?;
+        let mut ids = Vec::new();
+        for row in rows {
+            if let Ok(id) = row {
+                ids.push(id);
+            }
+        }
+        Ok(ids)
+    }
+
+    /// Number of rows in the core table.
+    pub fn node_count(&self) -> Result<usize> {
+        let conn = lock_conn(&self.conn);
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM dendrite_nodes", [], |r| {
+            r.get(0)
+        })?;
+        Ok(count as usize)
     }
 }
