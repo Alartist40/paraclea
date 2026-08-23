@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Offline Survival OS Comparison — NOMAD vs DoomsDay vs refugiOS</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,
+[data-theme='dark'] {
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+  --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+  --text-2xl: clamp(2rem, 1.2rem + 2.5vw, 3.5rem);
+
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
+  --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem;
+  --space-8: 2rem; --space-10: 2.5rem; --space-12: 3rem;
+  --space-16: 4rem; --space-20: 5rem;
+
+  --color-bg: #0f0d0a;
+  --color-surface: #1a1714;
+  --color-surface-2: #221e1a;
+  --color-surface-offset: #2a2520;
+  --color-divider: #3a342e;
+  --color-border: #45403a;
+
+  --color-text: #e8e2d8;
+  --color-text-muted: #9a9388;
+  --color-text-faint: #6a6258;
+
+  --color-amber: #d4861c;
+  --color-amber-bright: #f0a030;
+  --color-amber-dim: #8a5a14;
+  --color-amber-glow: rgba(212, 134, 28, 0.15);
+
+  --color-teal: #3a9a8a;
+  --color-teal-bright: #4fc4b0;
+  --color-teal-glow: rgba(58, 154, 138, 0.12);
+
+  --color-red: #c4583e;
+  --color-red-dim: #8a3a2a;
+  --color-green: #6a9a3a;
+  --color-green-dim: #4a7028;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  --font-display: 'JetBrains Mono', 'Courier New', monospace;
+  --font-body: 'Inter', -apple-system, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--space-16);
+}
+
+body {
+  min-height: 100dvh;
+  line-height: 1.6;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse at top, rgba(212, 134, 28, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(58, 154, 138, 0.04) 0%, transparent 50%);
+}
+
+img, svg { display: block; max-width: 100%; height: auto; }
+
+h1, h2, h3, h4 { text-wrap: balance; line-height: 1.15; }
+p, li { text-wrap: pretty; max-width: 72ch; }
+
+a {
+  color: var(--color-amber-bright);
+  text-decoration: none;
+  transition: color var(--transition-interactive);
+}
+a:hover { color: var(--color-amber); }
+
+::selection { background: rgba(212, 134, 28, 0.3); color: var(--color-text); }
+
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* === HEADER === */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15, 13, 10, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-8);
+}
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.header-logo svg { flex-shrink: 0; }
+.header-logo span {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--color-amber-bright);
+  text-transform: uppercase;
+}
+.header-nav {
+  display: flex;
+  gap: var(--space-6);
+  font-size: var(--text-sm);
+}
+.header-nav a {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.header-nav a:hover { color: var(--color-amber-bright); }
+@media (max-width: 640px) {
+  .header-nav { display: none; }
+}
+
+/* === HERO === */
+.hero {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-20) var(--space-8) var(--space-12);
+  text-align: center;
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-amber);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-amber-dim);
+  border-radius: var(--radius-full);
+  background: var(--color-amber-glow);
+  margin-bottom: var(--space-6);
+}
+.hero-eyebrow .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-amber-bright);
+  box-shadow: 0 0 8px var(--color-amber-bright);
+}
+.hero h1 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-4);
+}
+.hero h1 .accent { color: var(--color-amber-bright); }
+.hero p {
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+  max-width: 64ch;
+  margin: 0 auto;
+}
+
+/* === SECTIONS === */
+.section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-8);
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+.section-header .num {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-amber);
+  background: var(--color-amber-glow);
+  border: 1px solid var(--color-amber-dim);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.section-header h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.section-header .line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--color-border), transparent);
+}
+
+/* === PROJECT CARDS === */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-6);
+}
+.project-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition-interactive), box-shadow var(--transition-interactive);
+}
+.project-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-color, var(--color-amber));
+}
+.project-card.nomad { --accent-color: var(--color-amber); }
+.project-card.doomsday { --accent-color: var(--color-teal); }
+.project-card.refugios { --accent-color: var(--color-red); }
+
+.project-card:hover {
+  border-color: var(--accent-color);
+  box-shadow: var(--shadow-lg);
+}
+.card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  margin-bottom: var(--space-3);
+}
+.card-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 0 0 10px var(--accent-color);
+}
+.card-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-1);
+}
+.card-fullname {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  margin-bottom: var(--space-4);
+  line-height: 1.4;
+}
+.card-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-6);
+  line-height: 1.65;
+}
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-offset);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.meta-chip .icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.card-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-divider);
+}
+.stat-item .stat-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-1);
+}
+.stat-item .stat-value {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--accent-color);
+  margin-top: var(--space-4);
+  transition: gap var(--transition-interactive);
+}
+.card-link:hover { gap: var(--space-3); }
+
+/* === COMPARISON TABLE === */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  -webkit-overflow-scrolling: touch;
+}
+table.comparison {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 800px;
+  font-size: var(--text-sm);
+}
+table.comparison th,
+table.comparison td {
+  padding: var(--space-4) var(--space-5);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-divider);
+}
+table.comparison thead th {
+  background: var(--color-surface-offset);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+table.comparison thead th:first-child { width: 180px; }
+table.comparison tbody tr:hover {
+  background: var(--color-surface-2);
+}
+table.comparison td:first-child {
+  font-weight: 600;
+  color: var(--color-amber);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+table.comparison .cell-yes { color: var(--color-green); font-weight: 500; }
+table.comparison .cell-no { color: var(--color-red-dim); }
+table.comparison .cell-partial { color: var(--color-amber); }
+table.comparison .cell-unknown { color: var(--color-text-faint); font-style: italic; }
+table.comparison .icon-yes::before { content: "\2713"; margin-right: 6px; font-weight: 700; }
+table.comparison .icon-no::before { content: "\2717"; margin-right: 6px; font-weight: 700; }
+table.comparison .icon-partial::before { content: "\25D4"; margin-right: 6px; }
+table.comparison .icon-unknown::before { content: "?"; margin-right: 6px; opacity: 0.5; }
+.col-nomad { border-left: 3px solid var(--color-amber); }
+.col-doomsday { border-left: 3px solid var(--color-teal); }
+.col-refugios { border-left: 3px solid var(--color-red); }
+
+/* Section group headers in table */
+table.comparison tbody tr.group-header td {
+  background: var(--color-surface-offset);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-amber);
+  padding: var(--space-3) var(--space-5);
+}
+
+/* === KNOWLEDGE TABLE === */
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+.knowledge-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+.knowledge-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+.knowledge-card-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+.knowledge-card-badge {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-offset);
+  border: 1px solid var(--color-border);
+}
+.knowledge-card.nomad .knowledge-card-badge { color: var(--color-amber-bright); border-color: var(--color-amber-dim); }
+.knowledge-card.doomsday .knowledge-card-badge { color: var(--color-teal-bright); border-color: var(--color-teal); }
+.knowledge-card.refugios .knowledge-card-badge { color: var(--color-red); border-color: var(--color-red-dim); }
+
+.knowledge-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-divider);
+  font-size: var(--text-sm);
+}
+.knowledge-row:last-child { border-bottom: none; }
+.knowledge-row .k-label {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  margin-right: var(--space-3);
+}
+.knowledge-row .k-value {
+  font-family: var(--font-display);
+  font-weight: 500;
+  text-align: right;
+}
+.knowledge-row .k-value.empty {
+  color: var(--color-text-faint);
+  font-style: italic;
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+/* Bar chart for visual comparison */
+.bar-chart {
+  margin-top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.bar-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  width: 100px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.bar-track {
+  flex: 1;
+  height: 28px;
+  background: var(--color-surface-offset);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  min-width: 40px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bar-fill.nomad { background: linear-gradient(90deg, var(--color-amber-dim), var(--color-amber)); }
+.bar-fill.doomsday { background: linear-gradient(90deg, #2a6b60, var(--color-teal)); }
+.bar-fill.refugios { background: linear-gradient(90deg, #6a2a1e, var(--color-red)); }
+.bar-fill.empty { background: var(--color-surface-offset); color: var(--color-text-faint); }
+
+/* === GUIDE CARDS === */
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-6);
+}
+.guide-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition-interactive);
+}
+.guide-card:hover { border-color: var(--color-amber-dim); }
+.guide-card .scenario-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--color-amber-glow);
+  border: 1px solid var(--color-amber-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-5);
+  color: var(--color-amber-bright);
+}
+.guide-card h3 {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+.guide-card .scenario-tag {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  color: var(--color-amber);
+  margin-bottom: var(--space-4);
+  letter-spacing: 0.05em;
+}
+.guide-card p {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-5);
+  line-height: 1.65;
+}
+.guide-card .recommendation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface-offset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.guide-card .recommendation .rec-label {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-faint);
+}
+.guide-card .recommendation .rec-value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.guide-card .recommendation .rec-value.nomad { color: var(--color-amber-bright); }
+.guide-card .recommendation .rec-value.refugios { color: var(--color-red); }
+.guide-card .recommendation .rec-value.doomsday { color: var(--color-teal-bright); }
+.guide-card .why-list {
+  list-style: none;
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+}
+.guide-card .why-list li {
+  padding: var(--space-1) 0;
+  color: var(--color-text-muted);
+  padding-left: var(--space-5);
+  position: relative;
+}
+.guide-card .why-list li::before {
+  content: "\203A";
+  position: absolute;
+  left: 0;
+  color: var(--color-amber);
+  font-weight: 700;
+}
+
+/* === FOOTER === */
+.footer {
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-8);
+  text-align: center;
+}
+.footer p {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  max-width: 80ch;
+  margin: 0 auto var(--space-2);
+}
+.footer a { color: var(--color-text-muted); }
+
+/* === NOTE BOX === */
+.note-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-amber);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.note-box strong { color: var(--color-amber-bright); }
+
+/* Source badges */
+.source-badge {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.source-badge.official { background: rgba(106, 154, 58, 0.15); color: var(--color-green); border: 1px solid rgba(106, 154, 58, 0.3); }
+.source-badge.third { background: rgba(58, 154, 138, 0.15); color: var(--color-teal-bright); border: 1px solid rgba(58, 154, 138, 0.3); }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .hero { padding: var(--space-12) var(--space-4) var(--space-8); }
+  .section { padding: var(--space-8) var(--space-4); }
+  .cards-grid { grid-template-columns: 1fr; }
+  .guide-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-inner">
+    <div class="header-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-amber-bright);">
+        <path d="M14 2 L24 8 L24 20 L14 26 L4 20 L4 8 Z"/>
+        <path d="M14 8 L14 20 M9 11 L19 17 M19 11 L9 17"/>
+      </svg>
+      <span>Offline OS Compare</span>
+    </div>
+    <nav class="header-nav">
+      <a href="#overview">Overview</a>
+      <a href="#comparison">Comparison</a>
+      <a href="#knowledge">Knowledge Depth</a>
+      <a href="#guide">Which to Choose</a>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow"><span class="dot"></span> Offline Survival Knowledge Systems</div>
+  <h1>NOMAD vs DoomsDay vs <span class="accent">refugiOS</span></h1>
+  <p>A side-by-side comparison of three open offline-first survival knowledge projects — covering installation, features, hardware, knowledge depth, and which one fits your scenario.</p>
+</section>
+
+<!-- NOTE -->
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 var(--space-8);">
+  <div class="note-box">
+    <strong>Name note:</strong> This dashboard compares "DoomsDay" as the project at <a href="https://www.doomsday.media/">doomsday.media</a> — a bootable USB survival toolkit with 400+ manuals. This is distinct from "Doomsday OS" by <a href="https://blog.cartesia.one/posts/doomsday-os/">Cartesia</a> (a build system for air-gapped AI agents, GPL v3) and "DOOM DAY" at <a href="https://doomday.org/">doomday.org</a> (a Russian-language 450 GB knowledge archive). Data current as of August 2026.
+  </div>
+</div>
+
+<!-- SECTION 1: PROJECT OVERVIEW CARDS -->
+<section class="section" id="overview">
+  <div class="section-header">
+    <div class="num">01</div>
+    <h2>Project Overview</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="cards-grid">
+    <!-- NOMAD -->
+    <div class="project-card nomad">
+      <div class="card-badge"><span class="dot"></span> Docker Server</div>
+      <div class="card-title">Project N.O.M.A.D.</div>
+      <div class="card-fullname">Node for Offline Media, Archives, and Data</div>
+      <div class="card-desc">A Docker-based offline knowledge server that bundles local AI, full Wikipedia, Khan Academy courses, offline maps, and data tools into a single management UI. Designed for persistent installation on a Debian/Ubuntu machine, accessed via browser from any device on the network.</div>
+      <div class="card-meta">
+        <span class="meta-chip">Apache 2.0</span>
+        <span class="meta-chip">Docker</span>
+        <span class="meta-chip">11,300+ stars</span>
+        <span class="meta-chip">Ollama + RAG</span>
+      </div>
+      <div class="card-stats">
+        <div class="stat-item">
+          <div class="stat-label">License</div>
+          <div class="stat-value">Apache 2.0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Creator</div>
+          <div class="stat-value">Crosstalk Solutions</div>
+        </div>
+      </div>
+      <a href="https://github.com/Crosstalk-Solutions/project-nomad" class="card-link" target="_blank" rel="noopener">
+        View on GitHub
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>
+      </a>
+    </div>
+
+    <!-- DOOMSDAY -->
+    <div class="project-card doomsday">
+      <div class="card-badge"><span class="dot"></span> Bootable USB Toolkit</div>
+      <div class="card-title">DoomsDay</div>
+      <div class="card-fullname">The Offline AI USB Tech Toolkit</div>
+      <div class="card-desc">A plug-and-play bootable USB that turns any PC into a secure Linux environment with a pre-installed offline AI assistant and 400+ curated survival manuals. No installation, no internet required after imaging. Available as a free downloadable image or a paid preinstalled USB 3.2 device.</div>
+      <div class="card-meta">
+        <span class="meta-chip">Free image + Paid USB</span>
+        <span class="meta-chip">Powered by Linux</span>
+        <span class="meta-chip">400+ manuals</span>
+        <span class="meta-chip">Plug &amp; play</span>
+      </div>
+      <div class="card-stats">
+        <div class="stat-item">
+          <div class="stat-label">License</div>
+          <div class="stat-value">Proprietary / Free image</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Creator</div>
+          <div class="stat-value">Surfers (DoomsDay)</div>
+        </div>
+      </div>
+      <a href="https://www.doomsday.media/" class="card-link" target="_blank" rel="noopener">
+        Visit Website
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>
+      </a>
+    </div>
+
+    <!-- REFUGIOS -->
+    <div class="project-card refugios">
+      <div class="card-badge"><span class="dot"></span> Portable USB OS</div>
+      <div class="card-title">refugiOS</div>
+      <div class="card-fullname">Tu Refugio Digital y Biblioteca de Supervivencia</div>
+      <div class="card-desc">A portable operating system based on Debian Trixie + XFCE that boots from a USB on any PC or Raspberry Pi. Carries full Wikipedia, WikiMed, offline world maps via Organic Maps, local AI models, and a LUKS-encrypted personal vault. Currently in Beta, developed by Javier Prieto (Ganso).</div>
+      <div class="card-meta">
+        <span class="meta-chip">AGPL-3.0</span>
+        <span class="meta-chip">Raspberry Pi</span>
+        <span class="meta-chip">LUKS vault</span>
+        <span class="meta-chip">Beta</span>
+      </div>
+      <div class="card-stats">
+        <div class="stat-item">
+          <div class="stat-label">License</div>
+          <div class="stat-value">AGPL-3.0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Creator</div>
+          <div class="stat-value">Javier Prieto (Ganso)</div>
+        </div>
+      </div>
+      <a href="https://github.com/Ganso/refugiOS" class="card-link" target="_blank" rel="noopener">
+        View on GitHub
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 2: FULL COMPARISON TABLE -->
+<section class="section" id="comparison">
+  <div class="section-header">
+    <div class="num">02</div>
+    <h2>Side-by-Side Comparison</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="comparison">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th class="col-nomad">Project N.O.M.A.D.</th>
+          <th class="col-doomsday">DoomsDay</th>
+          <th class="col-refugios">refugiOS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- INSTALLATION -->
+        <tr class="group-header"><td colspan="4">Installation &amp; Deployment</td></tr>
+        <tr>
+          <td>OS Support</td>
+          <td>Debian-based (Ubuntu 22.04+ recommended). WSL2 on Windows (community-supported).<span class="source-badge official">GitHub</span></td>
+          <td>Powered by Linux. Boots on any PC, modern or legacy.<span class="source-badge official">Site</span></td>
+          <td>Debian Trixie + XFCE / Xubuntu LTS. Any PC + Raspberry Pi 3B+ (RPi OS 64-bit).<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Docker</td>
+          <td class="cell-yes icon-yes">Core architecture. Docker orchestrates all services. Auto-installed if missing.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-unknown icon-unknown">Not mentioned.<span class="source-badge official">Site</span></td>
+          <td class="cell-no icon-no">Not used. Direct installation on host OS.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>USB Bootability</td>
+          <td class="cell-no icon-no">Not supported. Designed for persistent install on disk.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-yes icon-yes">Primary deployment. Free image or preinstalled USB 3.2 Gen device. Plug, boot, use.<span class="source-badge official">Site</span></td>
+          <td class="cell-yes icon-yes">Core design. Boots from 16GB+ USB on any PC or RPi. Runs without touching host storage.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Installation Method</td>
+          <td>One curl command: <code>curl ... \| sudo bash install_nomad.sh</code>. Sets up Docker, DB, web UI. Browser access at :8080.<span class="source-badge official">GitHub</span></td>
+          <td>Download free image &amp; flash to USB (DIY), or purchase preinstalled USB (plug-and-play). No setup for USB edition.<span class="source-badge official">Site</span></td>
+          <td>Flash pregenerated .img (16GB) via dd/Rufus/balenaEtcher, boot, run completion wizard with internet, then go fully offline.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Setup Complexity</td>
+          <td class="cell-partial">Medium. One-command install + guided setup wizard. Terminal-based, sudo required. Advanced Docker Compose option available.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-yes">Very low (USB edition). Zero setup — plug and play. DIY image requires flashing skills but no configuration.<span class="source-badge official">Site</span></td>
+          <td class="cell-partial">Medium. Image flashing + guided completion assistant. Must prepare in controlled environment with internet before offline use.<span class="source-badge official">GitHub</span></td>
+        </tr>
+
+        <!-- CORE FEATURES -->
+        <tr class="group-header"><td colspan="4">Core Feature Set</td></tr>
+        <tr>
+          <td>Offline AI Models</td>
+          <td>Ollama (preferred), LM Studio, llama.cpp. OpenAI-compatible API support. RAG via Qdrant vector DB with document upload &amp; semantic search.<span class="source-badge official">GitHub</span></td>
+          <td>Pre-installed offline open-source AI assistant. Model names not specified. Mobile app has local LLM (beta).<span class="source-badge official">Site</span></td>
+          <td>Mozilla Ocho / Llamafile engine. Models: Qwen3 (0.6B, 8B, 14B), Gemma-4 (E4B, 26B-A4B). Quantizations by HuggingFace/unsloth.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Map Data</td>
+          <td class="cell-yes icon-yes">ProtoMaps. Downloadable regional offline maps with viewing &amp; search.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-no icon-no">Not mentioned.<span class="source-badge official">Site</span></td>
+          <td class="cell-yes icon-yes">Organic Maps with OpenStreetMap data. Offline maps of the entire world + GPS navigation.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Wiki / Encyclopedia</td>
+          <td class="cell-yes icon-yes">Kiwix. Full offline Wikipedia (99.6 GB in ZIM). Wikipedia content selector &amp; ZIM library manager.<span class="source-badge third">dev.to</span></td>
+          <td class="cell-no icon-no">Not mentioned. No wiki or encyclopedia archive specified.<span class="source-badge official">Site</span></td>
+          <td class="cell-yes icon-yes">Kiwix. Complete Wikipedia + Wikipedia with images (example content exceeding 150GB when fully configured).<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Medical Archives</td>
+          <td class="cell-yes icon-yes">Medical references via Kiwix. Specific archive names not listed.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-partial">Covers first aid within survival manuals, but no dedicated medical archive.<span class="source-badge official">Site</span></td>
+          <td class="cell-yes icon-yes">WikiMed medical encyclopedia via Kiwix.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Educational Resources</td>
+          <td class="cell-yes icon-yes">Kolibri platform with Khan Academy courses, progress tracking, multi-user support.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-no icon-no">No dedicated educational platform. Survival manuals serve as reference material.<span class="source-badge official">Site</span></td>
+          <td class="cell-partial">Survival encyclopedias &amp; trade/occupation guides via Kiwix. No structured course platform.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Survival Manuals</td>
+          <td>Included via Kiwix. Number not specified.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-yes icon-yes">400+ expertly curated survival manuals (first aid, wilderness, urban, crisis management).<span class="source-badge official">Site</span></td>
+          <td>Survival encyclopedias included. Number not specified.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Other Tools</td>
+          <td>CyberChef (200+ ops), FlatNotes (Markdown notes), PDF tools, file browser, e-book library, password manager, Supply Depot app catalog, custom Docker container support.<span class="source-badge official">GitHub</span></td>
+          <td>Offline AI assistant. Mobile APK app (beta, 43 MB). Pre-installed secure Linux environment.<span class="source-badge official">Site</span></td>
+          <td>LUKS encrypted personal vault, file encryption, AI model selector script, Kiwix knowledge base shortcuts.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>E-books / Literature</td>
+          <td class="cell-yes icon-yes">75,000 Project Gutenberg books via Kiwix.<span class="source-badge third">dev.to</span></td>
+          <td class="cell-unknown icon-unknown">Not specified.<span class="source-badge official">Site</span></td>
+          <td class="cell-unknown icon-unknown">Not specified beyond Kiwix content.<span class="source-badge official">GitHub</span></td>
+        </tr>
+
+        <!-- HARDWARE -->
+        <tr class="group-header"><td colspan="4">Hardware Intensity</td></tr>
+        <tr>
+          <td>Minimum Specs</td>
+          <td>2 GHz dual-core CPU, 4 GB RAM, 5 GB storage, Debian-based OS. No GPU required.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-unknown">Not specified. Works on "any PC, modern or legacy."<span class="source-badge official">Site</span></td>
+          <td>16 GB USB, any PC or Raspberry Pi 3B+. QEMU example uses 4 GB RAM. No CPU/GPU minimum stated.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Recommended Specs</td>
+          <td>AMD Ryzen 7 / Intel Core i7, 32 GB RAM, NVIDIA RTX 3060+ (more VRAM = larger models), 250 GB+ SSD (1 TB for full archives).<span class="source-badge official">GitHub</span></td>
+          <td class="cell-unknown">Not specified.<span class="source-badge official">Site</span></td>
+          <td>Demonstrated on Ryzen 5500 with USB 3.2. Fully configured image can exceed 150 GB. No formal GPU/RAM recommendations.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>GPU Required for AI?</td>
+          <td class="cell-partial">Not required, but strongly encouraged. NVIDIA Container Toolkit supported. Without GPU, AI is limited or unavailable.<span class="source-badge official">GitHub</span></td>
+          <td class="cell-unknown">Not specified. AI assistant is pre-installed; hardware requirements not stated.<span class="source-badge official">Site</span></td>
+          <td class="cell-partial">Not required. Local AI via Llamafile (CPU inference). Model sizes from 0.6B (lightweight) to 14B (heavier).<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Internet Required</td>
+          <td>Only during initial install &amp; optional content downloads. Zero telemetry afterward.<span class="source-badge official">GitHub</span></td>
+          <td>Not required for bootable toolkit. Internet only needed if downloading the free image.<span class="source-badge official">Site</span></td>
+          <td>Only during setup wizard (content download). Must prepare before emergency. 100% offline after.<span class="source-badge official">GitHub</span></td>
+        </tr>
+
+        <!-- PROJECT -->
+        <tr class="group-header"><td colspan="4">Project Details</td></tr>
+        <tr>
+          <td>License</td>
+          <td>Apache 2.0<span class="source-badge official">GitHub</span></td>
+          <td>Free image available; paid digital edition. No open-source license stated.<span class="source-badge official">Site</span></td>
+          <td>AGPL-3.0<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Pricing</td>
+          <td>100% free, open source. No paid tiers, subscriptions, or accounts.<span class="source-badge official">GitHub</span></td>
+          <td>Free downloadable image. Paid digital edition with preinstalled USB 3.2. Mobile APK: pay-what-you-want.<span class="source-badge official">Site</span></td>
+          <td>Free, open source. No paid features.<span class="source-badge official">GitHub</span></td>
+        </tr>
+        <tr>
+          <td>Maturity</td>
+          <td>Active, 11,300+ GitHub stars, #1 GitHub trending (Mar 2026). Community forks for macOS, homelab, RPi.<span class="source-badge third">dev.to</span></td>
+          <td>Shipping product. First in the "DoomsDay family." Mobile app in beta.<span class="source-badge official">Site</span></td>
+          <td>Beta. 598 stars, 170 commits, 2 contributors. Active development, seeking contributors.<span class="source-badge official">GitHub</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SECTION 3: KNOWLEDGE DEPTH -->
+<section class="section" id="knowledge">
+  <div class="section-header">
+    <div class="num">03</div>
+    <h2>Knowledge Depth Comparison</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="knowledge-grid">
+    <!-- NOMAD Knowledge -->
+    <div class="knowledge-card nomad">
+      <div class="knowledge-card-header">
+        <div class="knowledge-card-title">Project N.O.M.A.D.</div>
+        <div class="knowledge-card-badge">Docker Server</div>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Wikipedia (ZIM)</span>
+        <span class="k-value">99.6 GB</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Project Gutenberg books</span>
+        <span class="k-value">75,000</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Survival manuals</span>
+        <span class="k-value empty">Not specified</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Medical references</span>
+        <span class="k-value empty">Included (count N/A)</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Khan Academy courses</span>
+        <span class="k-value empty">Count N/A</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">CyberChef operations</span>
+        <span class="k-value">200+</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Total content size</span>
+        <span class="k-value">250 GB+ (optimal)</span>
+      </div>
+    </div>
+
+    <!-- DOOMSDAY Knowledge -->
+    <div class="knowledge-card doomsday">
+      <div class="knowledge-card-header">
+        <div class="knowledge-card-title">DoomsDay</div>
+        <div class="knowledge-card-badge">USB Toolkit</div>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Survival manuals</span>
+        <span class="k-value">400+</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Survival guides &amp; resources</span>
+        <span class="k-value">Hundreds</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Manual categories</span>
+        <span class="k-value">4 (first aid, wilderness, urban, crisis)</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Wikipedia</span>
+        <span class="k-value empty">Not included</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Medical archives</span>
+        <span class="k-value empty">Not included</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Map data</span>
+        <span class="k-value empty">Not included</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Total content size</span>
+        <span class="k-value empty">Not stated</span>
+      </div>
+    </div>
+
+    <!-- REFUGIOS Knowledge -->
+    <div class="knowledge-card refugios">
+      <div class="knowledge-card-header">
+        <div class="knowledge-card-title">refugiOS</div>
+        <div class="knowledge-card-badge">USB OS</div>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Wikipedia</span>
+        <span class="k-value">Complete (with images)</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">WikiMed</span>
+        <span class="k-value">Included</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Survival encyclopedias</span>
+        <span class="k-value empty">Count N/A</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Trade/occupation guides</span>
+        <span class="k-value empty">Count N/A</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Worldwide offline maps</span>
+        <span class="k-value">Full (Organic Maps)</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Base image size</span>
+        <span class="k-value">~16 GB</span>
+      </div>
+      <div class="knowledge-row">
+        <span class="k-label">Fully configured size</span>
+        <span class="k-value">150 GB+</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual bar chart -->
+  <div class="table-wrap" style="border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-6) var(--space-8);">
+    <h3 style="font-size: var(--text-sm); font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); margin-bottom: var(--space-6);">Content Volume at a Glance</h3>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <div class="bar-label">NOMAD</div>
+        <div class="bar-track">
+          <div class="bar-fill nomad" style="width: 100%;">250 GB+ (all content)</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">refugiOS</div>
+        <div class="bar-track">
+          <div class="bar-fill refugios" style="width: 60%;">150 GB+ (full config)</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">DoomsDay</div>
+        <div class="bar-track">
+          <div class="bar-fill doomsday" style="width: 15%;">400+ manuals</div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size: var(--text-xs); color: var(--color-text-faint); margin-top: var(--space-4);">Note: Content volume metrics are not directly comparable across projects — NOMAD measures in total disk usage with full archives, refugiOS in potential image size, and DoomsDay in manual count. This chart is an approximate visual reference, not a normalized comparison.</p>
+  </div>
+</section>
+
+<!-- SECTION 4: WHICH TO CHOOSE -->
+<section class="section" id="guide">
+  <div class="section-header">
+    <div class="num">04</div>
+    <h2>Which to Choose</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="guide-grid">
+    <!-- Scenario 1: Persistent Linux Install -->
+    <div class="guide-card">
+      <div class="scenario-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="12" rx="2"/>
+          <path d="M8 20h8M12 16v4"/>
+        </svg>
+      </div>
+      <h3>You want a persistent Linux server</h3>
+      <div class="scenario-tag">Always-on / homelab / network-shared</div>
+      <p>You have a dedicated machine (mini PC, old desktop, homelab server) running Ubuntu/Debian that stays powered on. You want everyone on your local network to access the knowledge base, AI, maps, and courses from their own browsers.</p>
+      <div class="recommendation">
+        <div>
+          <div class="rec-label">Best choice</div>
+          <div class="rec-value nomad">Project N.O.M.A.D.</div>
+        </div>
+      </div>
+      <ul class="why-list">
+        <li>Docker-native: every service runs as a container, managed by the Command Center UI</li>
+        <li>One curl command installs Docker, DB, web UI, and all dependencies automatically</li>
+        <li>Guided Easy Setup Wizard lets you pick content collections to download</li>
+        <li>Network-accessible at <code>http://DEVICE_IP:8080</code> from any device's browser</li>
+        <li>Automatic updates for core software, apps, and offline content on your schedule</li>
+        <li>RAG-powered AI with document upload — upload your own PDFs and ask questions</li>
+      </ul>
+    </div>
+
+    <!-- Scenario 2: Bootable USB Environment -->
+    <div class="guide-card">
+      <div class="scenario-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="2" width="12" height="20" rx="2"/>
+          <circle cx="12" cy="8" r="2"/>
+          <path d="M12 14v4"/>
+        </svg>
+      </div>
+      <h3>You want a bootable USB environment</h3>
+      <div class="scenario-tag">Portable / emergency / field use</div>
+      <p>You want to carry a complete survival knowledge system on a USB stick that boots on any computer without installing anything. You need it to work in the field, during emergencies, or when traveling — with or without a host operating system.</p>
+      <div class="recommendation">
+        <div>
+          <div class="rec-label">Best choice</div>
+          <div class="rec-value refugios">refugiOS</div>
+        </div>
+      </div>
+      <ul class="why-list">
+        <li>Boots on any PC and Raspberry Pi 3B+ — not just x86_64</li>
+        <li>Full Wikipedia with images + WikiMed medical encyclopedia via Kiwix</li>
+        <li>Offline world maps with GPS navigation via Organic Maps</li>
+        <li>LUKS-encrypted personal vault for your private documents</li>
+        <li>Local AI models from 0.6B to 14B (Qwen3, Gemma-4) via Llamafile — no GPU needed</li>
+        <li>AGPL-3.0 open source, actively developed, bilingual (English/Spanish)</li>
+      </ul>
+      <p style="margin-top: var(--space-4); font-size: var(--text-xs); color: var(--color-text-faint);"><strong style="color: var(--color-teal-bright);">Alternative:</strong> If you want the absolute lowest-friction USB experience and don't need maps, wiki, or open-source verifiability, <strong style="color: var(--color-teal-bright);">DoomsDay</strong> offers a plug-and-play preinstalled USB with 400+ curated survival manuals and a pre-configured AI assistant — no setup required at all.</p>
+    </div>
+
+    <!-- Scenario 3: Containerized Server Setup -->
+    <div class="guide-card">
+      <div class="scenario-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <h3>You want a containerized server</h3>
+      <div class="scenario-tag">Docker / microservices / self-hosted</div>
+      <p>You're comfortable with Docker and want individual services you can enable, disable, or replace. You want RAG over your own documents, a vector database, and the ability to run custom containers alongside the knowledge base.</p>
+      <div class="recommendation">
+        <div>
+          <div class="rec-label">Best choice</div>
+          <div class="rec-value nomad">Project N.O.M.A.D.</div>
+        </div>
+      </div>
+      <ul class="why-list">
+        <li>Each tool (Ollama, Kiwix, Kolibri, CyberChef, FlatNotes, Qdrant) runs in its own Docker container</li>
+        <li>Advanced Docker Compose deployment for manual configuration control</li>
+        <li>Supply Depot: one-click app catalog + support for running your own custom containers</li>
+        <li>NVIDIA Container Toolkit support for GPU-accelerated LLM inference</li>
+        <li>Container monitoring via Dozzle, helper scripts for start/stop/update</li>
+        <li>Qdrant vector DB enables semantic search across uploaded documents</li>
+      </ul>
+      <p style="margin-top: var(--space-4); font-size: var(--text-xs); color: var(--color-text-faint);"><strong style="color: var(--color-amber-bright);">Note:</strong> DoomsDay and refugiOS do not use Docker. DoomsDay ships as a monolithic bootable image. refugiOS installs directly on the host OS. If Docker orchestration is a hard requirement, NOMAD is the only option of the three.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p>Data sourced from official GitHub repositories, project websites, and third-party articles (Aug 2026). Source badges: <span class="source-badge official">GitHub</span> = official repo/site, <span class="source-badge third">dev.to</span> = third-party article. "Not specified" indicates the information was not stated in available sources — it does not necessarily mean the feature is absent.</p>
+  <p style="margin-top: var(--space-3);">This dashboard is for informational comparison only. Always verify current capabilities before deployment.</p>
+</footer>
+
+<script>
+// Reveal bar fills on scroll
+(function() {
+  const bars = document.querySelectorAll('.bar-fill');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+      }
+    });
+  }, { threshold: 0.3 });
+  bars.forEach(b => { b.style.opacity = '0'; b.style.transition = 'opacity 0.6s ease, width 0.6s cubic-bezier(0.16, 1, 0.3, 1)'; observer.observe(b); });
+})();
+</script>
+
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>

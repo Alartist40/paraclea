@@ -431,11 +431,13 @@ async fn run_doctor(
     let mut qdrant_ok = qdrant.health_check().await;
     if !qdrant_ok {
         if let Ok(home) = std::env::var("HOME") {
-            let qdrant_bin = std::path::PathBuf::from(home).join(".paraclea/bin/qdrant");
+            let qdrant_bin = std::path::PathBuf::from(&home).join(".paraclea/bin/qdrant");
             if qdrant_bin.exists() {
+                let qdrant_dir = std::path::PathBuf::from(&home).join(".paraclea/qdrant");
+                let _ = std::fs::create_dir_all(&qdrant_dir);
                 let _ = std::process::Command::new("sh")
                     .arg("-c")
-                    .arg(format!("nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_bin))
+                    .arg(format!("cd {:?} && nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_dir, qdrant_bin))
                     .spawn();
                 tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
                 qdrant_ok = qdrant.health_check().await;
@@ -1013,10 +1015,27 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     // 1. Initialize Persona Manager
     let persona_dir = if Path::new(&cfg.persona.dir).exists() {
         cfg.persona.dir.clone()
+    } else if Path::new("persona").exists() {
+        "persona".to_string()
+    } else if let Ok(home) = std::env::var("HOME") {
+        format!("{}/.paraclea/persona", home)
     } else {
         "persona".to_string()
     };
     let persona = PersonaManager::new(&persona_dir)?;
+
+    // Ensure default persona files exist in target directory if running from installed location
+    if let Ok(repo_persona) = std::fs::read_dir("persona") {
+        for entry in repo_persona.flatten() {
+            let src = entry.path();
+            if src.is_file() {
+                let dest = Path::new(&persona_dir).join(entry.file_name());
+                if !dest.exists() {
+                    let _ = std::fs::copy(&src, &dest);
+                }
+            }
+        }
+    }
 
     // 2. Initialize Ollama Client & Sanitize Chat Model
     let mut cfg = cfg;
@@ -1049,11 +1068,13 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     let mut qdrant_online = qdrant.health_check().await;
     if !qdrant_online {
         if let Ok(home) = std::env::var("HOME") {
-            let qdrant_bin = std::path::PathBuf::from(home).join(".paraclea/bin/qdrant");
+            let qdrant_bin = std::path::PathBuf::from(&home).join(".paraclea/bin/qdrant");
             if qdrant_bin.exists() {
+                let qdrant_dir = std::path::PathBuf::from(&home).join(".paraclea/qdrant");
+                let _ = std::fs::create_dir_all(&qdrant_dir);
                 let _ = std::process::Command::new("sh")
                     .arg("-c")
-                    .arg(format!("nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_bin))
+                    .arg(format!("cd {:?} && nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_dir, qdrant_bin))
                     .spawn();
                 tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
                 qdrant_online = qdrant.health_check().await;
