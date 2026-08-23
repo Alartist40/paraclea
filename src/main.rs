@@ -864,32 +864,14 @@ fn prompt_select_book(rl: &mut Option<DefaultEditor>, reader: &BibleReader) -> O
     }
 }
 
-async fn handle_read_cmd(rl: &mut Option<DefaultEditor>, reader: &BibleReader, cfg: &Config, history: &mut Vec<ChatMessage>) -> Result<()> {
-    println!(
-        "\n{}",
-        "╔══════════════════════════════════════════════════════════════╗"
-            .truecolor(177, 74, 237)
-            .bold()
-    );
-    println!(
-        "{}",
-        "║                SCRIPTURE READER & STUDY NAVIGATOR            ║"
-            .truecolor(255, 215, 0)
-            .bold()
-    );
-    println!(
-        "{}",
-        "╚══════════════════════════════════════════════════════════════╝"
-            .truecolor(177, 74, 237)
-            .bold()
-    );
-
-    let selected_book_name = match prompt_select_book(rl, reader) {
-        Some(name) => name,
-        None => return Ok(()),
-    };
-
-    let book_meta = match reader.find_book(&selected_book_name) {
+async fn read_bible_flow(
+    rl: &mut Option<DefaultEditor>,
+    reader: &BibleReader,
+    cfg: &Config,
+    history: &mut Vec<ChatMessage>,
+    selected_book_name: &str,
+) -> Result<()> {
+    let book_meta = match reader.find_book(selected_book_name) {
         Some(b) => b,
         None => {
             println!("{}", format!("⚠️ Book '{}' not found in Bible database.", selected_book_name).red());
@@ -956,6 +938,142 @@ async fn handle_read_cmd(rl: &mut Option<DefaultEditor>, reader: &BibleReader, c
             }
         } else {
             println!("{}", format!("Invalid verse number. Select 1-{}.", verse_count).red());
+        }
+    }
+
+    Ok(())
+}
+
+async fn read_non_scripture_category_flow(
+    rl: &mut Option<DefaultEditor>,
+    library: &LibraryEngine,
+    cat_tag: &str,
+    cat_title: &str,
+    history: &mut Vec<ChatMessage>,
+) -> Result<()> {
+    let mut books = Vec::new();
+    if cat_tag == "survival" {
+        books.extend(library.list_books(Some("survival")));
+        books.extend(library.list_books(Some("medical")));
+    } else if cat_tag == "educational" {
+        books.extend(library.list_books(Some("psychology")));
+        books.extend(library.list_books(Some("educational")));
+        books.extend(library.list_books(Some("classics")));
+        books.extend(library.list_books(Some("custom")));
+    } else {
+        books.extend(library.list_books(Some(cat_tag)));
+    }
+
+    if books.is_empty() {
+        println!("{}", format!("⚠️ No books found in '{}' category.", cat_title).yellow());
+        return Ok(());
+    }
+
+    println!("\n  {}", print_gold(&format!("{}:", cat_title)));
+    for (idx, b) in books.iter().enumerate() {
+        let author_str = b.author.as_deref().unwrap_or("Public Domain");
+        println!("    [{}] {} (By {})", idx + 1, b.title.truecolor(255, 215, 0).bold(), author_str);
+    }
+
+    let choice_input = read_line_prompt(rl, &format!("\n{} ", print_gold(&format!("Select book [1-{}] >", books.len()))));
+    let selected_book = if let Ok(idx) = choice_input.trim().parse::<usize>() {
+        if idx >= 1 && idx <= books.len() {
+            Some(books[idx - 1])
+        } else {
+            None
+        }
+    } else {
+        library.find_book(choice_input.trim())
+    };
+
+    let book = match selected_book {
+        Some(b) => b,
+        None => {
+            println!("{}", "Invalid book selection.".red());
+            return Ok(());
+        }
+    };
+
+    println!("\n  {} has {} chapter(s).", book.title.truecolor(255, 215, 0).bold(), book.chapters.len());
+    let ch_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select chapter [1-{}] >", book.chapters.len()))));
+    let ch_num = ch_input.trim().parse::<usize>().unwrap_or(1);
+
+    if let Some((b, ch)) = library.read_chapter(&book.title, ch_num) {
+        println!(
+            "\n╔══════════════════════════════════════════════════════════════╗\n║  {} - Chapter {}\n╚══════════════════════════════════════════════════════════════╝",
+            b.title, ch.chapter_number
+        );
+        println!("\n{}\n", ch.content.truecolor(177, 74, 237));
+        history.push(ChatMessage {
+            role: "system".to_string(),
+            content: format!("User is reading {} [Category: {}] Chapter {}: \"{}\"", b.title, b.category, ch.chapter_number, ch.content.chars().take(500).collect::<String>()),
+        });
+        println!("{}", print_gold("✓ Book chapter loaded into conversation context! Ask Paraclea anything about it."));
+    } else {
+        println!("{}", "Invalid chapter number.".red());
+    }
+
+    Ok(())
+}
+
+async fn handle_read_cmd(
+    rl: &mut Option<DefaultEditor>,
+    reader: &BibleReader,
+    library: &LibraryEngine,
+    cfg: &Config,
+    history: &mut Vec<ChatMessage>,
+) -> Result<()> {
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════════════════════════╗"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+    println!(
+        "{}",
+        "║             PARACLEA UNIFIED LIBRARY & SCRIPTURE READER      ║"
+            .truecolor(255, 215, 0)
+            .bold()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════╝"
+            .truecolor(177, 74, 237)
+            .bold()
+    );
+
+    println!("  {}", print_gold("Select Category:"));
+    println!("    [1] Spiritual (Holy Bible, Ellen G. White Writings, Christian Books)");
+    println!("    [2] Survival (Medical Emergency, Field Surgery, Wilderness Preparedness)");
+    println!("    [3] Educational (Psychology, Philosophy, Science, Astronomy & Knowledge)");
+
+    let cat_input = read_line_prompt(rl, &format!("\n{} ", print_gold("Select category [1-3] >")));
+    let cat_choice = cat_input.trim().parse::<usize>().unwrap_or(1);
+
+    match cat_choice {
+        1 => {
+            println!("\n  {}", print_gold("Spiritual Resources:"));
+            println!("    [1] Holy Bible (Default: {} / {})", cfg.bible.language, cfg.bible.translation);
+            println!("    [2] Ellen G. White Writings");
+
+            let res_input = read_line_prompt(rl, &format!("\n{} ", print_gold("Select resource [1-2] >")));
+            let res_choice = res_input.trim().parse::<usize>().unwrap_or(1);
+
+            if res_choice == 1 {
+                let selected_book_name = match prompt_select_book(rl, reader) {
+                    Some(name) => name,
+                    None => return Ok(()),
+                };
+                read_bible_flow(rl, reader, cfg, history, &selected_book_name).await?;
+            } else {
+                read_non_scripture_category_flow(rl, library, "egw", "Ellen G. White Writings", history).await?;
+            }
+        }
+        2 => {
+            read_non_scripture_category_flow(rl, library, "survival", "Survival & Medical Field Manuals", history).await?;
+        }
+        _ => {
+            read_non_scripture_category_flow(rl, library, "educational", "Educational & General Knowledge", history).await?;
         }
     }
 
@@ -1261,7 +1379,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
         if input_str.eq_ignore_ascii_case("/read") {
             if let Some(ref reader) = bible_reader {
-                let _ = handle_read_cmd(&mut rl, reader, &cfg, &mut history).await;
+                let _ = handle_read_cmd(&mut rl, reader, &library_engine, &cfg, &mut history).await;
             } else {
                 println!("{}", "⚠️ Bible database not loaded.".red());
             }

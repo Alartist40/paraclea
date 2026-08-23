@@ -26,6 +26,45 @@ pub struct TranslationOption {
     pub file_path: Option<String>,
 }
 
+pub fn code_to_language_name(code: &str) -> &'static str {
+    match code.to_lowercase().as_str() {
+        "eng" | "en" => "English",
+        "twi" | "tw" => "Twi (Ghana - Akuapem & Asante)",
+        "zul" | "zu" => "Zulu (isiZulu)",
+        "xho" | "xh" => "Xhosa (isiXhosa)",
+        "afr" | "af" => "Afrikaans",
+        "swh" | "sw" => "Swahili (Kiswahili)",
+        "amh" | "am" => "Amharic (አማርኛ)",
+        "hau" | "ha" => "Hausa",
+        "yor" | "yo" => "Yoruba",
+        "ibo" | "ig" => "Igbo",
+        "lug" | "lg" => "Luganda",
+        "sna" | "sn" => "Shona",
+        "tsn" | "tn" => "Setswana",
+        "nso" => "Sepedi (Northern Sotho)",
+        "spa" | "es" => "Spanish (Español)",
+        "fra" | "fr" => "French (Français)",
+        "deu" | "de" => "German (Deutsch)",
+        "zho" | "zh" => "Chinese (中文)",
+        "hin" | "hi" => "Hindi (हिन्दी)",
+        "tam" | "ta" => "Tamil (தமிழ்)",
+        "tel" | "te" => "Telugu (తెలుగు)",
+        "mal" | "ml" => "Malayalam (മലയാളം)",
+        "guj" | "gu" => "Gujarati (ગુજરાતી)",
+        "ben" | "bn" => "Bengali (বাংলা)",
+        "pan" | "pa" => "Punjabi (ਪੰਜਾਬੀ)",
+        "hun" | "hu" => "Hungarian (Magyar)",
+        "nep" | "ne" => "Nepali (नेपाली)",
+        "por" | "pt" => "Portuguese (Português)",
+        "rus" | "ru" => "Russian (Русский)",
+        "arb" | "ar" => "Arabic (العربية)",
+        "heb" | "he" => "Hebrew (עברית)",
+        "ell" | "el" | "grc" => "Greek (Ελληνικά)",
+        "lat" | "la" => "Latin (Vulgata)",
+        _ => "Other Language",
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BookMeta {
     pub name: String,
@@ -104,88 +143,97 @@ impl BibleReader {
         anyhow::bail!("Bible JSON dataset not found on system.");
     }
 
-    /// List supported languages.
+    /// Dynamic listing of all supported Bible languages discovered in ~/.paraclea/bibles/
     pub fn list_languages() -> Vec<LanguageOption> {
-        vec![
-            LanguageOption { id: 1, name: "English".to_string(), code: "en".to_string() },
-            LanguageOption { id: 2, name: "Spanish (Español)".to_string(), code: "es".to_string() },
-            LanguageOption { id: 3, name: "French (Français)".to_string(), code: "fr".to_string() },
-            LanguageOption { id: 4, name: "German (Deutsch)".to_string(), code: "de".to_string() },
-            LanguageOption { id: 5, name: "Chinese (中文)".to_string(), code: "zh".to_string() },
-            LanguageOption { id: 6, name: "Japanese (日本語)".to_string(), code: "ja".to_string() },
-            LanguageOption { id: 7, name: "Portuguese (Português)".to_string(), code: "pt".to_string() },
-            LanguageOption { id: 8, name: "Russian (Русский)".to_string(), code: "ru".to_string() },
-            LanguageOption { id: 9, name: "Greek (Ελληνικά)".to_string(), code: "grc".to_string() },
-            LanguageOption { id: 10, name: "Hebrew (עברית)".to_string(), code: "he".to_string() },
-            LanguageOption { id: 11, name: "Latin (Vulgata)".to_string(), code: "la".to_string() },
-            LanguageOption { id: 12, name: "Dutch (Nederlands)".to_string(), code: "nl".to_string() },
-            LanguageOption { id: 13, name: "Korean (한국어)".to_string(), code: "ko".to_string() },
-            LanguageOption { id: 14, name: "Tagalog (Filipino)".to_string(), code: "tl".to_string() },
-        ]
+        let mut languages = Vec::new();
+        let mut id = 1;
+
+        if let Ok(home) = std::env::var("HOME") {
+            let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
+            if bibles_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&bibles_dir) {
+                    let mut code_list: Vec<String> = entries
+                        .flatten()
+                        .filter(|e| e.path().is_dir())
+                        .map(|e| e.file_name().to_string_lossy().to_string())
+                        .collect();
+                    
+                    // Priority sort: English first, Twi second, then alphabetical
+                    code_list.sort_by(|a, b| {
+                        if a == "eng" { return std::cmp::Ordering::Less; }
+                        if b == "eng" { return std::cmp::Ordering::Greater; }
+                        if a == "twi" { return std::cmp::Ordering::Less; }
+                        if b == "twi" { return std::cmp::Ordering::Greater; }
+                        a.cmp(b)
+                    });
+
+                    for code in code_list {
+                        let name = code_to_language_name(&code).to_string();
+                        languages.push(LanguageOption {
+                            id,
+                            name,
+                            code,
+                        });
+                        id += 1;
+                    }
+                }
+            }
+        }
+
+        if languages.is_empty() {
+            languages.push(LanguageOption { id: 1, name: "English".to_string(), code: "eng".to_string() });
+        }
+
+        languages
     }
 
-    /// List available translations for a given language code.
+    /// Dynamic listing of available Bible translations for a given language code.
     pub fn list_translations_for_lang(lang_code: &str) -> Vec<TranslationOption> {
-        match lang_code {
-            "es" => vec![
-                TranslationOption { id: 1, tag: "SpaRV".to_string(), name: "La Santa Biblia Reina-Valera (1909)".to_string(), language: "Spanish".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 2, tag: "SpaRV1865".to_string(), name: "Reina-Valera 1865".to_string(), language: "Spanish".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 3, tag: "SpaRVG".to_string(), name: "Reina Valera Gómez".to_string(), language: "Spanish".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 4, tag: "SpaPlatense".to_string(), name: "Biblia Platense (Straubinger)".to_string(), language: "Spanish".to_string(), is_easy: true, file_path: None },
-            ],
-            "fr" => vec![
-                TranslationOption { id: 1, tag: "FreBBB".to_string(), name: "French Bible Bovet Bonnet (1900)".to_string(), language: "French".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 2, tag: "FreBDM1744".to_string(), name: "Bible David Martin (1744)".to_string(), language: "French".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 3, tag: "FreCrampon".to_string(), name: "La Bible Augustin Crampon (1923)".to_string(), language: "French".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 4, tag: "FreGeneve1669".to_string(), name: "Bible de Genève (1669)".to_string(), language: "French".to_string(), is_easy: false, file_path: None },
-            ],
-            "de" => vec![
-                TranslationOption { id: 1, tag: "GerBoLut".to_string(), name: "Luther 1545 Bibel (moderne)".to_string(), language: "German".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 2, tag: "GerElb1905".to_string(), name: "Unrevidierte Elberfelder (1905)".to_string(), language: "German".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 3, tag: "GerMenge".to_string(), name: "Menge-Bibel (1939)".to_string(), language: "German".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 4, tag: "GerSch".to_string(), name: "Schlachter Bibel (1951)".to_string(), language: "German".to_string(), is_easy: true, file_path: None },
-            ],
-            "zh" => vec![
-                TranslationOption { id: 1, tag: "ChiUn".to_string(), name: "和合本 (Chinese Union Version)".to_string(), language: "Chinese".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 2, tag: "ChiSB".to_string(), name: "思高本 (Sīgāo Běn)".to_string(), language: "Chinese".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 3, tag: "ChiUnL".to_string(), name: "文理和合本 (Classical Chinese)".to_string(), language: "Chinese".to_string(), is_easy: false, file_path: None },
-            ],
-            "ja" => vec![
-                TranslationOption { id: 1, tag: "JapKougo".to_string(), name: "口語訳聖書 (Kougo-yaku 1954)".to_string(), language: "Japanese".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 2, tag: "JapBungo".to_string(), name: "文語訳聖書 (Bungo-yaku Meiji)".to_string(), language: "Japanese".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 3, tag: "JapDenmo".to_string(), name: "電網聖書 (Denmo Bible)".to_string(), language: "Japanese".to_string(), is_easy: true, file_path: None },
-            ],
-            "pt" => vec![
-                TranslationOption { id: 1, tag: "PorBLivre".to_string(), name: "Bíblia Livre (Portuguese)".to_string(), language: "Portuguese".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 2, tag: "PorNVA".to_string(), name: "Bíblia Nova Versão de Acesso Livre".to_string(), language: "Portuguese".to_string(), is_easy: true, file_path: None },
-            ],
-            "ru" => vec![
-                TranslationOption { id: 1, tag: "RusSynodal".to_string(), name: "Синодальный Перевод (Synodal)".to_string(), language: "Russian".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 2, tag: "RusMakarij".to_string(), name: "Перевод Макария (Makarij)".to_string(), language: "Russian".to_string(), is_easy: true, file_path: None },
-            ],
-            "grc" => vec![
-                TranslationOption { id: 1, tag: "TR".to_string(), name: "Textus Receptus (1550/1894)".to_string(), language: "Greek".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 2, tag: "Byz".to_string(), name: "Byzantine Textform (2013)".to_string(), language: "Greek".to_string(), is_easy: false, file_path: None },
-            ],
-            "he" => vec![
-                TranslationOption { id: 1, tag: "HebModern".to_string(), name: "Modern Hebrew Bible".to_string(), language: "Hebrew".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 2, tag: "WLC".to_string(), name: "Westminster Leningrad Codex".to_string(), language: "Hebrew".to_string(), is_easy: false, file_path: None },
-            ],
-            "la" => vec![
-                TranslationOption { id: 1, tag: "Vulgate".to_string(), name: "Biblia Sacra Vulgata (Latin)".to_string(), language: "Latin".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 2, tag: "VulgClementine".to_string(), name: "Clementine Vulgate".to_string(), language: "Latin".to_string(), is_easy: false, file_path: None },
-            ],
-            _ => vec![
-                TranslationOption { id: 1, tag: "KJV".to_string(), name: "King James Version (Authorized KJV)".to_string(), language: "English".to_string(), is_easy: false, file_path: Some("data/kjv.json".to_string()) },
-                TranslationOption { id: 2, tag: "BBE".to_string(), name: "Bible in Basic English (Easy English)".to_string(), language: "English".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 3, tag: "AKJV".to_string(), name: "American King James Version".to_string(), language: "English".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 4, tag: "ASV".to_string(), name: "American Standard Version (1901)".to_string(), language: "English".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 5, tag: "BSB".to_string(), name: "Berean Standard Bible".to_string(), language: "English".to_string(), is_easy: true, file_path: None },
-                TranslationOption { id: 6, tag: "Darby".to_string(), name: "Darby Bible (1889)".to_string(), language: "English".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 7, tag: "Geneva1599".to_string(), name: "Geneva Bible (1599)".to_string(), language: "English".to_string(), is_easy: false, file_path: None },
-                TranslationOption { id: 8, tag: "YLT".to_string(), name: "Young's Literal Translation (1898)".to_string(), language: "English".to_string(), is_easy: false, file_path: None },
-            ],
+        let mut options = Vec::new();
+        let mut id = 1;
+
+        if let Ok(home) = std::env::var("HOME") {
+            let bibles_dir = PathBuf::from(home).join(format!(".paraclea/bibles/{}", lang_code));
+            if bibles_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&bibles_dir) {
+                    let mut files: Vec<PathBuf> = entries
+                        .flatten()
+                        .map(|e| e.path())
+                        .filter(|p| p.extension().and_then(|ext| ext.to_str()) == Some("json"))
+                        .collect();
+
+                    files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+
+                    for f in files {
+                        let stem = f.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                        let tag = stem.to_uppercase();
+                        let display_name = format!("{} ({})", stem.replace('_', " ").to_uppercase(), code_to_language_name(lang_code));
+                        options.push(TranslationOption {
+                            id,
+                            tag,
+                            name: display_name,
+                            language: code_to_language_name(lang_code).to_string(),
+                            is_easy: stem.contains("easy") || stem.contains("bbe") || stem.contains("nlt"),
+                            file_path: Some(f.to_string_lossy().to_string()),
+                        });
+                        id += 1;
+                    }
+                }
+            }
         }
+
+        if options.is_empty() {
+            options.push(TranslationOption {
+                id: 1,
+                tag: "KJV".to_string(),
+                name: "King James Version (Authorized KJV)".to_string(),
+                language: "English".to_string(),
+                is_easy: false,
+                file_path: Some("data/kjv.json".to_string()),
+            });
+        }
+
+        options
     }
 }
 
