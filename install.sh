@@ -37,7 +37,7 @@ echo -e "${PURPLE}📦 Detected Platform: $OS / $ARCH ($ARCH_TAG)${RESET}"
 
 INSTALL_DIR="$HOME/.paraclea"
 BIN_DIR="$HOME/.local/bin"
-mkdir -p "$INSTALL_DIR/bin" "$BIN_DIR"
+mkdir -p "$INSTALL_DIR/bin" "$INSTALL_DIR/qdrant" "$INSTALL_DIR/data" "$INSTALL_DIR/bibles" "$INSTALL_DIR/library" "$INSTALL_DIR/persona/logs/daily" "$BIN_DIR"
 
 # Check system dependencies
 check_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -79,11 +79,11 @@ if [ ! -f "$INSTALL_DIR/bin/qdrant" ]; then
     fi
 fi
 
-# Start Qdrant in background if not running
+# Start Qdrant in background inside ~/.paraclea/qdrant
 if ! curl -s http://localhost:6333/collections >/dev/null 2>&1; then
     if [ -f "$INSTALL_DIR/bin/qdrant" ]; then
         echo -e "${PURPLE}🚀 Starting Qdrant vector database background process...${RESET}"
-        nohup "$INSTALL_DIR/bin/qdrant" > "$INSTALL_DIR/qdrant.log" 2>&1 &
+        (cd "$INSTALL_DIR/qdrant" && nohup "$INSTALL_DIR/bin/qdrant" > "$INSTALL_DIR/qdrant.log" 2>&1 &)
         sleep 2
     fi
 fi
@@ -101,9 +101,9 @@ if [ ! -f "Cargo.toml" ]; then
     fi
 fi
 
-# Create default configuration file
-if [ ! -f "config.yaml" ]; then
-    cat > config.yaml << 'CFGEOF'
+# Create default configuration file in ~/.paraclea/config.yaml
+if [ ! -f "$INSTALL_DIR/config.yaml" ]; then
+    cat > "$INSTALL_DIR/config.yaml" << CFGEOF
 system:
   name: "Paraclea"
   version: "0.1.0"
@@ -112,8 +112,8 @@ model:
   backend: "ollama"
   ollama:
     url: "http://localhost:11434"
-    model: "ministral-3:8b"
-    heavy_model: "ornith:9b"
+    model: "ministral-3:3b"
+    heavy_model: "qwen3.5:9b"
     embed_model: "nomic-embed-text"
     ocr_model: "frob/unlimited-ocr:q8_0"
   local:
@@ -128,22 +128,24 @@ vector_db:
 voice:
   pocket_tts_url: "http://localhost:8000"
   pocket_tts_voice: "alba"
-  pocket_tts_cli: "/home/xander/Documents/reference/pocket-tts/.venv/bin/pocket-tts"
+  pocket_tts_cli: "$HOME/.paraclea/bin/pocket-tts"
 
 persona:
-  dir: "persona"
+  dir: "$INSTALL_DIR/persona"
   heartbeat_interval: 15
 CFGEOF
-    echo -e "${GREEN}✅ Default config.yaml created.${RESET}"
+    echo -e "${GREEN}✅ Default config.yaml created at $INSTALL_DIR/config.yaml.${RESET}"
 fi
 
-mkdir -p persona/logs/daily
+# Copy persona templates if persona folder exists in source repo
+if [ -d "persona" ]; then
+    cp -rn persona/* "$INSTALL_DIR/persona/" 2>/dev/null || true
+fi
 
 # Build & install binary
 echo -e "${PURPLE}🔨 Building Paraclea release binary (Rust opt-level 3)...${RESET}"
 cargo build --release
 
-mkdir -p "$INSTALL_DIR/data"
 if [ -f "data/kjv.json" ]; then
     cp "data/kjv.json" "$INSTALL_DIR/data/kjv.json"
 fi
@@ -165,12 +167,12 @@ echo -e "${GOLD}${BOLD}║     ✅ Paraclea Installed Successfully!  ║"${RESET
 echo -e "${GOLD}${BOLD}╚══════════════════════════════════════════╝"${RESET}
 echo ""
 echo -e "${PURPLE}📍 Binary location:${RESET} $BIN_DIR/paraclea"
+echo -e "${PURPLE}📍 Data & Config:${RESET} $INSTALL_DIR/"
 echo -e "${PURPLE}📍 Qdrant location:${RESET} $INSTALL_DIR/bin/qdrant"
 echo ""
 echo -e "${BOLD}Quick Commands:${RESET}"
 echo -e "  ${GOLD}paraclea doctor${RESET}                           # Run system diagnostics"
 echo -e "  ${GOLD}paraclea ingest <file>${RESET}                    # Ingest text/document/image into Qdrant"
 echo -e "  ${GOLD}paraclea query \"question\"${RESET}                 # One-shot RAG query"
-echo -e "  ${GOLD}paraclea run 1${RESET}                            # Run model #1 in interactive mode"
-echo -e "  ${GOLD}paraclea${RESET}                                  # Start Paraclea RAG shell"
+echo -e "  ${GOLD}paraclea${RESET}                                  # Start Paraclea REPL shell"
 echo ""
