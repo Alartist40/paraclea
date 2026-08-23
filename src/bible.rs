@@ -28,41 +28,106 @@ pub struct TranslationOption {
 
 pub fn code_to_language_name(code: &str) -> &'static str {
     match code.to_lowercase().as_str() {
-        "eng" | "en" => "English",
-        "twi" | "tw" => "Twi (Ghana - Akuapem & Asante)",
-        "zul" | "zu" => "Zulu (isiZulu)",
-        "xho" | "xh" => "Xhosa (isiXhosa)",
         "afr" | "af" => "Afrikaans",
-        "swh" | "sw" => "Swahili (Kiswahili)",
         "amh" | "am" => "Amharic (አማርኛ)",
-        "hau" | "ha" => "Hausa",
-        "yor" | "yo" => "Yoruba",
-        "ibo" | "ig" => "Igbo",
-        "lug" | "lg" => "Luganda",
-        "sna" | "sn" => "Shona",
-        "tsn" | "tn" => "Setswana",
-        "nso" => "Sepedi (Northern Sotho)",
-        "spa" | "es" => "Spanish (Español)",
+        "arb" | "ar" => "Arabic (العربية)",
+        "ben" | "bn" => "Bengali (বাংলা)",
+        "zho" | "zh" => "Chinese (中文)",
+        "nld" | "nl" => "Dutch (Nederlands)",
+        "eng" | "en" => "English",
         "fra" | "fr" => "French (Français)",
         "deu" | "de" => "German (Deutsch)",
-        "zho" | "zh" => "Chinese (中文)",
+        "ell" | "el" | "grc" => "Greek (Ελληνικά)",
+        "guj" | "gu" => "Gujarati (ગુજરાતી)",
+        "hau" | "ha" => "Hausa",
+        "heb" | "he" => "Hebrew (עברית)",
         "hin" | "hi" => "Hindi (हिन्दी)",
+        "hun" | "hu" => "Hungarian (Magyar)",
+        "ibo" | "ig" => "Igbo",
+        "jpn" | "ja" => "Japanese (日本語)",
+        "kor" | "ko" => "Korean (한국어)",
+        "lat" | "la" => "Latin (Vulgata)",
+        "lug" | "lg" => "Luganda",
+        "mal" | "ml" => "Malayalam (മലയാളം)",
+        "nep" | "ne" => "Nepali (नेपाली)",
+        "nso" => "Sepedi (Northern Sotho)",
+        "por" | "pt" => "Portuguese (Português)",
+        "pan" | "pa" => "Punjabi (ਪੰਜਾਬੀ)",
+        "rus" | "ru" => "Russian (Русский)",
+        "sna" | "sn" => "Shona",
+        "spa" | "es" => "Spanish (Español)",
+        "swh" | "sw" => "Swahili (Kiswahili)",
         "tam" | "ta" => "Tamil (தமிழ்)",
         "tel" | "te" => "Telugu (తెలుగు)",
-        "mal" | "ml" => "Malayalam (മലയാളം)",
-        "guj" | "gu" => "Gujarati (ગુજરાતી)",
-        "ben" | "bn" => "Bengali (বাংলা)",
-        "pan" | "pa" => "Punjabi (ਪੰਜਾਬੀ)",
-        "hun" | "hu" => "Hungarian (Magyar)",
-        "nep" | "ne" => "Nepali (नेपाली)",
-        "por" | "pt" => "Portuguese (Português)",
-        "rus" | "ru" => "Russian (Русский)",
-        "arb" | "ar" => "Arabic (العربية)",
-        "heb" | "he" => "Hebrew (עברית)",
-        "ell" | "el" | "grc" => "Greek (Ελληνικά)",
-        "lat" | "la" => "Latin (Vulgata)",
+        "tsn" | "tn" => "Setswana",
+        "twi" | "tw" => "Twi (Ghana - Akuapem & Asante)",
+        "xho" | "xh" => "Xhosa (isiXhosa)",
+        "yor" | "yo" => "Yoruba",
+        "zul" | "zu" => "Zulu (isiZulu)",
         _ => "Other Language",
     }
+}
+
+pub fn format_translation_name(stem: &str, lang_code: &str) -> String {
+    let lower = stem.to_lowercase();
+    match lower.as_str() {
+        "en-kjv" | "kjv" => "King James Version (KJV 1611 - Authorized)".to_string(),
+        "en-nkjv" | "nkjv" => "New King James Version (NKJV)".to_string(),
+        "en-niv" | "niv" => "New International Version (NIV)".to_string(),
+        "en-nlt" | "nlt" => "New Living Translation (NLT)".to_string(),
+        "en-esv" | "esv" => "English Standard Version (ESV)".to_string(),
+        "en-nasb" | "nasb" => "New American Standard Bible (NASB)".to_string(),
+        "en-asv" | "asv" => "American Standard Version (ASV 1901)".to_string(),
+        "en-bsb" | "bsb" => "Berean Standard Bible (BSB)".to_string(),
+        "en-web" | "web" => "World English Bible (WEB)".to_string(),
+        "en-webbe" | "webbe" => "World English Bible British Edition (WEBBE)".to_string(),
+        "en-webus" | "webus" => "World English Bible US Edition (WEBUS)".to_string(),
+        "en-gnv" | "gnv" => "Geneva Bible (1599)".to_string(),
+        "en-ylt" | "ylt" => "Young's Literal Translation (1898)".to_string(),
+        "en-dra" | "dra" => "Douay-Rheims American Edition (1899)".to_string(),
+        "en-rv" | "rv" => "Revised Version (1885)".to_string(),
+        "tw-wakna" => "Twi Akuapem Bible (Nkwa Asɛm)".to_string(),
+        "tw-wasna" => "Twi Asante Bible (Nkwa Asɛm)".to_string(),
+        "zulu_bible" | "zul" => "Zulu Bible (isiZulu)".to_string(),
+        "xhosa_bible" | "xho" => "Xhosa Bible (isiXhosa)".to_string(),
+        "afrikaans_bible" | "afr" => "Afrikaans Bible".to_string(),
+        "swahili_bible" | "swh" => "Swahili Bible (Kiswahili)".to_string(),
+        "amharic_bible" | "amh" => "Amharic Bible (አማርኛ)".to_string(),
+        "hausa_bible" | "hau" => "Hausa Bible".to_string(),
+        "yoruba_bible" | "yo" => "Yoruba Bible".to_string(),
+        "igbo_bible" | "ig" => "Igbo Bible".to_string(),
+        _ => {
+            let clean = lower.replace("en-", "").replace("us-", "").replace('_', " ").to_uppercase();
+            format!("{} ({})", clean, code_to_language_name(lang_code))
+        }
+    }
+}
+
+pub fn matches_tag(file_stem: &str, target_tag: &str) -> bool {
+    let s = file_stem.to_lowercase();
+    let t = target_tag.to_lowercase();
+    if s == t {
+        return true;
+    }
+    if (t == "kjv" || t == "en-kjv" || t == "en_kjv") && (s == "en-kjv" || s == "kjv" || s == "en_kjv") {
+        return true;
+    }
+    if (t == "nkjv" || t == "en-nkjv") && (s == "en-nkjv" || s == "nkjv") {
+        return true;
+    }
+    if (t == "niv" || t == "en-niv") && (s == "en-niv" || s == "niv") {
+        return true;
+    }
+    if (t == "nlt" || t == "en-nlt") && (s == "en-nlt" || s == "nlt") {
+        return true;
+    }
+    if (t == "esv" || t == "en-esv") && (s == "en-esv" || s == "esv") {
+        return true;
+    }
+    if s.replace("en-", "") == t.replace("en-", "") {
+        return true;
+    }
+    false
 }
 
 #[derive(Debug, Clone)]
@@ -143,41 +208,41 @@ impl BibleReader {
         anyhow::bail!("Bible JSON dataset not found on system.");
     }
 
-    /// Dynamic listing of all supported Bible languages discovered in ~/.paraclea/bibles/
+    /// Dynamic listing of all supported Bible languages discovered in ~/.paraclea/bibles/, sorted strictly alphabetically.
     pub fn list_languages() -> Vec<LanguageOption> {
-        let mut languages = Vec::new();
-        let mut id = 1;
+        let mut raw_map: Vec<(String, String)> = Vec::new(); // (code, display_name)
 
         if let Ok(home) = std::env::var("HOME") {
             let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
             if bibles_dir.exists() {
                 if let Ok(entries) = fs::read_dir(&bibles_dir) {
-                    let mut code_list: Vec<String> = entries
-                        .flatten()
-                        .filter(|e| e.path().is_dir())
-                        .map(|e| e.file_name().to_string_lossy().to_string())
-                        .collect();
-                    
-                    // Priority sort: English first, Twi second, then alphabetical
-                    code_list.sort_by(|a, b| {
-                        if a == "eng" { return std::cmp::Ordering::Less; }
-                        if b == "eng" { return std::cmp::Ordering::Greater; }
-                        if a == "twi" { return std::cmp::Ordering::Less; }
-                        if b == "twi" { return std::cmp::Ordering::Greater; }
-                        a.cmp(b)
-                    });
-
-                    for code in code_list {
-                        let name = code_to_language_name(&code).to_string();
-                        languages.push(LanguageOption {
-                            id,
-                            name,
-                            code,
-                        });
-                        id += 1;
+                    for entry in entries.flatten() {
+                        if entry.path().is_dir() {
+                            let code = entry.file_name().to_string_lossy().to_string();
+                            let name_mapped = code_to_language_name(&code);
+                            let display_name = if name_mapped == "Other Language" {
+                                format!("Language ({})", code.to_uppercase())
+                            } else {
+                                name_mapped.to_string()
+                            };
+                            raw_map.push((code, display_name));
+                        }
                     }
                 }
             }
+        }
+
+        // Sort strictly in alphabetical order by display_name
+        raw_map.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+        raw_map.dedup_by(|a, b| a.1 == b.1);
+
+        let mut languages = Vec::new();
+        for (id, (code, name)) in raw_map.into_iter().enumerate() {
+            languages.push(LanguageOption {
+                id: id + 1,
+                name,
+                code,
+            });
         }
 
         if languages.is_empty() {
@@ -187,10 +252,9 @@ impl BibleReader {
         languages
     }
 
-    /// Dynamic listing of available Bible translations for a given language code.
+    /// Dynamic listing of available Bible translations for a given language code, sorted alphabetically.
     pub fn list_translations_for_lang(lang_code: &str) -> Vec<TranslationOption> {
-        let mut options = Vec::new();
-        let mut id = 1;
+        let mut raw_items = Vec::new();
 
         if let Ok(home) = std::env::var("HOME") {
             let bibles_dir = PathBuf::from(home).join(format!(".paraclea/bibles/{}", lang_code));
@@ -202,31 +266,43 @@ impl BibleReader {
                         .filter(|p| p.extension().and_then(|ext| ext.to_str()) == Some("json"))
                         .collect();
 
-                    files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-
                     for f in files {
                         let stem = f.file_stem().unwrap_or_default().to_string_lossy().to_string();
                         let tag = stem.to_uppercase();
-                        let display_name = format!("{} ({})", stem.replace('_', " ").to_uppercase(), code_to_language_name(lang_code));
-                        options.push(TranslationOption {
-                            id,
-                            tag,
-                            name: display_name,
-                            language: code_to_language_name(lang_code).to_string(),
-                            is_easy: stem.contains("easy") || stem.contains("bbe") || stem.contains("nlt"),
-                            file_path: Some(f.to_string_lossy().to_string()),
-                        });
-                        id += 1;
+                        let display_name = format_translation_name(&stem, lang_code);
+                        let is_easy = stem.contains("easy") || stem.contains("bbe") || stem.contains("nlt") || stem.contains("web");
+                        raw_items.push((tag, display_name, is_easy, f.to_string_lossy().to_string()));
                     }
                 }
             }
+        }
+
+        // Prioritize KJV first for English, then sort alphabetically by display_name
+        raw_items.sort_by(|a, b| {
+            let is_a_kjv = a.0 == "EN-KJV" || a.0 == "KJV";
+            let is_b_kjv = b.0 == "EN-KJV" || b.0 == "KJV";
+            if is_a_kjv { return std::cmp::Ordering::Less; }
+            if is_b_kjv { return std::cmp::Ordering::Greater; }
+            a.1.to_lowercase().cmp(&b.1.to_lowercase())
+        });
+
+        let mut options = Vec::new();
+        for (id, (tag, name, is_easy, file_path)) in raw_items.into_iter().enumerate() {
+            options.push(TranslationOption {
+                id: id + 1,
+                tag,
+                name,
+                language: code_to_language_name(lang_code).to_string(),
+                is_easy,
+                file_path: Some(file_path),
+            });
         }
 
         if options.is_empty() {
             options.push(TranslationOption {
                 id: 1,
                 tag: "KJV".to_string(),
-                name: "King James Version (Authorized KJV)".to_string(),
+                name: "King James Version (KJV 1611 - Authorized)".to_string(),
                 language: "English".to_string(),
                 is_easy: false,
                 file_path: Some("data/kjv.json".to_string()),
@@ -350,7 +426,36 @@ impl BibleReader {
 
         Some(result)
     }
+}
 
+pub fn find_json_bible_file(translation_tag: &str) -> Option<PathBuf> {
+    if let Ok(home) = std::env::var("HOME") {
+        let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
+        if bibles_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&bibles_dir) {
+                for lang_entry in entries.flatten() {
+                    if lang_entry.path().is_dir() {
+                        if let Ok(files) = fs::read_dir(lang_entry.path()) {
+                            for f in files.flatten() {
+                                let p = f.path();
+                                if p.extension().and_then(|e| e.to_str()) == Some("json") {
+                                    if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                                        if matches_tag(stem, translation_tag) {
+                                            return Some(p);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+impl BibleReader {
     /// Read single verse with target translation tag fallback.
     pub fn read_translation_verse(
         &self,
@@ -359,34 +464,21 @@ impl BibleReader {
         chapter: usize,
         verse: usize,
     ) -> Option<String> {
-        // 1. Check dynamic JSON Bible files in ~/.paraclea/bibles/
-        if let Ok(home) = std::env::var("HOME") {
-            let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
-            if bibles_dir.exists() {
-                if let Ok(entries) = fs::read_dir(&bibles_dir) {
-                    for lang_entry in entries.flatten() {
-                        if lang_entry.path().is_dir() {
-                            let target_file = lang_entry.path().join(format!("{}.json", translation_tag.to_lowercase()));
-                            if target_file.exists() {
-                                if let Ok(content) = fs::read_to_string(&target_file) {
-                                    if let Ok(val) = serde_json::from_str::<Value>(&content) {
-                                        if let Some(books) = val.as_array() {
-                                            let q = book_name.trim().to_lowercase();
-                                            if let Some(bk) = books.iter().find(|b| {
-                                                let name = b.get("name").and_then(|n| n.as_str()).unwrap_or("").to_lowercase();
-                                                name == q || name.starts_with(&q)
-                                            }) {
-                                                if let Some(chaps) = bk.get("chapters").and_then(|c| c.as_array()) {
-                                                    if chapter >= 1 && chapter <= chaps.len() {
-                                                        if let Some(verses) = chaps[chapter - 1].as_array() {
-                                                            if verse >= 1 && verse <= verses.len() {
-                                                                if let Some(t) = verses[verse - 1].as_str() {
-                                                                    return Some(t.to_string());
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
+        if let Some(target_file) = find_json_bible_file(translation_tag) {
+            if let Ok(content) = fs::read_to_string(&target_file) {
+                if let Ok(val) = serde_json::from_str::<Value>(&content) {
+                    if let Some(books) = val.as_array() {
+                        let q = book_name.trim().to_lowercase();
+                        if let Some(bk) = books.iter().find(|b| {
+                            let name = b.get("name").and_then(|n| n.as_str()).unwrap_or("").to_lowercase();
+                            name == q || name.starts_with(&q)
+                        }) {
+                            if let Some(chaps) = bk.get("chapters").and_then(|c| c.as_array()) {
+                                if chapter >= 1 && chapter <= chaps.len() {
+                                    if let Some(verses) = chaps[chapter - 1].as_array() {
+                                        if verse >= 1 && verse <= verses.len() {
+                                            if let Some(t) = verses[verse - 1].as_str() {
+                                                return Some(t.to_string());
                                             }
                                         }
                                     }
@@ -398,7 +490,6 @@ impl BibleReader {
             }
         }
 
-        // 2. Fallback to CSV Bibles
         if let Some(csv_path) = CsvBibleReader::locate_csv(translation_tag) {
             if let Some(text) = CsvBibleReader::read_verse(&csv_path, book_name, chapter, verse) {
                 return Some(text);
@@ -414,6 +505,33 @@ impl BibleReader {
         book_name: &str,
         chapter: usize,
     ) -> Option<Vec<(usize, String)>> {
+        if let Some(target_file) = find_json_bible_file(translation_tag) {
+            if let Ok(content) = fs::read_to_string(&target_file) {
+                if let Ok(val) = serde_json::from_str::<Value>(&content) {
+                    if let Some(books) = val.as_array() {
+                        let q = book_name.trim().to_lowercase();
+                        if let Some(bk) = books.iter().find(|b| {
+                            let name = b.get("name").and_then(|n| n.as_str()).unwrap_or("").to_lowercase();
+                            name == q || name.starts_with(&q)
+                        }) {
+                            if let Some(chaps) = bk.get("chapters").and_then(|c| c.as_array()) {
+                                if chapter >= 1 && chapter <= chaps.len() {
+                                    if let Some(verses) = chaps[chapter - 1].as_array() {
+                                        let result = verses
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(idx, v)| (idx + 1, v.as_str().unwrap_or("").to_string()))
+                                            .collect();
+                                        return Some(result);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if let Some(csv_path) = CsvBibleReader::locate_csv(translation_tag) {
             if let Some(verses) = CsvBibleReader::read_chapter(&csv_path, book_name, chapter) {
                 return Some(verses);
