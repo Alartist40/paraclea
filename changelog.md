@@ -2,6 +2,15 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.7.0] - 2026-08-23
+
+### Added
+- **Complete Multi-Language Bible Standardization & Deduplication (`scripts/organize_library.py`)**: Aggregated, deduplicated, and normalized 219 unique Bible versions across 30 languages (including Twi Akuapem & Asante, Zulu, Xhosa, Afrikaans, Swahili, Amharic, Hausa, Yoruba, Igbo, Luganda, Shona, Setswana, Sepedi, German, French, Spanish, Hebrew, Arabic, Hindi, Tamil, Telugu, etc.) into `$HOME/.paraclea/bibles/<lang>/`.
+- **Multi-Category Non-Scripture Library Engine (`src/library.rs`)**: Standardized organization for Ellen G. White writings (`egw`), Medical field manuals (`medical`), Wilderness Survival books (`survival`), Psychology texts (`psychology`), and Classics (`classics`).
+- **Custom Cross-Reference Graph Linker (`src/crossref.rs`)**: Connected Scripture verses (`Genesis 1:1`) to non-scripture passages (`psychology/principles_of_mind Ch 1`), storing bidirectional links in Dendrite graph memory (`$HOME/.paraclea/dendrite.db`).
+- **Centralized Runtime Directory Architecture (`$HOME/.paraclea/`)**: Updated all path resolution logic (`src/config.rs`, `src/persona.rs`, `src/main.rs`) so configuration, persona, databases, and Qdrant vector storage live strictly inside `$HOME/.paraclea/`.
+- **Expanded System Doctor Metrics (`paraclea doctor`)**: Updated system doctor diagnostics to report covered Bible languages, formatted Bible versions, library categories, and total ingested books.
+
 ## [0.5.0] - 2026-08-23
 
 ### Added

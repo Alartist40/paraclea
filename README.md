@@ -15,7 +15,9 @@
 - **Advanced Self-Healing System Doctor (`paraclea doctor`)**: Hardware & CPU architecture probing, binary PATH validation, live 1-token forward-pass inference testing, vector DB & mesh auto-repair, and SQLite integrity checks.
 - **Reticulum Mesh Network (`/mesh`)**: Zero-trust off-grid mesh communications over local WiFi/Ethernet, serial cables, and LoRa radios without internet or central servers.
 - **Interactive Terminal Shell & Line Editing**: Native Left/Right arrow key navigation, smooth backspacing, and command history recall across all interactive prompts.
-- **140+ Bible Translations & Grid Selector**: Offline access to 140+ Bible translations across 30+ languages, interactive Old/New Testament grid selection, and side-by-side translation comparison (`/read`, `/compare`, `/bible`).
+- **219 Bible Translations Across 30 Languages**: Offline access to 219 standardized Bible translations across 30 languages (including Twi Akuapem & Asante, Zulu, Xhosa, Afrikaans, Swahili, Amharic, Hausa, Yoruba, Igbo, Luganda, Shona, Setswana, Sepedi, German, French, Spanish, Hebrew, Arabic, Hindi, Tamil, Telugu, etc.) with zero cloud dependencies.
+- **Multi-Category Non-Scripture Library Engine (`/library`, `/read-book`, `/study-book`)**: Organized categories for Ellen G. White (`egw`), Medical (`medical`), Survival (`survival`), Psychology (`psychology`), and Classics (`classics`).
+- **Custom Cross-Reference Graph Linker (`/crossref`)**: Connects Scripture verses (`Genesis 1:1`) to non-scripture literature (`psychology/principles_of_mind Ch 1`) and stores bidirectional links in Dendrite graph memory (`$HOME/.paraclea/dendrite.db`).
 - **Offline Qdrant Vector Engine**: Fast local vector storage (`http://localhost:6333`) for Scripture RAG, book-to-skill knowledge bases, and survival guides.
 - **Ollama Vision OCR (`frob/unlimited-ocr:q8_0`)**: Direct Base64 vision document OCR for photos of book pages, manuscript scans, and handwritten documents.
 - **File Format Auto-Detection (`src/detect.rs`)**: Automatic format detection (`.png`, `.jpg`, `.pdf`, `.md`, `.txt`, `.json`, `.html`, `.csv`) and intelligent processing pipeline routing.

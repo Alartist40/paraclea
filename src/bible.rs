@@ -311,6 +311,46 @@ impl BibleReader {
         chapter: usize,
         verse: usize,
     ) -> Option<String> {
+        // 1. Check dynamic JSON Bible files in ~/.paraclea/bibles/
+        if let Ok(home) = std::env::var("HOME") {
+            let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
+            if bibles_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&bibles_dir) {
+                    for lang_entry in entries.flatten() {
+                        if lang_entry.path().is_dir() {
+                            let target_file = lang_entry.path().join(format!("{}.json", translation_tag.to_lowercase()));
+                            if target_file.exists() {
+                                if let Ok(content) = fs::read_to_string(&target_file) {
+                                    if let Ok(val) = serde_json::from_str::<Value>(&content) {
+                                        if let Some(books) = val.as_array() {
+                                            let q = book_name.trim().to_lowercase();
+                                            if let Some(bk) = books.iter().find(|b| {
+                                                let name = b.get("name").and_then(|n| n.as_str()).unwrap_or("").to_lowercase();
+                                                name == q || name.starts_with(&q)
+                                            }) {
+                                                if let Some(chaps) = bk.get("chapters").and_then(|c| c.as_array()) {
+                                                    if chapter >= 1 && chapter <= chaps.len() {
+                                                        if let Some(verses) = chaps[chapter - 1].as_array() {
+                                                            if verse >= 1 && verse <= verses.len() {
+                                                                if let Some(t) = verses[verse - 1].as_str() {
+                                                                    return Some(t.to_string());
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to CSV Bibles
         if let Some(csv_path) = CsvBibleReader::locate_csv(translation_tag) {
             if let Some(text) = CsvBibleReader::read_verse(&csv_path, book_name, chapter, verse) {
                 return Some(text);

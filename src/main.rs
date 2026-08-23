@@ -495,6 +495,49 @@ async fn run_doctor(
     println!("     • Voice Synthesis:     {}", if tts_ok { "ONLINE".green().bold() } else { "CLI FALLBACK (OK)".yellow().bold() });
     println!();
 
+    // 9. Multi-Language Bible & Multi-Category Library Database Diagnostics
+    println!("{}", print_purple("  📚 Mega Bible & Multi-Category Library Database:"));
+    if let Ok(home) = std::env::var("HOME") {
+        let bibles_dir = std::path::PathBuf::from(&home).join(".paraclea/bibles");
+        let library_dir = std::path::PathBuf::from(&home).join(".paraclea/library");
+        
+        let mut lang_count = 0;
+        let mut bible_version_count = 0;
+        if bibles_dir.exists() {
+            if let Ok(langs) = std::fs::read_dir(&bibles_dir) {
+                for l in langs.flatten() {
+                    if l.path().is_dir() {
+                        lang_count += 1;
+                        if let Ok(files) = std::fs::read_dir(l.path()) {
+                            bible_version_count += files.flatten().filter(|f| f.path().extension().and_then(|e| e.to_str()) == Some("json")).count();
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut category_count = 0;
+        let mut book_count = 0;
+        if library_dir.exists() {
+            if let Ok(cats) = std::fs::read_dir(&library_dir) {
+                for c in cats.flatten() {
+                    if c.path().is_dir() {
+                        category_count += 1;
+                        if let Ok(files) = std::fs::read_dir(c.path()) {
+                            book_count += files.flatten().count();
+                        }
+                    }
+                }
+            }
+        }
+
+        println!("     • Bible Languages Covered: {} ", print_gold(&lang_count.to_string()));
+        println!("     • Formatted Bible Versions: {} ", print_gold(&bible_version_count.to_string()));
+        println!("     • Non-Scripture Categories: {} ", print_gold(&category_count.to_string()));
+        println!("     • Library Books Ingested:   {} ", print_gold(&book_count.to_string()));
+    }
+    println!();
+
     // Summary Verdict & Resolution Report
     if !resolved.is_empty() {
         println!("{}", "✨ Auto-Healed Diagnostics:".green().bold());
