@@ -194,55 +194,222 @@ def convert_bible_databases_repo():
         except Exception:
             pass
 
-def convert_egw_writings():
-    print("📦 Organizing Ellen G. White (EGW) Writings...")
+def parse_full_egw_books():
+    print("📦 Organizing Complete Ellen G. White (EGW) Writings...")
     egw_dir = LIBRARY_DIR / "egw"
     egw_dir.mkdir(parents=True, exist_ok=True)
+    egw_ref = REF_DIR / "EGW"
 
-    egw_sample_1 = {
-        "title": "Steps to Christ",
-        "author": "Ellen G. White",
-        "category": "egw",
-        "chapters": [
-            {
-                "chapter_number": 1,
-                "title": "God's Love for Man",
-                "content": "Nature and revelation alike testify of God's love. Our Father in heaven is the source of life, of wisdom, and of joy. Look at the wonderful and beautiful things of nature. Think of their marvelous adaptation to the needs and happiness, not only of man, but of all living creatures."
-            },
-            {
-                "chapter_number": 2,
-                "title": "The Sinner's Need of Christ",
-                "content": "Man was originally endowed with noble powers and a well-balanced mind. He was perfect in his being, and in harmony with God. His thoughts were pure, his aims holy."
+    # 1. The Desire of Ages (86 chapters)
+    da_path = egw_ref / "the_desire_of_ages.txt"
+    if da_path.exists():
+        text = da_path.read_text(encoding='utf-8', errors='ignore')
+        matches = list(re.finditer(r'^\s*CHAPTER\s+[A-Z\-\s]+(?:\.|\,)?', text, re.MULTILINE))
+        chapters = []
+        for i, m in enumerate(matches):
+            c_num = i + 1
+            c_header = m.group(0).strip()
+            start = m.end()
+            end = matches[i+1].start() if i + 1 < len(matches) else len(text)
+            content = text[start:end].strip()
+            if content:
+                first_line = content.split('\n')[0].strip()
+                title = f"{c_header} - {first_line[:50]}" if first_line else c_header
+                chapters.append({"chapter_number": c_num, "title": title, "content": content})
+        
+        if chapters:
+            da_book = {
+                "title": "The Desire of Ages",
+                "author": "Ellen G. White",
+                "category": "egw",
+                "chapters": chapters
             }
-        ]
-    }
-    with open(egw_dir / "steps_to_christ.json", 'w', encoding='utf-8') as f:
-        json.dump(egw_sample_1, f, indent=2)
+            with open(egw_dir / "desire_of_ages.json", 'w', encoding='utf-8') as f:
+                json.dump(da_book, f, ensure_ascii=False, indent=2)
+            print(f"  ✓ Processed EGW: The Desire of Ages ({len(chapters)} chapters)")
 
-    egw_sample_2 = {
-        "title": "The Desire of Ages",
-        "author": "Ellen G. White",
-        "category": "egw",
-        "chapters": [
-            {
-                "chapter_number": 1,
-                "title": "God With Us",
-                "content": "His name shall be called Immanuel, God with us. The light of the knowledge of the glory of God is seen in the face of Jesus Christ. From the days of eternity the Lord Jesus Christ was one with the Father."
-            }
+    # 2. The Great Controversy (42 chapters)
+    gc_path = egw_ref / "the_great_controversy.txt"
+    if gc_path.exists():
+        text = gc_path.read_text(encoding='utf-8', errors='ignore')
+        gc_titles = [
+            '1. The Destruction Of Jerusalem', '2. Persecution In The First Centuries', '3. The Apostasy',
+            '4. The Waldenses', '5. John Wycliffe', '6. Huss and Jerome', '7. Luther’s Separation From Rome',
+            '8. Luther Before The Diet', '9. The Swiss Reformer', '10. Progress Of Reform In Germany',
+            '11. Protest Of The Princes', '12. The French Reformation', '13. The Netherlands And Scandinavia',
+            '14. Later English Reformers', '15. The Bible And The French Revolution', '16. The Pilgrim Fathers',
+            '17. Heralds Of The Morning', '18. An American Reformer', '19. Light Through Darkness',
+            '20. A Great Religious Awakening', '21. A Warning Rejected', '22. Prophecies Fulfilled',
+            '23. What Is The Sanctuary?', '24. In The Holy Of Holies', '25. God’s Law Immutable',
+            '26. A Work Of Reform', '27. Modern Revivals', '28. The Investigative Judgment',
+            '29. The Origin Of Evil', '30. Enmity Between Man And Satan', '31. Agency Of Evil Spirits',
+            '32. Snares Of Satan', '33. The First Great Deception', '34. Spiritualism',
+            '35. Aims Of The Papacy', '36. The Impending Conflict', '37. The Scriptures A Safeguard',
+            '38. The Final Warning', '39. “The Time Of Trouble.”', '40. God’s People Delivered',
+            '41. Desolation Of The Earth', '42. The Controversy Ended'
         ]
-    }
-    with open(egw_dir / "desire_of_ages.json", 'w', encoding='utf-8') as f:
-        json.dump(egw_sample_2, f, indent=2)
-    
-    print("  ✓ Processed EGW Writings: Steps to Christ, The Desire of Ages")
+        chapters = []
+        for i, title in enumerate(gc_titles):
+            pos = text.find(f'{i+1}. ')
+            if pos != -1:
+                next_pos = text.find(f'{i+2}. ') if i + 1 < len(gc_titles) else len(text)
+                if next_pos == -1 or next_pos <= pos:
+                    next_pos = len(text)
+                content = text[pos:next_pos].strip()
+                chapters.append({"chapter_number": i+1, "title": title, "content": content})
+        
+        if chapters:
+            gc_book = {
+                "title": "The Great Controversy",
+                "author": "Ellen G. White",
+                "category": "egw",
+                "chapters": chapters
+            }
+            with open(egw_dir / "the_great_controversy.json", 'w', encoding='utf-8') as f:
+                json.dump(gc_book, f, ensure_ascii=False, indent=2)
+            print(f"  ✓ Processed EGW: The Great Controversy ({len(chapters)} chapters)")
+
+    # 3. Education (35 chapters)
+    edu_path = egw_ref / "education.txt"
+    if edu_path.exists():
+        text = edu_path.read_text(encoding='utf-8', errors='ignore')
+        edu_titles = [
+            'Source and Aim of True Education', 'The Eden School', 'The Knowledge of Good and Evil',
+            'Relation of Education to Redemption', 'The Education of Israel', 'The Schools of the Prophets',
+            'Lives of Great Men', 'The Teacher Sent from God', 'An Illustration of His Methods',
+            'God in Nature', 'Lessons of Life', 'Other Object Lessons', 'Mental and Spiritual Culture',
+            'Science and the Bible', 'Business Principles and Methods', 'Bible Biographies',
+            'Poetry and Song', 'Mysteries of the Bible', 'History and Prophecy', 'Bible Teaching and Study',
+            'Study of Physiology', 'Temperance and Dietetics', 'Recreation', 'Manual Training',
+            'Education and Character', 'Methods of Teaching', 'Deportment', 'Relation of Dress to Education',
+            'The Sabbath', 'Faith and Prayer', 'The Life-Work', 'Preparation', 'Co-operation',
+            'Discipline', 'The School of the Hereafter'
+        ]
+        chapters = []
+        for i, title in enumerate(edu_titles):
+            pos = text.find(title, 1000)
+            if pos != -1:
+                next_pos = text.find(edu_titles[i+1], pos + len(title)) if i + 1 < len(edu_titles) else len(text)
+                if next_pos == -1: next_pos = len(text)
+                content = text[pos:next_pos].strip()
+                chapters.append({"chapter_number": i+1, "title": title, "content": content})
+        
+        if chapters:
+            edu_book = {
+                "title": "Education",
+                "author": "Ellen G. White",
+                "category": "egw",
+                "chapters": chapters
+            }
+            with open(egw_dir / "education.json", 'w', encoding='utf-8') as f:
+                json.dump(edu_book, f, ensure_ascii=False, indent=2)
+            print(f"  ✓ Processed EGW: Education ({len(chapters)} chapters)")
+
+    # 4. Steps to Christ (13 chapters)
+    stc_path = egw_ref / "steps_to_christ.txt"
+    if stc_path.exists():
+        text = stc_path.read_text(encoding='utf-8', errors='ignore')
+        stc_titles = [
+            'God\'s Love for Man', 'The Sinner\'s Need of Christ', 'Repentance', 'Confession',
+            'Consecration', 'Faith and Acceptance', 'The Test of Discipleship', 'Growing Up Into Christ',
+            'The Work and the Life', 'A Knowledge of God', 'The Privilege of Prayer',
+            'What to Do With Doubt', 'Rejoicing in the Lord'
+        ]
+        chapters = []
+        for i, title in enumerate(stc_titles):
+            pat = r'\b' + r'\s*'.join(re.escape(c) for c in title.upper() if c.isalpha()) + r'\b'
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                start = m.start()
+                next_start = len(text)
+                if i + 1 < len(stc_titles):
+                    next_pat = r'\b' + r'\s*'.join(re.escape(c) for c in stc_titles[i+1].upper() if c.isalpha()) + r'\b'
+                    nm = re.search(next_pat, text[start+20:], re.IGNORECASE)
+                    if nm:
+                        next_start = start + 20 + nm.start()
+                chapters.append({"chapter_number": i+1, "title": title, "content": text[start:next_start].strip()})
+        
+        if chapters:
+            stc_book = {
+                "title": "Steps to Christ",
+                "author": "Ellen G. White",
+                "category": "egw",
+                "chapters": chapters
+            }
+            with open(egw_dir / "steps_to_christ.json", 'w', encoding='utf-8') as f:
+                json.dump(stc_book, f, ensure_ascii=False, indent=2)
+            print(f"  ✓ Processed EGW: Steps to Christ ({len(chapters)} chapters)")
+
+def parse_survival_manuals():
+    print("📦 Organizing Survival & Medical Field Manuals...")
+    surv_dir = LIBRARY_DIR / "survival"
+    med_dir = LIBRARY_DIR / "medical"
+    surv_dir.mkdir(parents=True, exist_ok=True)
+    med_dir.mkdir(parents=True, exist_ok=True)
+
+    wiki_md_dir = REF_DIR / "SurvivalManual/android/src/main/assets/md"
+    if wiki_md_dir.exists():
+        md_files = sorted(wiki_md_dir.glob("*.md"))
+        surv_chapters = []
+        med_chapters = []
+        c_num = 1
+        m_num = 1
+
+        for f in md_files:
+            if f.stem in ["Home", "Credits", "Apps", "FAQ", "_Footer"]:
+                continue
+            content = f.read_text(encoding='utf-8', errors='ignore').strip()
+            if not content:
+                continue
+            
+            clean_title = f.stem.replace('_', ' ')
+            clean_title = re.sub(r'([a-z])([A-Z])', r'\1 \2', clean_title)
+
+            if f.stem in ["Medicine", "DangerousArthropods", "Poisonous-Plants"]:
+                med_chapters.append({
+                    "chapter_number": m_num,
+                    "title": clean_title,
+                    "content": content
+                })
+                m_num += 1
+            else:
+                surv_chapters.append({
+                    "chapter_number": c_num,
+                    "title": clean_title,
+                    "content": content
+                })
+                c_num += 1
+
+        if surv_chapters:
+            surv_book = {
+                "title": "Libre Survival & Bushcraft Manual (FM 21-76)",
+                "author": "US Army & SurvivalManual Contributors",
+                "category": "survival",
+                "chapters": surv_chapters
+            }
+            with open(surv_dir / "libre_survival_manual.json", 'w', encoding='utf-8') as f:
+                json.dump(surv_book, f, ensure_ascii=False, indent=2)
+            print(f"  ✓ Processed Survival Manual ({len(surv_chapters)} full chapters)")
+
+        if med_chapters:
+            med_book = {
+                "title": "Field Trauma & Emergency First Aid Manual",
+                "author": "Medical Field Corps & Survival Contributors",
+                "category": "medical",
+                "chapters": med_chapters
+            }
+            with open(med_dir / "field_first_aid.json", 'w', encoding='utf-8') as f:
+                json.dump(med_book, f, ensure_ascii=False, indent=2)
+            print(f"  ✓ Processed Medical Field Manual ({len(med_chapters)} full chapters)")
 
 def main():
-    print("🚀 Starting Paraclea Complete Bible & Multi-Category Library Standardization...")
+    print("🚀 Starting Paraclea Complete Multi-Language Bible & Multi-Category Library Standardization...")
     ensure_dirs()
     convert_godlytalias_repo()
     convert_bible_api_repo()
     convert_bible_databases_repo()
-    convert_egw_writings()
+    parse_full_egw_books()
+    parse_survival_manuals()
 
     print("\n" + "="*60)
     print(f"🎉 Paraclea Database Standardization Complete!")

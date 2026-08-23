@@ -277,14 +277,8 @@ impl BibleReader {
             }
         }
 
-        // Prioritize KJV first for English, then sort alphabetically by display_name
-        raw_items.sort_by(|a, b| {
-            let is_a_kjv = a.0 == "EN-KJV" || a.0 == "KJV";
-            let is_b_kjv = b.0 == "EN-KJV" || b.0 == "KJV";
-            if is_a_kjv { return std::cmp::Ordering::Less; }
-            if is_b_kjv { return std::cmp::Ordering::Greater; }
-            a.1.to_lowercase().cmp(&b.1.to_lowercase())
-        });
+        // Sort strictly 100% alphabetically by display_name across all languages
+        raw_items.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
 
         let mut options = Vec::new();
         for (id, (tag, name, is_easy, file_path)) in raw_items.into_iter().enumerate() {
