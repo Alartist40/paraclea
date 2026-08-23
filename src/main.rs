@@ -6,10 +6,12 @@
 mod audio;
 mod bible;
 mod config;
+mod crossref;
 mod dendrite;
 mod detect;
 mod heartbeat;
 mod ingest;
+mod library;
 mod mesh;
 mod ollama;
 mod persona;
@@ -24,10 +26,12 @@ use bible::BibleReader;
 use clap::{Parser, Subcommand};
 use colored::*;
 use config::Config;
+use crossref::CrossReferenceLinker;
 use dendrite::{Dendrite, DendriteContext, DendriteStore, NodeType, ReflectionWorker};
 use detect::FileType;
 use heartbeat::HeartbeatLoop;
 use ingest::{ingest_file, BibleIngestor, BookIngestor};
+use library::LibraryEngine;
 use mesh::ReticulumEngine;
 use ollama::{ChatMessage, ModelEntry, OllamaClient};
 use persona::PersonaManager;
@@ -673,6 +677,10 @@ fn print_help_menu() {
     println!("    {} - Side-by-side translation comparison & AI study commentary", print_purple("/compare"));
     println!("    {} - Reticulum mesh status, peer discovery & identity", print_purple("/mesh [announce|peers|id]"));
     println!("    {} - Dendrite v2 graph memory status & search", print_purple("/memory [search <query>]"));
+    println!("    {} - Browse non-scripture book library (EGW, Psychology, Survival, etc.)", print_purple("/library [category]"));
+    println!("    {} - Read a non-scripture book chapter", print_purple("/read-book <book> [chapter]"));
+    println!("    {} - Get AI study commentary on a non-scripture book chapter", print_purple("/study-book <book> [chapter]"));
+    println!("    {} - Link Scripture and non-scripture books with custom notes", print_purple("/crossref <source> <-> <target> <notes>"));
     println!("    {} - End conversation session", print_purple("/bye or /end"));
     println!("    {} - List available Ollama and local models", print_purple("/models"));
     println!("    {} - Switch active chat LLM", print_purple("/model <name>"));
@@ -1115,6 +1123,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     }
     let dendrite_ctx = DendriteContext::new(dendrite_graph.clone(), dendrite_store.clone());
     let reflection_worker = ReflectionWorker::new(dendrite_graph.clone(), dendrite_store.clone(), ollama.clone());
+    let crossref_linker = CrossReferenceLinker::new(dendrite_graph.clone(), dendrite_store.clone());
+    let library_engine = LibraryEngine::load_auto();
 
     print!("{}", print_purple("🔍 Checking Reticulum Mesh... "));
     io::stdout().flush()?;
@@ -1132,6 +1142,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     io::stdout().flush()?;
     let node_count = dendrite_graph.len();
     println!("{} {}", print_gold("ONLINE"), format!("({} nodes loaded)", node_count).purple());
+
+    print!("{}", print_purple("🔍 Checking Multi-Category Library... "));
+    io::stdout().flush()?;
+    let lib_books = library_engine.books.len();
+    let lib_cats = library_engine.list_categories().len();
+    println!("{} {}", print_gold("ONLINE"), format!("({} categories, {} books loaded)", lib_cats, lib_books).purple());
 
     // 8. Interactive REPL Shell Loop
     let mut history: Vec<ChatMessage> = Vec::new();
@@ -1259,6 +1275,91 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 }
             }
             println!();
+            continue;
+        }
+
+        if input_str == "/library" || input_str.starts_with("/library ") || input_str == "/books" || input_str.starts_with("/books ") {
+            let arg = if input_str.starts_with("/library") {
+                input_str.trim_start_matches("/library").trim()
+            } else {
+                input_str.trim_start_matches("/books").trim()
+            };
+
+            let category_filter = if arg.is_empty() { None } else { Some(arg) };
+            println!("\n{}", print_gold("=== Paraclea Multi-Category Book Library ==="));
+            let books = library_engine.list_books(category_filter);
+            if books.is_empty() {
+                println!("  {}", "No books found for specified category. Storage: ~/.paraclea/library/<category>/".yellow());
+            } else {
+                for b in books {
+                    println!("  • {} [{}] - {} chapters ({})", b.title.bold(), b.category.purple(), b.chapters.len(), b.author.as_deref().unwrap_or("Unknown Author"));
+                }
+            }
+            println!();
+            continue;
+        }
+
+        if input_str.starts_with("/read-book ") {
+            let args_str = input_str.trim_start_matches("/read-book ").trim();
+            let parts: Vec<&str> = args_str.split_whitespace().collect();
+            if !parts.is_empty() {
+                let book_query = parts[0];
+                let ch_num: usize = if parts.len() > 1 { parts[1].parse().unwrap_or(1) } else { 1 };
+                if let Some((book, chapter)) = library_engine.read_chapter(book_query, ch_num) {
+                    println!("\n{}", print_gold(&format!("=== {} (Category: {}, Chapter {}) ===", book.title, book.category, chapter.chapter_number)));
+                    println!("{}\n", chapter.title.purple().bold());
+                    println!("{}\n", chapter.content);
+                } else {
+                    println!("{}", format!("⚠️ Book or chapter not found: '{}'", book_query).red());
+                }
+            }
+            continue;
+        }
+
+        if input_str.starts_with("/study-book ") {
+            let args_str = input_str.trim_start_matches("/study-book ").trim();
+            let parts: Vec<&str> = args_str.split_whitespace().collect();
+            if !parts.is_empty() {
+                let book_query = parts[0];
+                let ch_num: usize = if parts.len() > 1 { parts[1].parse().unwrap_or(1) } else { 1 };
+                if let Some((book, chapter)) = library_engine.read_chapter(book_query, ch_num) {
+                    println!("\n{}", print_gold(&format!("=== Paraclea AI Study Commentary: {} (Ch {}) ===", book.title, chapter.chapter_number)));
+                    let study_prompt = format!(
+                        "Provide a thoughtful, wise, and structured study commentary on the following chapter from '{}' (Category: {}).\n\nChapter Content:\n{}\n",
+                        book.title, book.category, chapter.content
+                    );
+                    let mut msgs = vec![
+                        ChatMessage { role: "system".to_string(), content: persona.build_system_prompt() },
+                        ChatMessage { role: "user".to_string(), content: study_prompt },
+                    ];
+                    print!("{} ", print_purple("Paraclea >"));
+                    let _ = io::stdout().flush();
+                    let _ = ollama.chat_with_model_stream(&cfg.model.ollama.model, msgs, |token| {
+                        print!("{}", token);
+                        let _ = io::stdout().flush();
+                    }).await;
+                    println!("\n");
+                } else {
+                    println!("{}", format!("⚠️ Book or chapter not found: '{}'", book_query).red());
+                }
+            }
+            continue;
+        }
+
+        if input_str.starts_with("/crossref ") {
+            let raw_args = input_str.trim_start_matches("/crossref ").trim();
+            if let Some((source_target, notes)) = raw_args.split_once(' ') {
+                if let Some((source, target)) = source_target.split_once("<->") {
+                    match crossref_linker.create_cross_reference(source, target, notes) {
+                        Ok(id) => println!("  {}", print_gold(&format!("✓ Custom cross-reference created: {} ↔ {} (ID: {})", source.trim(), target.trim(), id))),
+                        Err(e) => eprintln!("  {}", format!("⚠️ Error creating cross-reference: {}", e).red()),
+                    }
+                } else {
+                    println!("  {}", "Usage: /crossref SourcePassage <-> TargetPassage Your Study Notes".yellow());
+                }
+            } else {
+                println!("  {}", "Usage: /crossref SourcePassage <-> TargetPassage Your Study Notes".yellow());
+            }
             continue;
         }
 
