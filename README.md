@@ -1,88 +1,54 @@
-# 🕊️ Paraclea — AI Companion Assistant & Self-Developing RAG Engine
+# 🕊️ Paraclea — Pure Rust AI Companion Engine & Multi-Category Library
 
-> **A fast, lightweight, and independent AI companion built in pure Rust, powered by local Qdrant vector storage, Ollama LLM & Vision OCR, Pocket TTS speech synthesis, and a Proverbs 31 Helper persona.**
-
----
-
-## 🌟 Overview
-
-**Paraclea (Παράκλησις)** is a personal AI companion and offline reference assistant designed to run completely locally on CPU with zero cloud dependencies.
-
-### Key Capabilities
-- **Proverbs 31 Helper Persona**: Gentle, wise, dignified, courageous, humble, reverent, proactive, and industrious helper identity (`SOUL.md`).
-- **Dendrite v2 Knowledge Graph Memory (`/memory`)**: 4-tier persistent knowledge graph (`TurnLog`, `AtomicFact`, `Procedure`, `Identity`) with `[[wiki-links]]`, `#tags`, bi-directional backlinks, SQLite WAL mode, and FTS5 full-text search.
-- **Asynchronous Background Reflection**: Automatically distills user study habits, preferences, and key facts out-of-band without slowing down live response output.
-- **Advanced Self-Healing System Doctor (`paraclea doctor`)**: Hardware & CPU architecture probing, binary PATH validation, live 1-token forward-pass inference testing, vector DB & mesh auto-repair, and SQLite integrity checks.
-- **Reticulum Mesh Network (`/mesh`)**: Zero-trust off-grid mesh communications over local WiFi/Ethernet, serial cables, and LoRa radios without internet or central servers.
-- **Interactive Terminal Shell & Line Editing**: Native Left/Right arrow key navigation, smooth backspacing, and command history recall across all interactive prompts.
-- **219 Bible Translations Across 30 Languages**: Offline access to 219 standardized Bible translations across 30 languages (including Twi Akuapem & Asante, Zulu, Xhosa, Afrikaans, Swahili, Amharic, Hausa, Yoruba, Igbo, Luganda, Shona, Setswana, Sepedi, German, French, Spanish, Hebrew, Arabic, Hindi, Tamil, Telugu, etc.) with zero cloud dependencies.
-- **Multi-Category Non-Scripture Library Engine (`/library`, `/read-book`, `/study-book`)**: Organized categories for Ellen G. White (`egw`), Medical (`medical`), Survival (`survival`), Psychology (`psychology`), and Classics (`classics`).
-- **Custom Cross-Reference Graph Linker (`/crossref`)**: Connects Scripture verses (`Genesis 1:1`) to non-scripture literature (`psychology/principles_of_mind Ch 1`) and stores bidirectional links in Dendrite graph memory (`$HOME/.paraclea/dendrite.db`).
-- **Offline Qdrant Vector Engine**: Fast local vector storage (`http://localhost:6333`) for Scripture RAG, book-to-skill knowledge bases, and survival guides.
-- **Ollama Vision OCR (`frob/unlimited-ocr:q8_0`)**: Direct Base64 vision document OCR for photos of book pages, manuscript scans, and handwritten documents.
-- **File Format Auto-Detection (`src/detect.rs`)**: Automatic format detection (`.png`, `.jpg`, `.pdf`, `.md`, `.txt`, `.json`, `.html`, `.csv`) and intelligent processing pipeline routing.
-- **Multi-Model Routing & Anti-Loop Penalty**: Automatically routes queries to lightweight models (`ministral-3:3b`) or heavy reasoning models (`qwen3:8b`), with automatic repetition penalty to prevent LLM token looping.
-- **Pure Rust Core**: Single-binary native ARM64 & x86_64 performance with **0% idle CPU overhead** and instant startup.
-- **Pocket TTS Speech Synthesis**: Smooth CPU-driven speech synthesis using natural female voice presets (`alba`, `cosette`, `eve`, `mary`, `vera`).
-- **Gold & Purple UI**: Elegant terminal theme built in Rust.
+> **A fast, lightweight, and completely offline AI companion engine built in pure Rust. Features a 216-version multi-language Bible database, complete Ellen G. White writings, 40-chapter wilderness survival & medical field manuals, self-improving Dendrite v2 knowledge graph memory, and off-grid Reticulum mesh communications.**
 
 ---
 
-## ⚡ One-Line Installation
+## 🌟 Overview & Purpose
 
-Install Paraclea on any Linux or macOS system with a single command:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Alartist40/paraclea/main/install.sh | bash
-```
+**Paraclea (Παράκλησις)** is an independent local AI assistant and offline library engine designed to run 100% locally on CPU without cloud APIs or internet connectivity. It provides deep Bible study, multi-translation comparison, structured reading across spiritual, survival, and educational literature, off-grid peer-to-peer mesh messaging, and personalized adaptive memory.
 
 ---
 
-## 🚀 Usage & Commands
+## 📊 Paraclea Database Scale & Capabilities
 
-Run `paraclea` from anywhere in your terminal:
+Paraclea houses an extensive offline database optimized for fast local recall and low resource usage:
 
-```bash
-# Display help and version information
-paraclea --help
+### 📚 1. Multi-Language Bible Treasury
+- **216 Formatted Bible Translations** spanning **29 Languages**, stored locally in `$HOME/.paraclea/bibles/` with 100% strict alphabetical menu navigation.
+- **Languages Included**:
+  - 🇬🇧 **English** (162 versions including *Authorized KJV 1611*, *NKJV*, *NIV*, *NLT*, *ESV*, *NASB*, *BSB*, *ASV 1901*, *Douay-Rheims 1899*, *Geneva 1599*, *WEB*, *YLT 1898*, *Revised Version 1885*, *Benton Septuagint*)
+  - 🇪SPAN **Spanish (Español)** (*Reina-Valera 1909*, *RV 1960*, *Biblia del Siglo de Oro*)
+  - 🇩🇪 **German (Deutsch)** (*Luther 1912*, *Elberfelder*, *Textbibel*)
+  - 🇫🇷 **French (Français)** (*Louis Segond*)
+  - 🇬🇭 **Twi** (*Akuapem Nkwa Asɛm*, *Asante Nkwa Asɛm*)
+  - 🇿🇦 **Zulu (isiZulu)** & **Xhosa (isiXhosa)**
+  - 🇿🇦 **Afrikaans** & **Sepedi (Northern Sotho)** & **Setswana**
+  - 🇰🇪 **Swahili (Kiswahili)** & **Luganda**
+  - 🇪🇹 **Amharic (አማርኛ)** & **Oromo**
+  - 🇳🇬 **Hausa**, **Yoruba**, & **Igbo**
+  - 🇿🇼 **Shona**
+  - 🇮🇳 **Hindi (हिन्दी)**, **Bengali (বাংলা)**, **Tamil (தமிழ்)**, **Telugu (తెలుగు)**, **Gujarati (ગુજરાતી)**, **Kannada (ಕನ್ನಡ)**, **Malayalam (മലയാളം)**, & **Punjabi (ਪੰਜਾਬੀ)**
+  - 🇮🇱 **Hebrew (עברית)** (*Westminster Leningrad Codex*) & 🇬🇷 **Greek (Ελληνικά)** (*Textus Receptus*, *Byzantine 1904*, *Septuagint*)
+  - 🇵🇹 **Portuguese (Português)**, 🇷🇺 **Russian (Русский)**, 🇭🇺 **Hungarian (Magyar)**, & 🇳🇵 **Nepali (नेपाली)**
 
-# Run full system diagnostics (Ollama, Qdrant, TTS, Reticulum Mesh, Model Registry)
-paraclea doctor
+### 📖 2. Complete Multi-Category Library (`/read`)
+Ingested multi-chapter JSON collections stored under `$HOME/.paraclea/library/`:
 
-# Interactive Reticulum mesh commands inside Paraclea REPL:
-#   /mesh          - View live Reticulum interfaces, network speed & status
-#   /mesh announce - Broadcast an off-grid announcement packet
-#   /mesh peers    - List all discovered Reticulum mesh peers and paths
-#   /mesh identity - Show local 512-bit cryptographic identity hash
+- **[1] Spiritual Category**:
+  - **The Desire of Ages** (Ellen G. White — **86 Full Chapters**)
+  - **The Great Controversy** (Ellen G. White — **42 Full Chapters**)
+  - **Education** (Ellen G. White — **35 Full Chapters**)
+  - **Steps to Christ** (Ellen G. White — **11 Full Chapters**)
+- **[2] Survival & Medical Category**:
+  - **Libre Survival & Bushcraft Manual (FM 21-76)** (US Army & Contributors — **32 Full Chapters** covering Firecraft, Water Procurement, Edible Plants, Shelter, Tracking, Ropes & Knots, Signaling, Desert & Cold Weather Operations)
+  - **Field Trauma & Emergency First Aid Manual** (Medical Corps — **3 Full Chapters** covering Field Triage, Dangerous Arthropods, and Poisonous Plants)
+- **[3] Educational Category**:
+  - Psychology, Philosophy, and General Science Classics (*Principles of Mind & Psychology*)
 
-# Bible reading & comparison interactive commands:
-#   /bible   - Select default language & Bible translation from 140+ versions
-#   /read    - Interactive Scripture reader with Old/New Testament book grid
-#   /compare - Side-by-side translation comparison with AI study commentary
-
-# List all available Ollama and local models
-paraclea list
-
-# Run Paraclea with a specific model by number or name
-paraclea run 1
-paraclea run ministral-3:3b
-
-# Auto-detect file format and ingest into Qdrant vector database
-paraclea ingest /path/to/document.png --collection books
-paraclea ingest /path/to/notes.txt --collection survival
-
-# Ingest a Bible JSON database into Qdrant
-paraclea ingest-bible /path/to/kjv.json --collection bible
-
-# Run vision OCR text extraction on an image document
-paraclea ocr /path/to/scan.jpg
-
-# One-shot RAG query with vector retrieval & Scripture citations
-paraclea query "What does Proverbs 31 say about diligence?" --collection bible
-
-# Interactive companion shell mode
-paraclea
-```
+### 🔗 3. 340,000 Scripture Cross-References & Graph Memory
+- **340,000 Cross-References**: Treasury of Scripture Knowledge (TSK) verse linker connecting biblical passages dynamically.
+- **Dendrite v2 Knowledge Graph Memory (`$HOME/.paraclea/dendrite.db`)**: SQLite WAL-backed graph memory that tracks user study patterns, preferences, and key notes across conversations.
 
 ---
 
@@ -93,33 +59,105 @@ paraclea
                              │      PARACLEA CORE (Rust)       │
                              │                                 │
                              │  ┌───────────────────────────┐  │
-                             │  │      Persona System       │  │
-                             │  │ (IDENTITY, SOUL, USER,    │  │
-                             │  │  MEMORY, TOOLS, HEARTBEAT)│  │
+                             │  │   Persona & SOUL System   │  │
+                             │  │ (SOUL.md, IDENTITY, TOOLS)│  │
                              │  └─────────────┬─────────────┘  │
                              │                │                │
                              │                ▼                │
                              │  ┌───────────────────────────┐  │
-                             │  │  Multi-Model Router & RAG │  │
-                             │  │ (Ministral, Qwen3, Nomic) │  │
+                             │  │  Dendrite v2 Memory &     │  │
+                             │  │  Multi-Model Router       │  │
                              │  └─────────────┬─────────────┘  │
                              └────────────────┼────────────────┘
                                               │
-              ┌───────────────────────────────┼───────────────────────────────┐
-              ▼                               ▼                               ▼
-    ┌───────────────────┐           ┌───────────────────┐           ┌───────────────────┐
-    │ Qdrant Vector DB  │           │ Vision OCR Engine │           │ Pocket TTS Engine │
-    │ (Cosine Search)   │           │ (Unlimited OCR)   │           │ (CPU Speech API)  │
-    └───────────────────┘           └───────────────────┘           └───────────────────┘
+         ┌───────────────────┬────────────────┼───────────────────┬───────────────────┐
+         ▼                   ▼                ▼                   ▼                   ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ Qdrant Vector   │ │ Ollama LLM /    │ │ Reticulum Mesh  │ │ Pocket TTS      │ │ 216 Bibles &    │
+│ Engine (RAG)    │ │ Vision OCR      │ │ Stack (LoRa)    │ │ Speech Engine   │ │ Library DB      │
+└─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
 ---
 
-## 🎨 Theme & Customization
+## ⚡ Installation & Setup
 
-Paraclea features a **Gold & Purple** theme:
-- **Gold (`#FFD700`)**: Prompts, status indicators, banner headers, tool logs.
-- **Purple (`#B14AED`)**: Paraclea responses, borders, section headers, citations.
+### Prerequisites
+- **Rust Toolchain**: `cargo` (1.75+)
+- **Ollama**: Running at `http://localhost:11434` with model `ministral-3:3b` or `qwen3.5:9b`
+- **Qdrant Vector DB**: Running at `http://localhost:6333` (optional, for RAG features)
+- **Python 3**: For database standardization script
+
+### Automated One-Line Installation
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Alartist40/paraclea/main/install.sh | bash
+```
+
+### Manual Installation from Source
+
+```bash
+# 1. Clone repository
+git clone https://github.com/Alartist40/paraclea.git
+cd paraclea
+
+# 2. Build release binary
+cargo build --release
+
+# 3. Install binary to system PATH
+install -m 755 target/release/paraclea ~/.local/bin/paraclea
+
+# 4. Standardize Bible and Library databases into ~/.paraclea/
+python3 scripts/organize_library.py
+
+# 5. Run diagnostic health doctor
+paraclea doctor
+```
+
+---
+
+## 🚀 Interactive Command Suite
+
+Run `paraclea` to launch the interactive REPL shell:
+
+```bash
+# Launch Paraclea Interactive REPL
+paraclea
+```
+
+### Interactive REPL Commands
+- `/bible` — Open the 100% alphabetical Bible language and translation selector.
+- `/read` — Open the Unified Reader to browse **Spiritual** (*Desire of Ages*, *Great Controversy*, *Education*, *Steps to Christ*), **Survival** (*FM 21-76*), and **Educational** books.
+- `/compare` — Compare a Scripture verse side-by-side across multiple translations with AI study commentary.
+- `/study` — Deep Scripture study with 340,000 Treasury of Scripture Knowledge cross-reference links.
+- `/memory` — Inspect and search stored Dendrite v2 knowledge graph nodes.
+- `/mesh` — View Reticulum off-grid network status, cryptographic identity (`RNS`), active peers, or broadcast messages.
+- `/doctor` — Run full system diagnostic checks (Ollama, Qdrant, TTS, Reticulum, SQLite integrity).
+- `/help` — Display command overview and usage instructions.
+- `/bye` — Exit Paraclea.
+
+---
+
+## 💻 Technical Specifications
+
+| Parameter | Specification |
+| :--- | :--- |
+| **Language** | 100% Pure Rust (Edition 2021) |
+| **Binary Size** | ~12 MB (Release Profile) |
+| **Idle CPU Overhead** | **0.0% CPU** |
+| **RAM Footprint** | ~25 MB base memory |
+| **Bible Database** | 216 Formatted JSON Files (29 Languages) |
+| **Graph Database** | SQLite WAL Mode + FTS5 Full-Text Search |
+| **Mesh Protocol** | Reticulum Network Stack (RNS 512-bit Crypto Identity) |
+| **Supported OS** | Linux (aarch64 / x86_64), macOS |
+
+---
+
+## 🎨 Terminal Palette & Styling
+
+Paraclea uses an elegant **Gold & Purple** terminal color palette:
+- **Gold (`#FFD700`)**: Prompts, status indicators, banner headers, system doctor output.
+- **Purple (`#B14AED`)**: Paraclea AI responses, section borders, chapter headings.
 
 ---
 
