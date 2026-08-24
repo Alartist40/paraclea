@@ -1,39 +1,367 @@
+use axum::{
+    extract::{Query, State},
+    response::{Html, IntoResponse},
+    routing::{get, post},
+    Json, Router,
+};
 use colored::*;
-use std::io::{Read, Write};
-use std::net::TcpListener;
-use std::thread;
+use paraclea_core::{
+    bible::{self, BibleReader},
+    dendrite::{Dendrite, DendriteStore},
+    library::LibraryEngine,
+    mesh::ReticulumEngine,
+    ollama::{ChatMessage, OllamaClient},
+    persona::PersonaManager,
+    qdrant::QdrantClient,
+};
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 const HTML_CONTENT: &str = include_str!("../public/index.html");
 
-fn main() -> anyhow::Result<()> {
+#[derive(Clone)]
+struct AppState {
+    ollama: Arc<OllamaClient>,
+    persona: Arc<PersonaManager>,
+    library: Arc<tokio::sync::RwLock<LibraryEngine>>,
+    dendrite_store: Option<Arc<DendriteStore>>,
+    mesh: Option<Arc<ReticulumEngine>>,
+    qdrant: Arc<QdrantClient>,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     println!("{}", "╔══════════════════════════════════════════════════════════════╗".purple().bold());
     println!("{}", "║     PARACLEA AI ASSISTANT — DESKTOP APPLICATION SERVER       ║".yellow().bold());
     println!("{}", "╚══════════════════════════════════════════════════════════════╝".purple().bold());
-    println!("{}", "  Local Desktop GUI Server starting at http://127.0.0.1:7860...".yellow().bold());
 
-    let listener = TcpListener::bind("127.0.0.1:7860")?;
-    println!("{}", "  ✓ Paraclea Desktop Application running! Opening browser...".green().bold());
+    let persona_dir = std::env::var("HOME")
+        .map(|h| PathBuf::from(h).join(".paraclea/persona"))
+        .unwrap_or_else(|_| PathBuf::from("persona"));
+    let persona = Arc::new(PersonaManager::new(persona_dir).unwrap_or_else(|_| PersonaManager { persona_dir: PathBuf::from("persona") }));
 
-    // Open browser window
-    let _ = open::that("http://127.0.0.1:7860");
+    let ollama = Arc::new(OllamaClient::new("http://localhost:11434", "ministral-3:3b")?);
+    let qdrant = Arc::new(QdrantClient::new("http://localhost:6333")?);
+    let library = Arc::new(tokio::sync::RwLock::new(LibraryEngine::load_auto()));
+    let mesh = ReticulumEngine::new().ok().map(Arc::new);
 
-    for stream in listener.incoming() {
-        if let Ok(mut stream) = stream {
-            thread::spawn(move || {
-                let mut buffer = [0; 1024];
-                let _ = stream.read(&mut buffer);
+    let dendrite_graph = Arc::new(Dendrite::new());
+    let dendrite_store = std::env::var("HOME").ok().and_then(|h| {
+        let db_path = PathBuf::from(h).join(".paraclea/dendrite.db");
+        DendriteStore::open(&db_path).ok().map(Arc::new)
+    });
+    if let Some(ref store) = dendrite_store {
+        let _ = store.load_all(&dendrite_graph);
+    }
 
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    HTML_CONTENT.len(),
-                    HTML_CONTENT
-                );
+    let state = AppState {
+        ollama,
+        persona,
+        library,
+        dendrite_store,
+        mesh,
+        qdrant,
+    };
 
-                let _ = stream.write_all(response.as_bytes());
-                let _ = stream.flush();
+    let app = Router::new()
+        .route("/", get(serve_html))
+        .route("/api/languages", get(get_languages))
+        .route("/api/translations", get(get_translations))
+        .route("/api/bible/read", get(read_bible_chapter))
+        .route("/api/library/books", get(get_library_books))
+        .route("/api/library/read", get(read_library_chapter))
+        .route("/api/chat", post(handle_chat))
+        .route("/api/memory", get(get_memory_nodes))
+        .route("/api/mesh", get(get_mesh_status))
+        .route("/api/doctor", get(run_doctor_checks))
+        .with_state(state);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 7860));
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    println!("{}", format!("  ✓ Server listening on http://{}", addr).green().bold());
+    println!("{}", "  ✓ Launching Desktop Web Browser...".yellow().bold());
+
+    tokio::spawn(async move {
+        let _ = open::that(format!("http://{}", addr));
+    });
+
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+async fn serve_html() -> Html<&'static str> {
+    Html(HTML_CONTENT)
+}
+
+#[derive(Serialize)]
+struct LanguageDto {
+    code: String,
+    name: String,
+}
+
+async fn get_languages() -> Json<Vec<LanguageDto>> {
+    let raw = BibleReader::list_languages();
+    let res = raw.into_iter().map(|l| LanguageDto { code: l.code, name: l.name }).collect();
+    Json(res)
+}
+
+#[derive(Deserialize)]
+struct TransParams {
+    lang: String,
+}
+
+#[derive(Serialize)]
+struct TransDto {
+    tag: String,
+    name: String,
+}
+
+async fn get_translations(Query(params): Query<TransParams>) -> Json<Vec<TransDto>> {
+    let raw = BibleReader::list_translations_for_lang(&params.lang);
+    let res = raw.into_iter().map(|t| TransDto { tag: t.tag, name: t.name }).collect();
+    Json(res)
+}
+
+#[derive(Deserialize)]
+struct ReadBibleParams {
+    tag: String,
+    book: String,
+    chapter: usize,
+}
+
+#[derive(Serialize)]
+struct BibleVerseDto {
+    verse: usize,
+    text: String,
+}
+
+#[derive(Serialize)]
+struct BibleChapterResponse {
+    tag: String,
+    book: String,
+    chapter: usize,
+    total_chapters: usize,
+    verses: Vec<BibleVerseDto>,
+}
+
+async fn read_bible_chapter(Query(params): Query<ReadBibleParams>) -> Json<BibleChapterResponse> {
+    let file_path = bible::find_json_bible_file(&params.tag);
+    if let Some(path) = file_path {
+        if let Ok(reader) = BibleReader::load_primary(&path) {
+            let total_chapters = reader.get_chapter_count(&params.book).unwrap_or(1);
+            let mut verses = Vec::new();
+
+            if let Some(book_meta) = reader.find_book(&params.book) {
+                let v_count = if params.chapter >= 1 && params.chapter <= book_meta.total_chapters {
+                    book_meta.chapter_verse_counts[params.chapter - 1]
+                } else {
+                    1
+                };
+
+                for v in 1..=v_count {
+                    let verse_text = reader
+                        .read_translation_verse(&params.tag, &params.book, params.chapter, v)
+                        .unwrap_or_default();
+                    if !verse_text.is_empty() {
+                        verses.push(BibleVerseDto { verse: v, text: verse_text });
+                    }
+                }
+            }
+
+            return Json(BibleChapterResponse {
+                tag: params.tag,
+                book: params.book,
+                chapter: params.chapter,
+                total_chapters,
+                verses,
             });
         }
     }
 
-    Ok(())
+    Json(BibleChapterResponse {
+        tag: params.tag,
+        book: params.book,
+        chapter: params.chapter,
+        total_chapters: 0,
+        verses: Vec::new(),
+    })
+}
+
+#[derive(Serialize)]
+struct BookSummaryDto {
+    title: String,
+    category: String,
+    author: String,
+    chapters_count: usize,
+}
+
+async fn get_library_books(State(state): State<AppState>) -> Json<Vec<BookSummaryDto>> {
+    let lib = state.library.read().await;
+    let mut list = Vec::new();
+
+    for book in &lib.books {
+        list.push(BookSummaryDto {
+            title: book.title.clone(),
+            category: book.category.clone(),
+            author: book.author.clone().unwrap_or_else(|| "Unknown".to_string()),
+            chapters_count: book.chapters.len(),
+        });
+    }
+
+    Json(list)
+}
+
+#[derive(Deserialize)]
+struct ReadLibParams {
+    title: String,
+    chapter: usize,
+}
+
+#[derive(Serialize)]
+struct ChapterContentResponse {
+    book_title: String,
+    chapter_number: usize,
+    total_chapters: usize,
+    chapter_title: String,
+    content: String,
+}
+
+async fn read_library_chapter(
+    State(state): State<AppState>,
+    Query(params): Query<ReadLibParams>,
+) -> Json<ChapterContentResponse> {
+    let lib = state.library.read().await;
+    let target_book = lib.books.iter().find(|b| b.title.to_lowercase().contains(&params.title.to_lowercase()));
+
+    if let Some(book) = target_book {
+        let total_chapters = book.chapters.len();
+        let ch_idx = if params.chapter >= 1 && params.chapter <= total_chapters {
+            params.chapter - 1
+        } else {
+            0
+        };
+
+        if let Some(ch) = book.chapters.get(ch_idx) {
+            return Json(ChapterContentResponse {
+                book_title: book.title.clone(),
+                chapter_number: ch.chapter_number,
+                total_chapters,
+                chapter_title: ch.title.clone(),
+                content: ch.content.clone(),
+            });
+        }
+    }
+
+    Json(ChapterContentResponse {
+        book_title: params.title,
+        chapter_number: 1,
+        total_chapters: 0,
+        chapter_title: "Chapter Not Found".to_string(),
+        content: "Content not available for this chapter.".to_string(),
+    })
+}
+
+#[derive(Deserialize)]
+struct ChatRequest {
+    message: String,
+}
+
+#[derive(Serialize)]
+struct ChatResponse {
+    reply: String,
+}
+
+async fn handle_chat(
+    State(state): State<AppState>,
+    Json(payload): Json<ChatRequest>,
+) -> Json<ChatResponse> {
+    let system_prompt = state.persona.build_system_prompt();
+    let msgs = vec![
+        ChatMessage { role: "system".to_string(), content: system_prompt },
+        ChatMessage { role: "user".to_string(), content: payload.message },
+    ];
+
+    match state.ollama.chat(msgs).await {
+        Ok(reply) => Json(ChatResponse { reply }),
+        Err(err) => Json(ChatResponse {
+            reply: format!("⚠️ Unable to connect to Ollama model: {}", err),
+        }),
+    }
+}
+
+#[derive(Serialize)]
+struct MemoryNodeDto {
+    id: String,
+    label: String,
+    content: String,
+    node_type: String,
+}
+
+async fn get_memory_nodes(State(state): State<AppState>) -> Json<Vec<MemoryNodeDto>> {
+    let mut list = Vec::new();
+    if let Some(ref store) = state.dendrite_store {
+        let temp_graph = Dendrite::new();
+        if store.load_all(&temp_graph).is_ok() {
+            for node in temp_graph.by_tier(1) {
+                list.push(MemoryNodeDto {
+                    id: node.id,
+                    label: node.title,
+                    content: node.content,
+                    node_type: "Fact".to_string(),
+                });
+            }
+        }
+    }
+    Json(list)
+}
+
+#[derive(Serialize)]
+struct MeshStatusResponse {
+    online: bool,
+    identity_hash: Option<String>,
+}
+
+async fn get_mesh_status(State(state): State<AppState>) -> Json<MeshStatusResponse> {
+    if let Some(ref mesh) = state.mesh {
+        Json(MeshStatusResponse {
+            online: true,
+            identity_hash: mesh.identity_hash.clone(),
+        })
+    } else {
+        Json(MeshStatusResponse {
+            online: false,
+            identity_hash: None,
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct DoctorResponse {
+    ollama_online: bool,
+    qdrant_online: bool,
+    mesh_online: bool,
+    bibles_count: usize,
+    library_books_count: usize,
+    active_model: String,
+}
+
+async fn run_doctor_checks(State(state): State<AppState>) -> Json<DoctorResponse> {
+    let ollama_online = state.ollama.health_check().await.unwrap_or(false);
+    let qdrant_online = state.qdrant.health_check().await;
+    let mesh_online = state.mesh.is_some();
+    let bibles_count = BibleReader::list_languages().iter().map(|l| BibleReader::list_translations_for_lang(&l.code).len()).sum();
+    let lib = state.library.read().await;
+    let library_books_count = lib.books.len();
+
+    Json(DoctorResponse {
+        ollama_online,
+        qdrant_online,
+        mesh_online,
+        bibles_count,
+        library_books_count,
+        active_model: state.ollama.model.clone(),
+    })
 }

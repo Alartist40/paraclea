@@ -28,8 +28,9 @@
 
         .status-bar { display: flex; gap: 16px; font-size: 13px; }
         .status-item { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
         .status-dot.online { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+        .status-dot.offline { background: #ff4444; }
 
         /* App Container */
         .app-container { display: flex; flex: 1; overflow: hidden; }
@@ -47,11 +48,11 @@
 
         /* Cards & Components */
         .card { background: var(--card-bg); border: 1px solid var(--border-purple); border-radius: 12px; padding: 20px; }
-        .card-header { font-size: 18px; color: var(--gold-main); margin-bottom: 12px; border-bottom: 1px solid var(--border-purple); padding-bottom: 8px; display: flex; justify-content: space-between; }
+        .card-header { font-size: 18px; color: var(--gold-main); margin-bottom: 12px; border-bottom: 1px solid var(--border-purple); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
 
         /* Chat Panel */
-        .chat-history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; min-height: 350px; }
-        .chat-msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 14px; }
+        .chat-history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px; background: rgba(0,0,0,0.3); border-radius: 8px; min-height: 380px; max-height: 500px; }
+        .chat-msg { max-width: 85%; padding: 12px 16px; border-radius: 12px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; }
         .chat-msg.user { align-self: flex-end; background: var(--purple-main); color: #fff; border-bottom-right-radius: 2px; }
         .chat-msg.assistant { align-self: flex-start; background: #251a3e; color: var(--text-light); border: 1px solid var(--border-purple); border-bottom-left-radius: 2px; }
 
@@ -64,12 +65,13 @@
         button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3); }
 
         /* Grid Lists */
-        .grid-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .grid-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
         .grid-item { background: #22163b; border: 1px solid var(--border-purple); padding: 14px; border-radius: 8px; cursor: pointer; text-align: center; font-size: 14px; color: var(--text-light); transition: 0.2s; }
         .grid-item:hover { border-color: var(--gold-main); background: rgba(255, 215, 0, 0.1); color: var(--gold-main); }
 
         /* Reader Content */
-        .reader-text { line-height: 1.8; font-size: 16px; color: #e2d7f5; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; max-height: 500px; overflow-y: auto; }
+        .reader-text { line-height: 1.8; font-size: 16px; color: #e2d7f5; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; }
+        .verse-num { color: var(--gold-main); font-weight: bold; margin-right: 6px; }
     </style>
 </head>
 <body>
@@ -77,24 +79,24 @@
     <header>
         <div class="brand">
             <h1>🕊️ PARACLEA AI</h1>
-            <span>v0.7.3 Pure Rust</span>
+            <span>v0.8.0 Desktop</span>
         </div>
         <div class="status-bar">
-            <div class="status-item"><div class="status-dot online"></div> Ollama LLM</div>
-            <div class="status-item"><div class="status-dot online"></div> Qdrant Vector</div>
-            <div class="status-item"><div class="status-dot online"></div> Reticulum Mesh</div>
-            <div class="status-item"><div class="status-dot online"></div> Dendrite Memory</div>
+            <div class="status-item"><div id="dot-ollama" class="status-dot"></div> Ollama LLM</div>
+            <div class="status-item"><div id="dot-qdrant" class="status-dot"></div> Qdrant Vector</div>
+            <div class="status-item"><div id="dot-mesh" class="status-dot"></div> Reticulum Mesh</div>
+            <div class="status-item"><div id="dot-memory" class="status-dot"></div> Dendrite Memory</div>
         </div>
     </header>
 
     <div class="app-container">
         <nav>
-            <div class="nav-btn active" onclick="showView('chat')">💬 AI Assistant</div>
-            <div class="nav-btn" onclick="showView('bible')">📖 Holy Bible</div>
-            <div class="nav-btn" onclick="showView('library')">📚 Multi-Library</div>
-            <div class="nav-btn" onclick="showView('memory')">🧠 Dendrite Memory</div>
-            <div class="nav-btn" onclick="showView('mesh')">🕸 Reticulum Mesh</div>
-            <div class="nav-btn" onclick="showView('doctor')">🩺 System Doctor</div>
+            <div class="nav-btn active" onclick="showView('chat', event)">💬 AI Assistant</div>
+            <div class="nav-btn" onclick="showView('bible', event)">📖 Holy Bible</div>
+            <div class="nav-btn" onclick="showView('library', event)">📚 Multi-Library</div>
+            <div class="nav-btn" onclick="showView('memory', event)">🧠 Dendrite Memory</div>
+            <div class="nav-btn" onclick="showView('mesh', event)">🕸 Reticulum Mesh</div>
+            <div class="nav-btn" onclick="showView('doctor', event)">🩺 System Doctor</div>
         </nav>
 
         <main>
@@ -103,7 +105,7 @@
                 <div class="card" style="flex: 1; display: flex; flex-direction: column;">
                     <div class="card-header">
                         <span>Conversational Companion</span>
-                        <span style="font-size: 12px; color: var(--purple-light);">Active Model: ministral-3:3b</span>
+                        <span style="font-size: 12px; color: var(--purple-light);" id="model-indicator">Active Model: ministral-3:3b</span>
                     </div>
                     <div class="chat-history" id="chat-history">
                         <div class="chat-msg assistant">
@@ -112,7 +114,7 @@
                     </div>
                     <div class="chat-input-bar">
                         <input type="text" id="chat-input" placeholder="Type your message or ask Paraclea anything..." onkeypress="if(event.key==='Enter') sendChat()">
-                        <button onclick="sendChat()">Send</button>
+                        <button onclick="sendChat()" id="send-btn">Send</button>
                     </div>
                 </div>
             </div>
@@ -120,22 +122,29 @@
             <!-- BIBLE VIEW -->
             <div id="view-bible" class="view-section">
                 <div class="card">
-                    <div class="card-header">📖 Scripture Treasury (216 Translations • 29 Languages)</div>
-                    <div style="display: flex; gap: 16px; margin-bottom: 16px;">
-                        <select id="bible-lang-select" onchange="loadBibleTranslations()" style="flex: 1;">
-                            <option value="eng">English (162 versions)</option>
-                            <option value="spa">Spanish (4 versions)</option>
-                            <option value="deu">German (4 versions)</option>
-                            <option value="twi">Twi (2 versions)</option>
-                            <option value="zul">Zulu (1 version)</option>
+                    <div class="card-header">📖 Scripture Treasury (<span id="bible-count-label">216 Translations</span>)</div>
+                    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <select id="bible-lang-select" onchange="loadTranslationsForLang()" style="flex: 1; min-width: 180px;">
+                            <option value="eng">Loading Languages...</option>
                         </select>
-                        <select id="bible-trans-select" style="flex: 1;">
-                            <option value="en-kjv">King James Version (KJV 1611 - Authorized)</option>
+                        <select id="bible-trans-select" style="flex: 2; min-width: 240px;">
+                            <option value="EN-KJV">Loading Translations...</option>
                         </select>
-                        <button onclick="loadBibleVerse()">Load Passage</button>
+                        <select id="bible-book-select" style="width: 150px;">
+                            <option value="Genesis">Genesis</option>
+                            <option value="Exodus">Exodus</option>
+                            <option value="Psalms">Psalms</option>
+                            <option value="Proverbs">Proverbs</option>
+                            <option value="Matthew">Matthew</option>
+                            <option value="John" selected>John</option>
+                            <option value="Romans">Romans</option>
+                            <option value="Revelation">Revelation</option>
+                        </select>
+                        <input type="number" id="bible-chapter-input" value="3" min="1" max="150" style="width: 80px; background: #140d24; border: 1px solid var(--border-purple); color: #fff; padding: 8px; border-radius: 8px;">
+                        <button onclick="fetchBiblePassage()">Read Passage</button>
                     </div>
                     <div class="reader-text" id="bible-content">
-                        Select your preferred language and translation above to view Scripture passages.
+                        Select language, version, book, and chapter above then click "Read Passage".
                     </div>
                 </div>
             </div>
@@ -143,14 +152,14 @@
             <!-- MULTI-LIBRARY VIEW -->
             <div id="view-library" class="view-section">
                 <div class="card">
-                    <div class="card-header">📚 Unified Library Reader</div>
-                    <div class="grid-selector" style="margin-bottom: 16px;">
-                        <div class="grid-item" onclick="loadBook('The Desire of Ages (86 Chapters)')">✨ The Desire of Ages (EGW)</div>
-                        <div class="grid-item" onclick="loadBook('The Great Controversy (42 Chapters)')">📜 The Great Controversy (EGW)</div>
-                        <div class="grid-item" onclick="loadBook('Education (35 Chapters)')">🎓 Education (EGW)</div>
-                        <div class="grid-item" onclick="loadBook('Steps to Christ (11 Chapters)')">🕊 Steps to Christ (EGW)</div>
-                        <div class="grid-item" onclick="loadBook('Libre Survival Manual FM 21-76 (32 Chapters)')">🏕 Libre Survival Manual (FM 21-76)</div>
-                        <div class="grid-item" onclick="loadBook('Field Trauma & First Aid (3 Chapters)')">🩺 Field Trauma First Aid</div>
+                    <div class="card-header">📚 Multi-Category Non-Scripture Library</div>
+                    <div class="grid-selector" id="library-grid" style="margin-bottom: 16px;">
+                        <div class="grid-item">Loading books...</div>
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;" id="lib-nav-bar">
+                        <span id="current-book-title" style="font-weight: bold; color: var(--gold-main);">Select a book above</span>
+                        <input type="number" id="lib-chapter-input" value="1" min="1" style="width: 80px; background: #140d24; border: 1px solid var(--border-purple); color: #fff; padding: 8px; border-radius: 8px;">
+                        <button onclick="fetchLibraryChapter()">Load Chapter</button>
                     </div>
                     <div class="reader-text" id="library-content">
                         Click any book above to read full multi-chapter content.
@@ -163,11 +172,10 @@
                 <div class="card">
                     <div class="card-header">🧠 Dendrite v2 Knowledge Graph</div>
                     <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 12px;">
-                        Self-improving persistent graph memory (`$HOME/.paraclea/dendrite.db`) tracking study habits, facts, and links.
+                        Persistent graph memory (`$HOME/.paraclea/dendrite.db`) tracking study habits, facts, and links.
                     </div>
                     <div class="reader-text" id="memory-content">
-                        • [Identity] User study profile: Prefers deep scripture comparisons & classic Authorized KJV 1611 text.<br>
-                        • [TurnLog] Last reflection: Verified complete multi-chapter ingestion for EGW books & FM 21-76.
+                        Loading Dendrite memory nodes...
                     </div>
                 </div>
             </div>
@@ -177,12 +185,10 @@
                 <div class="card">
                     <div class="card-header">🕸 Reticulum Off-Grid Mesh Stack</div>
                     <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 12px;">
-                        Local cryptographic RNS identity: <code style="color: var(--gold-main);">&lt;a2f8386e3fa060e28a17b4ebf2b971a7&gt;</code>
+                        Zero-trust peer-to-peer LoRa/packet messaging network status.
                     </div>
                     <div class="reader-text" id="mesh-content">
-                        STATUS: Reticulum Shared Instance ONLINE<br>
-                        INTERFACES: AutoInterface [WiFi/Ethernet], SerialInterface [LoRa Radio fallback]<br>
-                        PEERS DISCOVERED: 1 active peer path established.
+                        Checking Reticulum mesh identity...
                     </div>
                 </div>
             </div>
@@ -192,13 +198,7 @@
                 <div class="card">
                     <div class="card-header">🩺 System Health Diagnostics</div>
                     <div class="reader-text" id="doctor-content">
-                        OS Target: Linux (aarch64)<br>
-                        CPU Cores: 12 logical threads<br>
-                        Binary Path: ~/.local/bin/paraclea [OK]<br>
-                        Ollama Engine: ONLINE (http://localhost:11434)<br>
-                        Qdrant Vector DB: ONLINE (http://localhost:6333)<br>
-                        Bible Database: 216 Versions Across 29 Languages [OK]<br>
-                        Library Database: EGW (86 Chs), Survival (32 Chs), Medical (3 Chs) [OK]
+                        Running Paraclea doctor checks...
                     </div>
                 </div>
             </div>
@@ -206,31 +206,209 @@
     </div>
 
     <script>
-        function showView(viewId) {
+        let currentSelectedBook = "The Desire of Ages";
+
+        function showView(viewId, evt) {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewId).classList.add('active');
-            event.target.classList.add('active');
+            if (evt) evt.target.classList.add('active');
+
+            if (viewId === 'doctor') loadDoctor();
+            if (viewId === 'memory') loadMemory();
+            if (viewId === 'mesh') loadMesh();
         }
 
-        function sendChat() {
+        async function sendChat() {
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
             if (!text) return;
 
             const history = document.getElementById('chat-history');
-            history.innerHTML += `<div class="chat-msg user">${text}</div>`;
+            history.innerHTML += `<div class="chat-msg user">${escapeHtml(text)}</div>`;
             input.value = '';
+            history.scrollTop = history.scrollHeight;
 
-            setTimeout(() => {
-                history.innerHTML += `<div class="chat-msg assistant">I've received your query: "${text}". Loading context and processing response...</div>`;
+            const sendBtn = document.getElementById('send-btn');
+            sendBtn.disabled = true;
+            sendBtn.innerText = 'Thinking...';
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                history.innerHTML += `<div class="chat-msg assistant">${escapeHtml(data.reply)}</div>`;
+            } catch (err) {
+                history.innerHTML += `<div class="chat-msg assistant">⚠️ Error communicating with Paraclea AI: ${err.message}</div>`;
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'Send';
                 history.scrollTop = history.scrollHeight;
-            }, 500);
+            }
         }
 
-        function loadBook(title) {
-            document.getElementById('library-content').innerHTML = `<h3>${title}</h3><p style="margin-top:12px;">Chapter 1: Immanuel, God With Us. From the days of eternity the Lord Jesus Christ was one with the Father...</p>`;
+        async function loadLanguages() {
+            try {
+                const res = await fetch('/api/languages');
+                const langs = await res.json();
+                const sel = document.getElementById('bible-lang-select');
+                sel.innerHTML = langs.map(l => `<option value="${l.code}">${l.name}</option>`).join('');
+                loadTranslationsForLang();
+            } catch (err) {
+                console.error("Failed to load languages", err);
+            }
         }
+
+        async function loadTranslationsForLang() {
+            const langCode = document.getElementById('bible-lang-select').value || 'eng';
+            try {
+                const res = await fetch(`/api/translations?lang=${langCode}`);
+                const trans = await res.json();
+                const sel = document.getElementById('bible-trans-select');
+                sel.innerHTML = trans.map(t => `<option value="${t.tag}">${t.name}</option>`).join('');
+            } catch (err) {
+                console.error("Failed to load translations", err);
+            }
+        }
+
+        async function fetchBiblePassage() {
+            const tag = document.getElementById('bible-trans-select').value || 'EN-KJV';
+            const book = document.getElementById('bible-book-select').value || 'John';
+            const ch = document.getElementById('bible-chapter-input').value || 3;
+            const container = document.getElementById('bible-content');
+
+            container.innerHTML = 'Loading Scripture passage...';
+
+            try {
+                const res = await fetch(`/api/bible/read?tag=${encodeURIComponent(tag)}&book=${encodeURIComponent(book)}&chapter=${ch}`);
+                const data = await res.json();
+
+                if (data.verses && data.verses.length > 0) {
+                    let html = `<h3>${data.book} ${data.chapter} (${data.tag})</h3><br>`;
+                    html += data.verses.map(v => `<p><span class="verse-num">${v.verse}</span>${escapeHtml(v.text)}</p>`).join('<br>');
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `⚠️ Passage not found for ${book} ${ch} in ${tag}.`;
+                }
+            } catch (err) {
+                container.innerHTML = `⚠️ Error reading passage: ${err.message}`;
+            }
+        }
+
+        async function loadLibraryBooks() {
+            try {
+                const res = await fetch('/api/library/books');
+                const books = await res.json();
+                const grid = document.getElementById('library-grid');
+
+                if (books.length > 0) {
+                    grid.innerHTML = books.map(b => `
+                        <div class="grid-item" onclick="selectLibraryBook('${escapeHtml(b.title)}')">
+                            <div style="font-weight:bold; color:var(--gold-main);">${escapeHtml(b.title)}</div>
+                            <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">${b.category.toUpperCase()} • ${b.chapters_count} Chapters</div>
+                        </div>
+                    `).join('');
+                    selectLibraryBook(books[0].title);
+                } else {
+                    grid.innerHTML = '<div class="grid-item">No library books found.</div>';
+                }
+            } catch (err) {
+                console.error("Failed to load library books", err);
+            }
+        }
+
+        function selectLibraryBook(title) {
+            currentSelectedBook = title;
+            document.getElementById('current-book-title').innerText = title;
+            document.getElementById('lib-chapter-input').value = 1;
+            fetchLibraryChapter();
+        }
+
+        async function fetchLibraryChapter() {
+            const ch = document.getElementById('lib-chapter-input').value || 1;
+            const container = document.getElementById('library-content');
+            container.innerHTML = 'Loading chapter content...';
+
+            try {
+                const res = await fetch(`/api/library/read?title=${encodeURIComponent(currentSelectedBook)}&chapter=${ch}`);
+                const data = await res.json();
+                let html = `<h3>${escapeHtml(data.book_title)}</h3>`;
+                html += `<h4 style="color:var(--gold-main); margin-bottom:12px;">Chapter ${data.chapter_number}: ${escapeHtml(data.chapter_title)}</h4>`;
+                html += `<p style="line-height:1.8;">${escapeHtml(data.content)}</p>`;
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `⚠️ Error reading library chapter: ${err.message}`;
+            }
+        }
+
+        async function loadDoctor() {
+            const container = document.getElementById('doctor-content');
+            container.innerHTML = 'Running health checks...';
+            try {
+                const res = await fetch('/api/doctor');
+                const d = await res.json();
+
+                document.getElementById('dot-ollama').className = d.ollama_online ? 'status-dot online' : 'status-dot offline';
+                document.getElementById('dot-qdrant').className = d.qdrant_online ? 'status-dot online' : 'status-dot offline';
+                document.getElementById('dot-mesh').className = d.mesh_online ? 'status-dot online' : 'status-dot offline';
+                document.getElementById('dot-memory').className = 'status-dot online';
+
+                container.innerHTML = `
+                    Ollama Engine: ${d.ollama_online ? 'ONLINE' : 'OFFLINE'}<br>
+                    Qdrant Vector DB: ${d.qdrant_online ? 'ONLINE' : 'OFFLINE'}<br>
+                    Reticulum Mesh: ${d.mesh_online ? 'ONLINE' : 'OFFLINE'}<br>
+                    Bible Versions Ingested: ${d.bibles_count} Translations<br>
+                    Multi-Category Books Ingested: ${d.library_books_count} Complete Books<br>
+                    Active LLM Model: ${d.active_model}
+                `;
+            } catch (err) {
+                container.innerHTML = `⚠️ Doctor check failed: ${err.message}`;
+            }
+        }
+
+        async function loadMemory() {
+            const container = document.getElementById('memory-content');
+            try {
+                const res = await fetch('/api/memory');
+                const nodes = await res.json();
+                if (nodes.length > 0) {
+                    container.innerHTML = nodes.map(n => `• [${n.node_type}] <strong>${escapeHtml(n.label)}</strong>: ${escapeHtml(n.content)}`).join('<br>');
+                } else {
+                    container.innerHTML = '• [Identity] User study profile: Prefers deep scripture comparisons & classic Authorized KJV 1611 text.';
+                }
+            } catch (err) {
+                container.innerHTML = `⚠️ Failed to load memory: ${err.message}`;
+            }
+        }
+
+        async function loadMesh() {
+            const container = document.getElementById('mesh-content');
+            try {
+                const res = await fetch('/api/mesh');
+                const data = await res.json();
+                container.innerHTML = `
+                    STATUS: ${data.online ? 'Reticulum Shared Instance ONLINE' : 'OFFLINE'}<br>
+                    CRYPTOGRAPHIC IDENTITY: ${data.identity_hash ? '&lt;' + data.identity_hash + '&gt;' : 'Local Mesh Identity Ready'}<br>
+                    INTERFACES: AutoInterface [WiFi/Ethernet], SerialInterface [LoRa Radio fallback]
+                `;
+            } catch (err) {
+                container.innerHTML = `⚠️ Mesh check failed: ${err.message}`;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        window.onload = function() {
+            loadLanguages();
+            loadLibraryBooks();
+            loadDoctor();
+        };
     </script>
 </body>
 </html>
