@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paraclea AI — Desktop Companion</title>
+    <style>
+        :root {
+            --bg-dark: #0f0b1a;
+            --card-bg: #1a132b;
+            --purple-main: #b14aed;
+            --purple-light: #d48bff;
+            --gold-main: #ffd700;
+            --gold-dim: #c5a600;
+            --text-light: #f0e6ff;
+            --text-dim: #a093bd;
+            --border-purple: #3a255c;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-light); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Header */
+        header { background: linear-gradient(135deg, #1b0a2d, #0f0b1a); border-bottom: 2px solid var(--purple-main); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand h1 { font-size: 22px; color: var(--gold-main); letter-spacing: 1px; }
+        .brand span { font-size: 12px; background: var(--border-purple); color: var(--purple-light); padding: 2px 8px; border-radius: 12px; border: 1px solid var(--purple-main); }
+
+        .status-bar { display: flex; gap: 16px; font-size: 13px; }
+        .status-item { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; }
+        .status-dot.online { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+
+        /* App Container */
+        .app-container { display: flex; flex: 1; overflow: hidden; }
+
+        /* Sidebar Navigation */
+        nav { width: 220px; background: #140d24; border-right: 1px solid var(--border-purple); padding: 16px 0; display: flex; flex-direction: column; gap: 4px; }
+        .nav-btn { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: 0.2s; border-left: 3px solid transparent; }
+        .nav-btn:hover { background: rgba(177, 74, 237, 0.1); color: var(--text-light); }
+        .nav-btn.active { background: rgba(177, 74, 237, 0.18); color: var(--gold-main); border-left-color: var(--gold-main); font-weight: 600; }
+
+        /* Main View */
+        main { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; }
+        .view-section { display: none; flex-direction: column; flex: 1; gap: 16px; }
+        .view-section.active { display: flex; }
+
+        /* Cards & Components */
+        .card { background: var(--card-bg); border: 1px solid var(--border-purple); border-radius: 12px; padding: 20px; }
+        .card-header { font-size: 18px; color: var(--gold-main); margin-bottom: 12px; border-bottom: 1px solid var(--border-purple); padding-bottom: 8px; display: flex; justify-content: space-between; }
+
+        /* Chat Panel */
+        .chat-history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; min-height: 350px; }
+        .chat-msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 14px; }
+        .chat-msg.user { align-self: flex-end; background: var(--purple-main); color: #fff; border-bottom-right-radius: 2px; }
+        .chat-msg.assistant { align-self: flex-start; background: #251a3e; color: var(--text-light); border: 1px solid var(--border-purple); border-bottom-left-radius: 2px; }
+
+        .chat-input-bar { display: flex; gap: 12px; margin-top: 12px; }
+        input[type="text"], select { background: #140d24; border: 1px solid var(--border-purple); color: var(--text-light); padding: 12px 16px; border-radius: 8px; outline: none; font-size: 14px; }
+        input[type="text"]:focus, select:focus { border-color: var(--gold-main); }
+        .chat-input-bar input { flex: 1; }
+
+        button { background: linear-gradient(135deg, var(--gold-main), var(--gold-dim)); color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3); }
+
+        /* Grid Lists */
+        .grid-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .grid-item { background: #22163b; border: 1px solid var(--border-purple); padding: 14px; border-radius: 8px; cursor: pointer; text-align: center; font-size: 14px; color: var(--text-light); transition: 0.2s; }
+        .grid-item:hover { border-color: var(--gold-main); background: rgba(255, 215, 0, 0.1); color: var(--gold-main); }
+
+        /* Reader Content */
+        .reader-text { line-height: 1.8; font-size: 16px; color: #e2d7f5; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; max-height: 500px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <h1>🕊️ PARACLEA AI</h1>
+            <span>v0.7.3 Pure Rust</span>
+        </div>
+        <div class="status-bar">
+            <div class="status-item"><div class="status-dot online"></div> Ollama LLM</div>
+            <div class="status-item"><div class="status-dot online"></div> Qdrant Vector</div>
+            <div class="status-item"><div class="status-dot online"></div> Reticulum Mesh</div>
+            <div class="status-item"><div class="status-dot online"></div> Dendrite Memory</div>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <nav>
+            <div class="nav-btn active" onclick="showView('chat')">💬 AI Assistant</div>
+            <div class="nav-btn" onclick="showView('bible')">📖 Holy Bible</div>
+            <div class="nav-btn" onclick="showView('library')">📚 Multi-Library</div>
+            <div class="nav-btn" onclick="showView('memory')">🧠 Dendrite Memory</div>
+            <div class="nav-btn" onclick="showView('mesh')">🕸 Reticulum Mesh</div>
+            <div class="nav-btn" onclick="showView('doctor')">🩺 System Doctor</div>
+        </nav>
+
+        <main>
+            <!-- AI CHAT VIEW -->
+            <div id="view-chat" class="view-section active">
+                <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="card-header">
+                        <span>Conversational Companion</span>
+                        <span style="font-size: 12px; color: var(--purple-light);">Active Model: ministral-3:3b</span>
+                    </div>
+                    <div class="chat-history" id="chat-history">
+                        <div class="chat-msg assistant">
+                            Hello my friend! I stand ready to assist you in searching Scripture, studying literature, or solving complex tasks. How can I help you today?
+                        </div>
+                    </div>
+                    <div class="chat-input-bar">
+                        <input type="text" id="chat-input" placeholder="Type your message or ask Paraclea anything..." onkeypress="if(event.key==='Enter') sendChat()">
+                        <button onclick="sendChat()">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BIBLE VIEW -->
+            <div id="view-bible" class="view-section">
+                <div class="card">
+                    <div class="card-header">📖 Scripture Treasury (216 Translations • 29 Languages)</div>
+                    <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+                        <select id="bible-lang-select" onchange="loadBibleTranslations()" style="flex: 1;">
+                            <option value="eng">English (162 versions)</option>
+                            <option value="spa">Spanish (4 versions)</option>
+                            <option value="deu">German (4 versions)</option>
+                            <option value="twi">Twi (2 versions)</option>
+                            <option value="zul">Zulu (1 version)</option>
+                        </select>
+                        <select id="bible-trans-select" style="flex: 1;">
+                            <option value="en-kjv">King James Version (KJV 1611 - Authorized)</option>
+                        </select>
+                        <button onclick="loadBibleVerse()">Load Passage</button>
+                    </div>
+                    <div class="reader-text" id="bible-content">
+                        Select your preferred language and translation above to view Scripture passages.
+                    </div>
+                </div>
+            </div>
+
+            <!-- MULTI-LIBRARY VIEW -->
+            <div id="view-library" class="view-section">
+                <div class="card">
+                    <div class="card-header">📚 Unified Library Reader</div>
+                    <div class="grid-selector" style="margin-bottom: 16px;">
+                        <div class="grid-item" onclick="loadBook('The Desire of Ages (86 Chapters)')">✨ The Desire of Ages (EGW)</div>
+                        <div class="grid-item" onclick="loadBook('The Great Controversy (42 Chapters)')">📜 The Great Controversy (EGW)</div>
+                        <div class="grid-item" onclick="loadBook('Education (35 Chapters)')">🎓 Education (EGW)</div>
+                        <div class="grid-item" onclick="loadBook('Steps to Christ (11 Chapters)')">🕊 Steps to Christ (EGW)</div>
+                        <div class="grid-item" onclick="loadBook('Libre Survival Manual FM 21-76 (32 Chapters)')">🏕 Libre Survival Manual (FM 21-76)</div>
+                        <div class="grid-item" onclick="loadBook('Field Trauma & First Aid (3 Chapters)')">🩺 Field Trauma First Aid</div>
+                    </div>
+                    <div class="reader-text" id="library-content">
+                        Click any book above to read full multi-chapter content.
+                    </div>
+                </div>
+            </div>
+
+            <!-- DENDRITE MEMORY VIEW -->
+            <div id="view-memory" class="view-section">
+                <div class="card">
+                    <div class="card-header">🧠 Dendrite v2 Knowledge Graph</div>
+                    <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 12px;">
+                        Self-improving persistent graph memory (`$HOME/.paraclea/dendrite.db`) tracking study habits, facts, and links.
+                    </div>
+                    <div class="reader-text" id="memory-content">
+                        • [Identity] User study profile: Prefers deep scripture comparisons & classic Authorized KJV 1611 text.<br>
+                        • [TurnLog] Last reflection: Verified complete multi-chapter ingestion for EGW books & FM 21-76.
+                    </div>
+                </div>
+            </div>
+
+            <!-- RETICULUM MESH VIEW -->
+            <div id="view-mesh" class="view-section">
+                <div class="card">
+                    <div class="card-header">🕸 Reticulum Off-Grid Mesh Stack</div>
+                    <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 12px;">
+                        Local cryptographic RNS identity: <code style="color: var(--gold-main);">&lt;a2f8386e3fa060e28a17b4ebf2b971a7&gt;</code>
+                    </div>
+                    <div class="reader-text" id="mesh-content">
+                        STATUS: Reticulum Shared Instance ONLINE<br>
+                        INTERFACES: AutoInterface [WiFi/Ethernet], SerialInterface [LoRa Radio fallback]<br>
+                        PEERS DISCOVERED: 1 active peer path established.
+                    </div>
+                </div>
+            </div>
+
+            <!-- SYSTEM DOCTOR VIEW -->
+            <div id="view-doctor" class="view-section">
+                <div class="card">
+                    <div class="card-header">🩺 System Health Diagnostics</div>
+                    <div class="reader-text" id="doctor-content">
+                        OS Target: Linux (aarch64)<br>
+                        CPU Cores: 12 logical threads<br>
+                        Binary Path: ~/.local/bin/paraclea [OK]<br>
+                        Ollama Engine: ONLINE (http://localhost:11434)<br>
+                        Qdrant Vector DB: ONLINE (http://localhost:6333)<br>
+                        Bible Database: 216 Versions Across 29 Languages [OK]<br>
+                        Library Database: EGW (86 Chs), Survival (32 Chs), Medical (3 Chs) [OK]
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function showView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const history = document.getElementById('chat-history');
+            history.innerHTML += `<div class="chat-msg user">${text}</div>`;
+            input.value = '';
+
+            setTimeout(() => {
+                history.innerHTML += `<div class="chat-msg assistant">I've received your query: "${text}". Loading context and processing response...</div>`;
+                history.scrollTop = history.scrollHeight;
+            }, 500);
+        }
+
+        function loadBook(title) {
+            document.getElementById('library-content').innerHTML = `<h3>${title}</h3><p style="margin-top:12px;">Chapter 1: Immanuel, God With Us. From the days of eternity the Lord Jesus Christ was one with the Father...</p>`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+[package]
+name = "paraclea-gui"
+version = "0.1.0"
+edition = "2021"
+authors = ["Xander <https://github.com/Alartist40>"]
+description = "Paraclea GUI — Desktop Application & Web Interface"
+license = "MIT"
+
+[[bin]]
+name = "paraclea-gui"
+path = "src/main.rs"
+
+[dependencies]
+paraclea-core = { path = "../paraclea-core" }
+tokio = { version = "1.38", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+colored = "2.1"
+anyhow = "1.0"
+reqwest = { version = "0.12", features = ["json"] }
+open = "5.1"

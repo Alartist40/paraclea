@@ -142,15 +142,47 @@ if [ -d "persona" ]; then
     cp -rn persona/* "$INSTALL_DIR/persona/" 2>/dev/null || true
 fi
 
-# Build & install binary
-echo -e "${PURPLE}🔨 Building Paraclea release binary (Rust opt-level 3)...${RESET}"
-cargo build --release
+# Prompt user for installation preference (CLI vs CLI + Desktop GUI)
+echo ""
+echo -e "${GOLD}${BOLD}Choose your installation preference:${RESET}"
+echo -e "  ${PURPLE}[1]${RESET} CLI Only (Pure Rust Terminal Assistant - Fast & Minimal) [Default]"
+echo -e "  ${PURPLE}[2]${RESET} CLI + Desktop Application GUI"
+echo ""
+if [ -t 0 ]; then
+    read -p "Select option [1-2] (Default: 1): " INSTALL_CHOICE
+else
+    INSTALL_CHOICE="1"
+fi
+INSTALL_CHOICE="${INSTALL_CHOICE:-1}"
+
+# Build & install workspace binaries
+echo -e "${PURPLE}🔨 Building Paraclea release binaries (Rust opt-level 3 workspace)...${RESET}"
+cargo build --release --workspace
 
 if [ -f "data/kjv.json" ]; then
     cp "data/kjv.json" "$INSTALL_DIR/data/kjv.json"
 fi
 
 install -m 755 target/release/paraclea "$BIN_DIR/paraclea"
+
+if [ "$INSTALL_CHOICE" == "2" ] && [ -f "target/release/paraclea-gui" ]; then
+    echo -e "${PURPLE}🖥 Installing Paraclea Desktop GUI Application...${RESET}"
+    install -m 755 target/release/paraclea-gui "$BIN_DIR/paraclea-gui"
+    
+    DESKTOP_DIR="$HOME/.local/share/applications"
+    mkdir -p "$DESKTOP_DIR"
+    cat > "$DESKTOP_DIR/paraclea.desktop" << DESKEOF
+[Desktop Entry]
+Name=Paraclea AI Companion
+Comment=Pure Rust AI Companion Assistant & Multi-Category Library
+Exec=$BIN_DIR/paraclea-gui
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Utility;Education;
+DESKEOF
+    echo -e "${GREEN}✅ Desktop menu shortcut created at $DESKTOP_DIR/paraclea.desktop${RESET}"
+fi
 
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo -e "${GOLD}Adding $BIN_DIR to PATH in ~/.bashrc...${RESET}"
@@ -167,12 +199,16 @@ echo -e "${GOLD}${BOLD}║     ✅ Paraclea Installed Successfully!  ║"${RESET
 echo -e "${GOLD}${BOLD}╚══════════════════════════════════════════╝"${RESET}
 echo ""
 echo -e "${PURPLE}📍 Binary location:${RESET} $BIN_DIR/paraclea"
+if [ "$INSTALL_CHOICE" == "2" ]; then
+    echo -e "${PURPLE}📍 Desktop GUI location:${RESET} $BIN_DIR/paraclea-gui"
+fi
 echo -e "${PURPLE}📍 Data & Config:${RESET} $INSTALL_DIR/"
 echo -e "${PURPLE}📍 Qdrant location:${RESET} $INSTALL_DIR/bin/qdrant"
 echo ""
 echo -e "${BOLD}Quick Commands:${RESET}"
 echo -e "  ${GOLD}paraclea doctor${RESET}                           # Run system diagnostics"
-echo -e "  ${GOLD}paraclea ingest <file>${RESET}                    # Ingest text/document/image into Qdrant"
-echo -e "  ${GOLD}paraclea query \"question\"${RESET}                 # One-shot RAG query"
 echo -e "  ${GOLD}paraclea${RESET}                                  # Start Paraclea REPL shell"
+if [ "$INSTALL_CHOICE" == "2" ]; then
+    echo -e "  ${GOLD}paraclea-gui${RESET}                              # Launch Paraclea Desktop Application"
+fi
 echo ""

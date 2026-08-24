@@ -1,0 +1,16 @@
+pub mod audio;
+pub mod bible;
+pub mod config;
+pub mod crossref;
+pub mod dendrite;
+pub mod detect;
+pub mod heartbeat;
+pub mod ingest;
+pub mod library;
+pub mod mesh;
+pub mod ollama;
+pub mod persona;
+pub mod pocket_tts;
+pub mod qdrant;
+pub mod rag;
+pub mod tools;
