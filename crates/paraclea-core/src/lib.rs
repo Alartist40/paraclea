@@ -7,6 +7,7 @@ pub mod detect;
 pub mod heartbeat;
 pub mod ingest;
 pub mod library;
+pub mod matrix;
 pub mod mesh;
 pub mod ollama;
 pub mod persona;

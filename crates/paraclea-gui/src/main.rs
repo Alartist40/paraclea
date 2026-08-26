@@ -76,6 +76,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/chat", post(handle_chat))
         .route("/api/memory", get(get_memory_nodes))
         .route("/api/mesh", get(get_mesh_status))
+        .route("/api/mesh/mailbox", get(get_mesh_mailbox))
+        .route("/api/mesh/send", post(send_mesh_message))
+        .route("/api/matrix", get(get_matrix_results))
         .route("/api/doctor", get(run_doctor_checks))
         .with_state(state);
 
@@ -381,6 +384,56 @@ async fn get_mesh_status(State(state): State<AppState>) -> Json<MeshStatusRespon
             online: false,
             identity_hash: None,
         })
+    }
+}
+
+#[derive(Deserialize)]
+struct MatrixParams {
+    topic: String,
+}
+
+async fn get_matrix_results(
+    Query(params): Query<MatrixParams>,
+    State(state): State<AppState>,
+) -> Json<paraclea_core::matrix::MatrixResult> {
+    let reader = BibleReader::load_auto().ok();
+    let lib = state.library.read().await;
+    if let Some(r) = reader {
+        let res = paraclea_core::matrix::TopicMatrixEngine::build_matrix(&params.topic, &r, &lib);
+        Json(res)
+    } else {
+        let dummy_reader = BibleReader {
+            books: Vec::new(),
+            raw_data: None,
+        };
+        let res = paraclea_core::matrix::TopicMatrixEngine::build_matrix(&params.topic, &dummy_reader, &lib);
+        Json(res)
+    }
+}
+
+async fn get_mesh_mailbox(State(state): State<AppState>) -> Json<Vec<paraclea_core::mesh::MeshMessage>> {
+    if let Some(ref mesh) = state.mesh {
+        Json(mesh.read_mailbox())
+    } else {
+        Json(Vec::new())
+    }
+}
+
+#[derive(Deserialize)]
+struct SendMeshMsgPayload {
+    recipient: String,
+    content: String,
+}
+
+async fn send_mesh_message(
+    State(state): State<AppState>,
+    Json(payload): Json<SendMeshMsgPayload>,
+) -> Json<Option<paraclea_core::mesh::MeshMessage>> {
+    if let Some(ref mesh) = state.mesh {
+        let res = mesh.send_message(&payload.recipient, &payload.content).ok();
+        Json(res)
+    } else {
+        Json(None)
     }
 }
 

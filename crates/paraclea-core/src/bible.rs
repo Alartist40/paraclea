@@ -420,6 +420,52 @@ impl BibleReader {
 
         Some(result)
     }
+
+    /// Keyword search across all books and verses in loaded Bible dataset.
+    pub fn search_keyword(&self, query: &str, limit: usize) -> Vec<BibleSearchResult> {
+        let mut results = Vec::new();
+        let q = query.trim().to_lowercase();
+        if q.is_empty() { return results; }
+
+        if let Some(ref raw) = self.raw_data {
+            if let Some(books) = raw.as_array() {
+                for b_val in books {
+                    let b_name = b_val.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
+                    if let Some(chaps) = b_val.get("chapters").and_then(|c| c.as_array()) {
+                        for (c_idx, c_val) in chaps.iter().enumerate() {
+                            if let Some(verses) = c_val.as_array() {
+                                for (v_idx, v_val) in verses.iter().enumerate() {
+                                    let v_text = v_val.as_str().unwrap_or("");
+                                    if v_text.to_lowercase().contains(&q) {
+                                        results.push(BibleSearchResult {
+                                            version: "KJV".to_string(),
+                                            book: b_name.clone(),
+                                            chapter: c_idx + 1,
+                                            verse: v_idx + 1,
+                                            text: v_text.to_string(),
+                                        });
+                                        if results.len() >= limit {
+                                            return results;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        results
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BibleSearchResult {
+    pub version: String,
+    pub book: String,
+    pub chapter: usize,
+    pub verse: usize,
+    pub text: String,
 }
 
 pub fn find_json_bible_file(translation_tag: &str) -> Option<PathBuf> {
