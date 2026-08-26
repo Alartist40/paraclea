@@ -69,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(serve_html))
         .route("/api/languages", get(get_languages))
         .route("/api/translations", get(get_translations))
+        .route("/api/bible/books", get(get_bible_books))
         .route("/api/bible/read", get(read_bible_chapter))
         .route("/api/library/books", get(get_library_books))
         .route("/api/library/read", get(read_library_chapter))
@@ -125,6 +126,38 @@ async fn get_translations(Query(params): Query<TransParams>) -> Json<Vec<TransDt
     Json(res)
 }
 
+#[derive(Serialize)]
+struct BibleBookDto {
+    name: String,
+    testament: String,
+    total_chapters: usize,
+}
+
+async fn get_bible_books() -> Json<Vec<BibleBookDto>> {
+    let reader = BibleReader::load_auto().ok();
+    let mut books = Vec::new();
+
+    for &b in bible::OLD_TESTAMENT_BOOKS {
+        let total_chapters = reader.as_ref().and_then(|r| r.get_chapter_count(b)).unwrap_or(1);
+        books.push(BibleBookDto {
+            name: b.to_string(),
+            testament: "Old Testament".to_string(),
+            total_chapters,
+        });
+    }
+
+    for &b in bible::NEW_TESTAMENT_BOOKS {
+        let total_chapters = reader.as_ref().and_then(|r| r.get_chapter_count(b)).unwrap_or(1);
+        books.push(BibleBookDto {
+            name: b.to_string(),
+            testament: "New Testament".to_string(),
+            total_chapters,
+        });
+    }
+
+    Json(books)
+}
+
 #[derive(Deserialize)]
 struct ReadBibleParams {
     tag: String,
@@ -148,37 +181,28 @@ struct BibleChapterResponse {
 }
 
 async fn read_bible_chapter(Query(params): Query<ReadBibleParams>) -> Json<BibleChapterResponse> {
-    let file_path = bible::find_json_bible_file(&params.tag);
-    if let Some(path) = file_path {
-        if let Ok(reader) = BibleReader::load_primary(&path) {
-            let total_chapters = reader.get_chapter_count(&params.book).unwrap_or(1);
-            let mut verses = Vec::new();
+    let reader = if let Some(path) = bible::find_json_bible_file(&params.tag) {
+        BibleReader::load_primary(&path).ok()
+    } else {
+        BibleReader::load_auto().ok()
+    };
 
-            if let Some(book_meta) = reader.find_book(&params.book) {
-                let v_count = if params.chapter >= 1 && params.chapter <= book_meta.total_chapters {
-                    book_meta.chapter_verse_counts[params.chapter - 1]
-                } else {
-                    1
-                };
+    if let Some(r) = reader {
+        let total_chapters = r.get_chapter_count(&params.book).unwrap_or(1);
+        let verses = r
+            .read_chapter(&params.book, params.chapter)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(v, text)| BibleVerseDto { verse: v, text })
+            .collect();
 
-                for v in 1..=v_count {
-                    let verse_text = reader
-                        .read_translation_verse(&params.tag, &params.book, params.chapter, v)
-                        .unwrap_or_default();
-                    if !verse_text.is_empty() {
-                        verses.push(BibleVerseDto { verse: v, text: verse_text });
-                    }
-                }
-            }
-
-            return Json(BibleChapterResponse {
-                tag: params.tag,
-                book: params.book,
-                chapter: params.chapter,
-                total_chapters,
-                verses,
-            });
-        }
+        return Json(BibleChapterResponse {
+            tag: params.tag,
+            book: params.book,
+            chapter: params.chapter,
+            total_chapters,
+            verses,
+        });
     }
 
     Json(BibleChapterResponse {
@@ -191,11 +215,18 @@ async fn read_bible_chapter(Query(params): Query<ReadBibleParams>) -> Json<Bible
 }
 
 #[derive(Serialize)]
+struct ChapterInfoDto {
+    chapter_number: usize,
+    title: String,
+}
+
+#[derive(Serialize)]
 struct BookSummaryDto {
     title: String,
     category: String,
     author: String,
     chapters_count: usize,
+    chapters: Vec<ChapterInfoDto>,
 }
 
 async fn get_library_books(State(state): State<AppState>) -> Json<Vec<BookSummaryDto>> {
@@ -203,11 +234,21 @@ async fn get_library_books(State(state): State<AppState>) -> Json<Vec<BookSummar
     let mut list = Vec::new();
 
     for book in &lib.books {
+        let chapters = book
+            .chapters
+            .iter()
+            .map(|c| ChapterInfoDto {
+                chapter_number: c.chapter_number,
+                title: c.title.clone(),
+            })
+            .collect();
+
         list.push(BookSummaryDto {
             title: book.title.clone(),
             category: book.category.clone(),
             author: book.author.clone().unwrap_or_else(|| "Unknown".to_string()),
             chapters_count: book.chapters.len(),
+            chapters,
         });
     }
 
@@ -234,7 +275,12 @@ async fn read_library_chapter(
     Query(params): Query<ReadLibParams>,
 ) -> Json<ChapterContentResponse> {
     let lib = state.library.read().await;
-    let target_book = lib.books.iter().find(|b| b.title.to_lowercase().contains(&params.title.to_lowercase()));
+    let p = params.title.trim().to_lowercase();
+
+    let target_book = lib.books.iter().find(|b| {
+        let t = b.title.to_lowercase();
+        t == p || t.contains(&p) || p.contains(&t)
+    });
 
     if let Some(book) = target_book {
         let total_chapters = book.chapters.len();
@@ -343,8 +389,12 @@ struct DoctorResponse {
     ollama_online: bool,
     qdrant_online: bool,
     mesh_online: bool,
+    mesh_identity: Option<String>,
     bibles_count: usize,
+    languages_count: usize,
     library_books_count: usize,
+    library_chapters_count: usize,
+    dendrite_nodes_count: usize,
     active_model: String,
 }
 
@@ -352,16 +402,34 @@ async fn run_doctor_checks(State(state): State<AppState>) -> Json<DoctorResponse
     let ollama_online = state.ollama.health_check().await.unwrap_or(false);
     let qdrant_online = state.qdrant.health_check().await;
     let mesh_online = state.mesh.is_some();
-    let bibles_count = BibleReader::list_languages().iter().map(|l| BibleReader::list_translations_for_lang(&l.code).len()).sum();
+    let mesh_identity = state.mesh.as_ref().and_then(|m| m.identity_hash.clone());
+
+    let languages = BibleReader::list_languages();
+    let languages_count = languages.len();
+    let bibles_count: usize = languages.iter().map(|l| BibleReader::list_translations_for_lang(&l.code).len()).sum();
+
     let lib = state.library.read().await;
     let library_books_count = lib.books.len();
+    let library_chapters_count: usize = lib.books.iter().map(|b| b.chapters.len()).sum();
+
+    let mut dendrite_nodes_count = 0;
+    if let Some(ref store) = state.dendrite_store {
+        let temp_graph = Dendrite::new();
+        if store.load_all(&temp_graph).is_ok() {
+            dendrite_nodes_count = temp_graph.by_tier(1).len() + temp_graph.by_tier(2).len() + temp_graph.by_tier(3).len() + temp_graph.by_tier(4).len();
+        }
+    }
 
     Json(DoctorResponse {
         ollama_online,
         qdrant_online,
         mesh_online,
+        mesh_identity,
         bibles_count,
+        languages_count,
         library_books_count,
+        library_chapters_count,
+        dendrite_nodes_count,
         active_model: state.ollama.model.clone(),
     })
 }

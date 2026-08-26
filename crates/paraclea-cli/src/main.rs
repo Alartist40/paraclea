@@ -501,23 +501,17 @@ async fn run_doctor(
 
         let mut category_count = 0;
         let mut book_count = 0;
-        if library_dir.exists() {
-            if let Ok(cats) = std::fs::read_dir(&library_dir) {
-                for c in cats.flatten() {
-                    if c.path().is_dir() {
-                        category_count += 1;
-                        if let Ok(files) = std::fs::read_dir(c.path()) {
-                            book_count += files.flatten().count();
-                        }
-                    }
-                }
-            }
-        }
+        let mut chapter_count = 0;
+        let lib = LibraryEngine::load_auto();
+        category_count = lib.list_categories().len();
+        book_count = lib.books.len();
+        chapter_count = lib.books.iter().map(|b| b.chapters.len()).sum();
 
         println!("     • Bible Languages Covered: {} ", print_gold(&lang_count.to_string()));
         println!("     • Formatted Bible Versions: {} ", print_gold(&bible_version_count.to_string()));
         println!("     • Non-Scripture Categories: {} ", print_gold(&category_count.to_string()));
         println!("     • Library Books Ingested:   {} ", print_gold(&book_count.to_string()));
+        println!("     • Total Library Chapters:   {} ", print_gold(&chapter_count.to_string()));
     }
     println!();
 

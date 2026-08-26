@@ -57,17 +57,22 @@
         .chat-msg.assistant { align-self: flex-start; background: #251a3e; color: var(--text-light); border: 1px solid var(--border-purple); border-bottom-left-radius: 2px; }
 
         .chat-input-bar { display: flex; gap: 12px; margin-top: 12px; }
-        input[type="text"], select { background: #140d24; border: 1px solid var(--border-purple); color: var(--text-light); padding: 12px 16px; border-radius: 8px; outline: none; font-size: 14px; }
+        input[type="text"], select, input[type="number"] { background: #140d24; border: 1px solid var(--border-purple); color: var(--text-light); padding: 10px 14px; border-radius: 8px; outline: none; font-size: 14px; }
         input[type="text"]:focus, select:focus { border-color: var(--gold-main); }
         .chat-input-bar input { flex: 1; }
 
-        button { background: linear-gradient(135deg, var(--gold-main), var(--gold-dim)); color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        button { background: linear-gradient(135deg, var(--gold-main), var(--gold-dim)); color: #000; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
         button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3); }
+
+        /* Category Filter Tabs */
+        .tab-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tab-btn { background: #140d24; color: var(--text-dim); border: 1px solid var(--border-purple); padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; }
+        .tab-btn:hover, .tab-btn.active { background: var(--purple-main); color: #fff; border-color: var(--purple-light); }
 
         /* Grid Lists */
         .grid-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
         .grid-item { background: #22163b; border: 1px solid var(--border-purple); padding: 14px; border-radius: 8px; cursor: pointer; text-align: center; font-size: 14px; color: var(--text-light); transition: 0.2s; }
-        .grid-item:hover { border-color: var(--gold-main); background: rgba(255, 215, 0, 0.1); color: var(--gold-main); }
+        .grid-item:hover, .grid-item.selected { border-color: var(--gold-main); background: rgba(255, 215, 0, 0.12); color: var(--gold-main); }
 
         /* Reader Content */
         .reader-text { line-height: 1.8; font-size: 16px; color: #e2d7f5; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; }
@@ -79,7 +84,7 @@
     <header>
         <div class="brand">
             <h1>🕊️ PARACLEA AI</h1>
-            <span>v0.8.0 Desktop</span>
+            <span>v0.8.1 Desktop</span>
         </div>
         <div class="status-bar">
             <div class="status-item"><div id="dot-ollama" class="status-dot"></div> Ollama LLM</div>
@@ -122,29 +127,28 @@
             <!-- BIBLE VIEW -->
             <div id="view-bible" class="view-section">
                 <div class="card">
-                    <div class="card-header">📖 Scripture Treasury (<span id="bible-count-label">216 Translations</span>)</div>
-                    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-                        <select id="bible-lang-select" onchange="loadTranslationsForLang()" style="flex: 1; min-width: 180px;">
+                    <div class="card-header">📖 Scripture Treasury (<span id="bible-count-label">219 Versions</span>)</div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;">
+                        <select id="bible-lang-select" onchange="loadTranslationsForLang()" style="min-width: 180px;">
                             <option value="eng">Loading Languages...</option>
                         </select>
-                        <select id="bible-trans-select" style="flex: 2; min-width: 240px;">
+                        <select id="bible-trans-select" style="min-width: 220px; flex: 1;">
                             <option value="EN-KJV">Loading Translations...</option>
                         </select>
-                        <select id="bible-book-select" style="width: 150px;">
-                            <option value="Genesis">Genesis</option>
-                            <option value="Exodus">Exodus</option>
-                            <option value="Psalms">Psalms</option>
-                            <option value="Proverbs">Proverbs</option>
-                            <option value="Matthew">Matthew</option>
-                            <option value="John" selected>John</option>
-                            <option value="Romans">Romans</option>
-                            <option value="Revelation">Revelation</option>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+                        <select id="bible-book-select" onchange="updateBibleChapterDropdown()" style="min-width: 200px; flex: 1;">
+                            <option value="John">Loading All 66 Bible Books...</option>
                         </select>
-                        <input type="number" id="bible-chapter-input" value="3" min="1" max="150" style="width: 80px; background: #140d24; border: 1px solid var(--border-purple); color: #fff; padding: 8px; border-radius: 8px;">
-                        <button onclick="fetchBiblePassage()">Read Passage</button>
+                        <select id="bible-chapter-select" style="width: 130px;">
+                            <option value="1">Chapter 1</option>
+                        </select>
+                        <button onclick="changeBibleChapter(-1)">◀ Prev</button>
+                        <button onclick="fetchBiblePassage()">Read</button>
+                        <button onclick="changeBibleChapter(1)">Next ▶</button>
                     </div>
                     <div class="reader-text" id="bible-content">
-                        Select language, version, book, and chapter above then click "Read Passage".
+                        Select language, version, book, and chapter above then click "Read".
                     </div>
                 </div>
             </div>
@@ -153,14 +157,29 @@
             <div id="view-library" class="view-section">
                 <div class="card">
                     <div class="card-header">📚 Multi-Category Non-Scripture Library</div>
+                    
+                    <div class="tab-bar">
+                        <button class="tab-btn active" onclick="filterLibraryCategory('all', event)">All Categories</button>
+                        <button class="tab-btn" onclick="filterLibraryCategory('egw', event)">✨ Spiritual (EGW)</button>
+                        <button class="tab-btn" onclick="filterLibraryCategory('survival', event)">🏕 Survival & Bushcraft</button>
+                        <button class="tab-btn" onclick="filterLibraryCategory('medical', event)">🩺 Medical Emergency</button>
+                        <button class="tab-btn" onclick="filterLibraryCategory('psychology', event)">🎓 Psychology & Classics</button>
+                    </div>
+
                     <div class="grid-selector" id="library-grid" style="margin-bottom: 16px;">
                         <div class="grid-item">Loading books...</div>
                     </div>
-                    <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;" id="lib-nav-bar">
-                        <span id="current-book-title" style="font-weight: bold; color: var(--gold-main);">Select a book above</span>
-                        <input type="number" id="lib-chapter-input" value="1" min="1" style="width: 80px; background: #140d24; border: 1px solid var(--border-purple); color: #fff; padding: 8px; border-radius: 8px;">
+
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;" id="lib-nav-bar">
+                        <span id="current-book-title" style="font-weight: bold; color: var(--gold-main); min-width: 200px;">Select a book above</span>
+                        <select id="lib-chapter-select" style="flex: 1; min-width: 200px;">
+                            <option value="1">Chapter 1</option>
+                        </select>
+                        <button onclick="changeLibraryChapter(-1)">◀ Prev</button>
                         <button onclick="fetchLibraryChapter()">Load Chapter</button>
+                        <button onclick="changeLibraryChapter(1)">Next ▶</button>
                     </div>
+
                     <div class="reader-text" id="library-content">
                         Click any book above to read full multi-chapter content.
                     </div>
@@ -206,7 +225,10 @@
     </div>
 
     <script>
-        let currentSelectedBook = "The Desire of Ages";
+        let allBibleBooks = [];
+        let allLibraryBooks = [];
+        let currentSelectedBook = null;
+        let activeCategoryFilter = 'all';
 
         function showView(viewId, evt) {
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -274,10 +296,56 @@
             }
         }
 
+        async function loadBibleBooks() {
+            try {
+                const res = await fetch('/api/bible/books');
+                allBibleBooks = await res.json();
+                const sel = document.getElementById('bible-book-select');
+
+                let ot = allBibleBooks.filter(b => b.testament === 'Old Testament');
+                let nt = allBibleBooks.filter(b => b.testament === 'New Testament');
+
+                let html = '<optgroup label="Old Testament (39 Books)">';
+                html += ot.map(b => `<option value="${b.name}">${b.name} (${b.total_chapters} chs)</option>`).join('');
+                html += '</optgroup><optgroup label="New Testament (27 Books)">';
+                html += nt.map(b => `<option value="${b.name}" ${b.name==='John'?'selected':''}>${b.name} (${b.total_chapters} chs)</option>`).join('');
+                html += '</optgroup>';
+
+                sel.innerHTML = html;
+                updateBibleChapterDropdown();
+            } catch (err) {
+                console.error("Failed to load Bible books", err);
+            }
+        }
+
+        function updateBibleChapterDropdown() {
+            const bookName = document.getElementById('bible-book-select').value || 'John';
+            const book = allBibleBooks.find(b => b.name === bookName) || { total_chapters: 21 };
+            const chSel = document.getElementById('bible-chapter-select');
+
+            let html = '';
+            for (let i = 1; i <= book.total_chapters; i++) {
+                html += `<option value="${i}">Chapter ${i}</option>`;
+            }
+            chSel.innerHTML = html;
+        }
+
+        function changeBibleChapter(delta) {
+            const chSel = document.getElementById('bible-chapter-select');
+            let current = parseInt(chSel.value) || 1;
+            let max = chSel.options.length;
+            let target = current + delta;
+
+            if (target >= 1 && target <= max) {
+                chSel.value = target;
+                fetchBiblePassage();
+            }
+        }
+
         async function fetchBiblePassage() {
             const tag = document.getElementById('bible-trans-select').value || 'EN-KJV';
             const book = document.getElementById('bible-book-select').value || 'John';
-            const ch = document.getElementById('bible-chapter-input').value || 3;
+            const ch = document.getElementById('bible-chapter-select').value || 1;
             const container = document.getElementById('bible-content');
 
             container.innerHTML = 'Loading Scripture passage...';
@@ -301,39 +369,85 @@
         async function loadLibraryBooks() {
             try {
                 const res = await fetch('/api/library/books');
-                const books = await res.json();
-                const grid = document.getElementById('library-grid');
-
-                if (books.length > 0) {
-                    grid.innerHTML = books.map(b => `
-                        <div class="grid-item" onclick="selectLibraryBook('${escapeHtml(b.title)}')">
-                            <div style="font-weight:bold; color:var(--gold-main);">${escapeHtml(b.title)}</div>
-                            <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">${b.category.toUpperCase()} • ${b.chapters_count} Chapters</div>
-                        </div>
-                    `).join('');
-                    selectLibraryBook(books[0].title);
-                } else {
-                    grid.innerHTML = '<div class="grid-item">No library books found.</div>';
-                }
+                allLibraryBooks = await res.json();
+                renderLibraryGrid();
             } catch (err) {
                 console.error("Failed to load library books", err);
             }
         }
 
+        function filterLibraryCategory(cat, evt) {
+            activeCategoryFilter = cat;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            if (evt) evt.target.classList.add('active');
+            renderLibraryGrid();
+        }
+
+        function renderLibraryGrid() {
+            const grid = document.getElementById('library-grid');
+            let filtered = allLibraryBooks;
+
+            if (activeCategoryFilter !== 'all') {
+                filtered = allLibraryBooks.filter(b => b.category.toLowerCase() === activeCategoryFilter.toLowerCase());
+            }
+
+            if (filtered.length > 0) {
+                grid.innerHTML = filtered.map(b => `
+                    <div class="grid-item ${currentSelectedBook && currentSelectedBook.title === b.title ? 'selected' : ''}" onclick="selectLibraryBook('${escapeHtml(b.title)}')">
+                        <div style="font-weight:bold; color:var(--gold-main);">${escapeHtml(b.title)}</div>
+                        <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">${b.category.toUpperCase()} • ${b.chapters_count} Chapters</div>
+                    </div>
+                `).join('');
+
+                if (!currentSelectedBook && filtered.length > 0) {
+                    selectLibraryBook(filtered[0].title);
+                }
+            } else {
+                grid.innerHTML = '<div class="grid-item">No books found in this category.</div>';
+            }
+        }
+
         function selectLibraryBook(title) {
-            currentSelectedBook = title;
-            document.getElementById('current-book-title').innerText = title;
-            document.getElementById('lib-chapter-input').value = 1;
+            currentSelectedBook = allLibraryBooks.find(b => b.title === title) || { title, chapters: [] };
+            document.getElementById('current-book-title').innerText = currentSelectedBook.title;
+
+            const chSel = document.getElementById('lib-chapter-select');
+            if (currentSelectedBook.chapters && currentSelectedBook.chapters.length > 0) {
+                chSel.innerHTML = currentSelectedBook.chapters.map(c => `
+                    <option value="${c.chapter_number}">Chapter ${c.chapter_number}: ${escapeHtml(c.title)}</option>
+                `).join('');
+            } else {
+                let html = '';
+                for (let i = 1; i <= currentSelectedBook.chapters_count; i++) {
+                    html += `<option value="${i}">Chapter ${i}</option>`;
+                }
+                chSel.innerHTML = html;
+            }
+
+            renderLibraryGrid();
             fetchLibraryChapter();
         }
 
+        function changeLibraryChapter(delta) {
+            const chSel = document.getElementById('lib-chapter-select');
+            let current = parseInt(chSel.value) || 1;
+            let max = chSel.options.length;
+            let target = current + delta;
+
+            if (target >= 1 && target <= max) {
+                chSel.value = target;
+                fetchLibraryChapter();
+            }
+        }
+
         async function fetchLibraryChapter() {
-            const ch = document.getElementById('lib-chapter-input').value || 1;
+            if (!currentSelectedBook) return;
+            const ch = document.getElementById('lib-chapter-select').value || 1;
             const container = document.getElementById('library-content');
             container.innerHTML = 'Loading chapter content...';
 
             try {
-                const res = await fetch(`/api/library/read?title=${encodeURIComponent(currentSelectedBook)}&chapter=${ch}`);
+                const res = await fetch(`/api/library/read?title=${encodeURIComponent(currentSelectedBook.title)}&chapter=${ch}`);
                 const data = await res.json();
                 let html = `<h3>${escapeHtml(data.book_title)}</h3>`;
                 html += `<h4 style="color:var(--gold-main); margin-bottom:12px;">Chapter ${data.chapter_number}: ${escapeHtml(data.chapter_title)}</h4>`;
@@ -359,9 +473,12 @@
                 container.innerHTML = `
                     Ollama Engine: ${d.ollama_online ? 'ONLINE' : 'OFFLINE'}<br>
                     Qdrant Vector DB: ${d.qdrant_online ? 'ONLINE' : 'OFFLINE'}<br>
-                    Reticulum Mesh: ${d.mesh_online ? 'ONLINE' : 'OFFLINE'}<br>
-                    Bible Versions Ingested: ${d.bibles_count} Translations<br>
-                    Multi-Category Books Ingested: ${d.library_books_count} Complete Books<br>
+                    Reticulum Mesh: ${d.mesh_online ? 'ONLINE' : 'OFFLINE'} ${d.mesh_identity ? '(&lt;' + d.mesh_identity + '&gt;)' : ''}<br>
+                    Bible Languages Covered: ${d.languages_count} Languages<br>
+                    Formatted Bible Versions: ${d.bibles_count} Translations<br>
+                    Multi-Category Library Books: ${d.library_books_count} Complete Books<br>
+                    Multi-Category Library Chapters: ${d.library_chapters_count} Total Chapters<br>
+                    Dendrite Graph Memory Nodes: ${d.dendrite_nodes_count} Nodes<br>
                     Active LLM Model: ${d.active_model}
                 `;
             } catch (err) {
@@ -406,6 +523,7 @@
 
         window.onload = function() {
             loadLanguages();
+            loadBibleBooks();
             loadLibraryBooks();
             loadDoctor();
         };
