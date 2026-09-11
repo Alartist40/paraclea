@@ -28,7 +28,7 @@ use paraclea_core::{
     qdrant::QdrantClient,
 };
 
-use crate::modals::{render_help_modal, render_list_picker_modal};
+use crate::modals::{render_help_modal, render_input_modal, render_list_picker_modal};
 use crate::theme::AppTheme;
 use crate::views::{
     bible::{render_bible_view, BibleViewState},
@@ -63,6 +63,7 @@ pub enum ActiveModal {
     TranslationPicker,
     ModelPicker,
     CommandPalette,
+    BackupPrompt,
 }
 
 pub enum StreamEvent {
@@ -90,6 +91,12 @@ pub struct App {
     pub qdrant: QdrantClient,
     pub persona: PersonaManager,
     pub pocket_tts: PocketTtsEngine,
+
+    // System Health & Doctor state
+    pub ollama_online: bool,
+    pub qdrant_online: bool,
+    pub bible_lang_count: usize,
+    pub bible_version_count: usize,
 
     // Views State
     pub chat_history: Vec<ChatMessage>,
@@ -120,6 +127,7 @@ pub struct App {
     pub modal_filter: String,
     pub modal_items: Vec<String>,
     pub modal_selected_idx: usize,
+    pub input_modal_buffer: String,
 
     pub backup_status: Option<String>,
     pub rx_stream: mpsc::UnboundedReceiver<StreamEvent>,
@@ -185,6 +193,17 @@ impl App {
             ("Chapter 1".to_string(), "No library books ingested yet.".to_string())
         };
 
+        let languages = BibleReader::list_languages();
+        let bible_lang_count = languages.len();
+        let mut bible_version_count = 0;
+        for lang in &languages {
+            let trans = BibleReader::list_translations_for_lang(&lang.code);
+            bible_version_count += trans.len();
+        }
+        if bible_version_count == 0 {
+            bible_version_count = 1;
+        }
+
         Self {
             cfg,
             config_path,
@@ -203,6 +222,11 @@ impl App {
             qdrant,
             persona,
             pocket_tts,
+
+            ollama_online: false,
+            qdrant_online: false,
+            bible_lang_count,
+            bible_version_count,
 
             chat_history: Vec::new(),
             streaming_text: String::new(),
@@ -231,6 +255,7 @@ impl App {
             modal_filter: String::new(),
             modal_items: Vec::new(),
             modal_selected_idx: 0,
+            input_modal_buffer: String::new(),
 
             backup_status: None,
             rx_stream,
@@ -300,7 +325,7 @@ impl App {
         Ok(())
     }
 
-    async fn handle_key_event(&mut self, code: KeyCode, mods: KeyModifiers) -> Result<bool> {
+    pub async fn handle_key_event(&mut self, code: KeyCode, mods: KeyModifiers) -> Result<bool> {
         // Global Shortcuts
         if mods.contains(KeyModifiers::CONTROL) {
             match code {
@@ -330,6 +355,29 @@ impl App {
 
         // Modal Active Handling
         if self.active_modal != ActiveModal::None {
+            if self.active_modal == ActiveModal::BackupPrompt {
+                match code {
+                    KeyCode::Esc => {
+                        self.active_modal = ActiveModal::None;
+                        self.input_modal_buffer.clear();
+                    }
+                    KeyCode::Backspace => {
+                        self.input_modal_buffer.pop();
+                    }
+                    KeyCode::Char(c) => {
+                        self.input_modal_buffer.push(c);
+                    }
+                    KeyCode::Enter => {
+                        let pass = self.input_modal_buffer.clone();
+                        self.input_modal_buffer.clear();
+                        self.active_modal = ActiveModal::None;
+                        self.execute_encrypted_backup(&pass);
+                    }
+                    _ => {}
+                }
+                return Ok(false);
+            }
+
             match code {
                 KeyCode::Esc => {
                     self.active_modal = ActiveModal::None;
@@ -368,7 +416,11 @@ impl App {
             KeyCode::F(3) => { self.active_tab = ActiveTab::Library; return Ok(false); }
             KeyCode::F(4) => { self.active_tab = ActiveTab::Crossref; return Ok(false); }
             KeyCode::F(5) => { self.active_tab = ActiveTab::Mesh; return Ok(false); }
-            KeyCode::F(6) => { self.active_tab = ActiveTab::Doctor; return Ok(false); }
+            KeyCode::F(6) => {
+                self.active_tab = ActiveTab::Doctor;
+                self.refresh_doctor_status().await;
+                return Ok(false);
+            }
             KeyCode::Tab => {
                 self.active_focus = match self.active_focus {
                     ActiveFocus::Sidebar => ActiveFocus::MainViewport,
@@ -425,9 +477,19 @@ impl App {
             ActiveFocus::MainViewport => match self.active_tab {
                 ActiveTab::Chat => match code {
                     KeyCode::Up => self.chat_scroll = self.chat_scroll.saturating_sub(1),
-                    KeyCode::Down => self.chat_scroll += 1,
+                    KeyCode::Down => {
+                        let total_lines: usize = self.chat_history.iter().map(|m| m.content.lines().count() + 3).sum();
+                        let max_scroll = total_lines.saturating_sub(10);
+                        if self.chat_scroll < max_scroll {
+                            self.chat_scroll += 1;
+                        }
+                    }
                     KeyCode::PageUp => self.chat_scroll = self.chat_scroll.saturating_sub(5),
-                    KeyCode::PageDown => self.chat_scroll += 5,
+                    KeyCode::PageDown => {
+                        let total_lines: usize = self.chat_history.iter().map(|m| m.content.lines().count() + 3).sum();
+                        let max_scroll = total_lines.saturating_sub(10);
+                        self.chat_scroll = (self.chat_scroll + 5).min(max_scroll);
+                    }
                     _ => {}
                 },
                 ActiveTab::Bible => match code {
@@ -565,6 +627,10 @@ impl App {
                 f, size, "🤖 Select Active Ollama AI Model",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
             ),
+            ActiveModal::BackupPrompt => render_input_modal(
+                f, size, "🔒 Enter Backup Encryption Passphrase",
+                "Passphrase", &self.input_modal_buffer, true, &self.theme,
+            ),
             _ => {}
         }
     }
@@ -681,8 +747,8 @@ impl App {
                 render_mesh_view(f, area, &self.mesh_state, &status, id_hash, &[], &mailbox, &self.theme);
             }
             ActiveTab::Doctor => render_doctor_view(
-                f, area, true, &self.cfg.model.ollama.model, false,
-                self.dendrite_graph.len(), 66, 160, self.backup_status.as_deref(), &self.theme,
+                f, area, self.ollama_online, &self.cfg.model.ollama.model, self.qdrant_online,
+                self.dendrite_graph.len(), self.bible_lang_count, self.bible_version_count, self.backup_status.as_deref(), &self.theme,
             ),
         }
     }
@@ -704,7 +770,7 @@ impl App {
         f.render_widget(p, area);
     }
 
-    async fn process_command(&mut self, input: &str) {
+    pub async fn process_command(&mut self, input: &str) {
         let now_str = chrono::Local::now().format("%H:%M").to_string();
         self.chat_history.push(ChatMessage {
             role: "user".to_string(),
@@ -760,6 +826,7 @@ impl App {
             }
             "/doctor" => {
                 self.active_tab = ActiveTab::Doctor;
+                self.refresh_doctor_status().await;
             }
             "/clear" => {
                 self.chat_history.clear();
@@ -820,22 +887,41 @@ impl App {
         }
     }
 
-    fn open_translation_picker(&mut self) {
-        self.modal_items = vec![
-            "KJV - King James Version (English)".to_string(),
-            "BSB - Berean Standard Bible (English)".to_string(),
-            "WEB - World English Bible (English)".to_string(),
-            "RVA - Reina Valera Antigua (Spanish)".to_string(),
-            "Crampon - French Crampon 1923 (French)".to_string(),
-            "Luther - Martin Luther Bibel (German)".to_string(),
-            "Synodal - Russian Synodal Bible (Russian)".to_string(),
-        ];
+    pub async fn refresh_doctor_status(&mut self) {
+        self.ollama_online = self.ollama.health_check().await.unwrap_or(false);
+        self.qdrant_online = self.qdrant.health_check().await;
+        let languages = BibleReader::list_languages();
+        self.bible_lang_count = languages.len();
+        let mut total_ver = 0;
+        for lang in &languages {
+            total_ver += BibleReader::list_translations_for_lang(&lang.code).len();
+        }
+        self.bible_version_count = total_ver.max(1);
+    }
+
+    pub fn open_translation_picker(&mut self) {
+        let languages = BibleReader::list_languages();
+        let mut items = Vec::new();
+        for lang in &languages {
+            let trans = BibleReader::list_translations_for_lang(&lang.code);
+            for t in trans {
+                items.push(format!("{} - {} ({})", t.tag, t.name, lang.name));
+            }
+        }
+        if items.is_empty() {
+            items = vec![
+                "KJV - King James Version (English)".to_string(),
+                "BSB - Berean Standard Bible (English)".to_string(),
+                "WEB - World English Bible (English)".to_string(),
+            ];
+        }
+        self.modal_items = items;
         self.modal_selected_idx = 0;
         self.modal_filter.clear();
         self.active_modal = ActiveModal::TranslationPicker;
     }
 
-    async fn open_model_picker(&mut self) {
+    pub async fn open_model_picker(&mut self) {
         let models = self.ollama.fetch_available_models().await;
         if models.is_empty() {
             self.modal_items = vec!["ministral-3:3b".to_string(), "ornith-1.5:9b".to_string()];
@@ -847,7 +933,7 @@ impl App {
         self.active_modal = ActiveModal::ModelPicker;
     }
 
-    fn filter_modal_items(&mut self) {
+    pub fn filter_modal_items(&mut self) {
         let q = self.modal_filter.to_lowercase();
         if q.is_empty() { return; }
         if let Some(pos) = self.modal_items.iter().position(|i| i.to_lowercase().contains(&q)) {
@@ -855,12 +941,13 @@ impl App {
         }
     }
 
-    fn apply_modal_selection(&mut self) {
+    pub fn apply_modal_selection(&mut self) {
         match self.active_modal {
             ActiveModal::TranslationPicker => {
                 if let Some(sel) = self.modal_items.get(self.modal_selected_idx) {
                     let tag = sel.split_whitespace().next().unwrap_or("KJV");
                     self.bible_state.active_translation = tag.to_string();
+                    self.load_active_bible_chapter();
                 }
             }
             ActiveModal::ModelPicker => {
@@ -874,13 +961,46 @@ impl App {
         self.active_modal = ActiveModal::None;
     }
 
-    fn trigger_encrypted_backup(&mut self) {
+    pub fn trigger_encrypted_backup(&mut self) {
+        self.input_modal_buffer.clear();
+        self.active_modal = ActiveModal::BackupPrompt;
+    }
+
+    pub fn execute_encrypted_backup(&mut self, passkey: &str) {
+        let trimmed_key = passkey.trim();
+        if trimmed_key.is_empty() {
+            self.backup_status = Some("⚠️ Backup cancelled: Passphrase is required for encryption.".to_string());
+            return;
+        }
+
         if let Ok(home) = std::env::var("HOME") {
             let db_path = PathBuf::from(&home).join(".paraclea/dendrite.db");
-            let backup_dir = PathBuf::from(&home).join(".paraclea/backups");
-            let _ = std::fs::create_dir_all(&backup_dir);
+            let mut target_dir = PathBuf::from(&home).join(".paraclea/backups");
+
+            // Auto-detect mounted USB flash drive
+            let user_name = std::env::var("USER").unwrap_or_default();
+            let candidate_media_dirs = vec![
+                format!("/media/{}", user_name),
+                format!("/run/media/{}", user_name),
+                "/media".to_string(),
+            ];
+            for m_dir_str in candidate_media_dirs {
+                let media_dir = PathBuf::from(m_dir_str);
+                if media_dir.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&media_dir) {
+                        for e in entries.flatten() {
+                            if e.path().is_dir() {
+                                target_dir = e.path();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            let _ = std::fs::create_dir_all(&target_dir);
             let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-            let backup_file = backup_dir.join(format!("paraclea_backup_{}.enc", ts));
+            let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", ts));
 
             if db_path.exists() {
                 use sha2::{Sha256, Digest};
@@ -889,6 +1009,7 @@ impl App {
                     let mut buf = Vec::new();
                     let _ = fin.read_to_end(&mut buf);
                     let mut hasher = Sha256::new();
+                    hasher.update(trimmed_key.as_bytes());
                     hasher.update(b"PARACLEA_SECURE_SALT_2026");
                     let key = hasher.finalize();
                     let mut enc = Vec::with_capacity(buf.len());

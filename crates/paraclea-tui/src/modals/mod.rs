@@ -142,3 +142,44 @@ pub fn render_list_picker_modal(
     let list = List::new(list_items).block(list_block);
     f.render_widget(list, chunks[1]);
 }
+
+pub fn render_input_modal(
+    f: &mut Frame,
+    area: Rect,
+    title: &str,
+    prompt_label: &str,
+    value: &str,
+    is_secret: bool,
+    theme: &AppTheme,
+) {
+    let modal_area = centered_rect(55, 30, area);
+    f.render_widget(Clear, modal_area);
+
+    let display_value = if is_secret {
+        "•".repeat(value.len())
+    } else {
+        value.to_string()
+    };
+
+    let text = vec![
+        Line::from(vec![
+            Span::styled(format!("{}: ", prompt_label), theme.header_badge()),
+            Span::styled(display_value, Style::default().fg(Color::White)),
+            Span::styled("█", theme.header_title()),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Press [Enter] to Confirm, [Esc] to Cancel", Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)),
+        ]),
+    ];
+
+    let block = Block::default()
+        .title(format!(" {} ", title))
+        .borders(Borders::ALL)
+        .border_type(theme.border_type())
+        .border_style(theme.border_focused());
+
+    let p = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
+    f.render_widget(p, modal_area);
+}
+
