@@ -2,6 +2,7 @@
 members = [
     "crates/paraclea-core",
     "crates/paraclea-cli",
-    "crates/paraclea-gui"
+    "crates/paraclea-gui",
+    "crates/paraclea-tui"
 ]
 resolver = "2"

@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 paraclea-core = { path = "../paraclea-core" }
+paraclea-tui = { path = "../paraclea-tui" }
 clap = { version = "4.4", features = ["derive"] }
 colored = "2.1"
 rustyline = "14.0"

@@ -58,6 +58,10 @@ fn read_line_prompt(rl: &mut Option<DefaultEditor>, prompt: &str) -> String {
     long_about = None
 )]
 struct Cli {
+    /// Fallback to plain text REPL instead of interactive graphical TUI
+    #[arg(long, default_value_t = false)]
+    repl: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -275,7 +279,11 @@ async fn main() -> Result<()> {
         }
     }
 
-    start_paraclea_repl(cfg).await
+    if cli.repl {
+        start_paraclea_repl(cfg).await
+    } else {
+        paraclea_tui::run_tui(cfg).await
+    }
 }
 
 fn print_gold(text: &str) -> ColoredString {
