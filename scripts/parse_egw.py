@@ -1,6 +1,6 @@
 import os, re, json
 
-EGW_SRC_DIR = '/home/orangepi/Documents/reference/EGW'
+EGW_SRC_DIR = os.path.expanduser('~/Documents/reference/EGW')
 EGW_DEST_DIR = os.path.expanduser('~/.paraclea/library/egw')
 
 os.makedirs(EGW_DEST_DIR, exist_ok=True)

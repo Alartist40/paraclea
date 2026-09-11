@@ -62,10 +62,41 @@ impl CrossReferenceLinker {
 
     /// Search for cross-references matching a verse or topic.
     pub fn find_cross_references(&self, query: &str) -> Vec<crate::dendrite::Node> {
-        self.graph.search_bm25(query, 10)
+        let bm25_results = self.graph.search_bm25(query, 10);
+        if !bm25_results.is_empty() {
+            return bm25_results
+                .into_iter()
+                .map(|(node, _score)| node)
+                .filter(|node| node.tags.contains(&"#cross_reference".to_string()) || node.content.contains("[["))
+                .collect();
+        }
+        self.graph.search(query)
             .into_iter()
-            .map(|(node, _score)| node)
             .filter(|node| node.tags.contains(&"#cross_reference".to_string()) || node.content.contains("[["))
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_crossref_creation_and_search() {
+        let graph = Arc::new(Dendrite::new());
+        let linker = CrossReferenceLinker::new(Arc::clone(&graph), None);
+
+        let res = linker.create_cross_reference(
+            "Genesis 1:1",
+            "Natural Philosophy Ch 1",
+            "Creation parallel to cosmological observations.",
+        );
+        assert!(res.is_ok());
+
+        let results = linker.find_cross_references("Genesis");
+        assert_eq!(results.len(), 1);
+        assert!(results[0].title.contains("Genesis 1:1"));
+        assert!(results[0].content.contains("Creation parallel"));
+    }
+}
+

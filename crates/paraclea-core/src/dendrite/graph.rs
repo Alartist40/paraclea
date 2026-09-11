@@ -333,6 +333,19 @@ impl Dendrite {
             .sum::<f32>()
             / total_docs.max(1.0);
 
+        let mut df_map: HashMap<&str, usize> = HashMap::new();
+        for token in &query_tokens {
+            let df = inner
+                .nodes
+                .values()
+                .filter(|n| {
+                    let text = format!("{} {} {}", n.title, n.content, n.tags.join(" ")).to_lowercase();
+                    text.contains(token.as_str())
+                })
+                .count();
+            df_map.insert(token.as_str(), df);
+        }
+
         for node in inner.nodes.values() {
             let doc_text = format!("{} {} {}", node.title, node.content, node.tags.join(" ")).to_lowercase();
             let doc_len = doc_text.len() as f32;
@@ -340,8 +353,9 @@ impl Dendrite {
 
             for token in &query_tokens {
                 let count = doc_text.matches(token).count() as f32;
+                let df = *df_map.get(token.as_str()).unwrap_or(&0) as f32;
                 if count > 0.0 {
-                    let idf = ((total_docs + 1.0) / (1.0 + count)).ln();
+                    let idf = (((total_docs - df + 0.5) / (df + 0.5)) + 1.0).ln().max(0.1);
                     let tf = (count * (k1 + 1.0)) / (count + k1 * (1.0 - b + b * (doc_len / avg_len.max(1.0))));
                     score += idf * tf;
                 }

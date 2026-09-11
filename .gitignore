@@ -26,4 +26,6 @@ __pycache__/
 # Paraclea local storage & flags
 .qdrant-initialized
 /storage
-/data/*.json
+/data/
+/bibles/
+/library/

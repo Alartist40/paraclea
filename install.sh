@@ -159,8 +159,18 @@ INSTALL_CHOICE="${INSTALL_CHOICE:-1}"
 echo -e "${PURPLE}🔨 Building Paraclea release binaries (Rust opt-level 3 workspace)...${RESET}"
 cargo build --release --workspace
 
-if [ -f "data/kjv.json" ]; then
-    cp "data/kjv.json" "$INSTALL_DIR/data/kjv.json"
+if [ -d "bibles" ]; then
+    echo -e "${PURPLE}📖 Installing multi-language Bible databases...${RESET}"
+    cp -rn bibles/* "$INSTALL_DIR/bibles/" 2>/dev/null || true
+fi
+
+if [ -d "data" ]; then
+    cp -rn data/* "$INSTALL_DIR/data/" 2>/dev/null || true
+fi
+
+if [ -d "library" ]; then
+    echo -e "${PURPLE}📚 Installing non-scripture library books...${RESET}"
+    cp -rn library/* "$INSTALL_DIR/library/" 2>/dev/null || true
 fi
 
 install -m 755 target/release/paraclea "$BIN_DIR/paraclea"

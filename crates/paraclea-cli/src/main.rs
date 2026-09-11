@@ -7,10 +7,10 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::*;
 use paraclea_core::audio::*;
-use paraclea_core::bible::{self, BibleReader, NEW_TESTAMENT_BOOKS, OLD_TESTAMENT_BOOKS};
+use paraclea_core::bible::BibleReader;
 use paraclea_core::config::Config;
 use paraclea_core::crossref::CrossReferenceLinker;
-use paraclea_core::dendrite::{Dendrite, DendriteContext, DendriteStore, NodeType, ReflectionWorker};
+use paraclea_core::dendrite::{Dendrite, DendriteContext, DendriteStore, ReflectionWorker};
 use paraclea_core::detect::FileType;
 use paraclea_core::heartbeat::*;
 use paraclea_core::ingest::{ingest_file, BibleIngestor, BookIngestor};
@@ -482,7 +482,6 @@ async fn run_doctor(
     println!("{}", print_purple("  📚 Mega Bible & Multi-Category Library Database:"));
     if let Ok(home) = std::env::var("HOME") {
         let bibles_dir = std::path::PathBuf::from(&home).join(".paraclea/bibles");
-        let library_dir = std::path::PathBuf::from(&home).join(".paraclea/library");
         
         let mut lang_count = 0;
         let mut bible_version_count = 0;
@@ -499,13 +498,10 @@ async fn run_doctor(
             }
         }
 
-        let mut category_count = 0;
-        let mut book_count = 0;
-        let mut chapter_count = 0;
         let lib = LibraryEngine::load_auto();
-        category_count = lib.list_categories().len();
-        book_count = lib.books.len();
-        chapter_count = lib.books.iter().map(|b| b.chapters.len()).sum();
+        let category_count = lib.list_categories().len();
+        let book_count = lib.books.len();
+        let chapter_count: usize = lib.books.iter().map(|b| b.chapters.len()).sum();
 
         println!("     • Bible Languages Covered: {} ", print_gold(&lang_count.to_string()));
         println!("     • Formatted Bible Versions: {} ", print_gold(&bible_version_count.to_string()));
@@ -707,7 +703,7 @@ fn print_help_menu() {
     println!("    {} - Read a non-scripture book chapter", print_purple("/read-book <book> [chapter]"));
     println!("    {} - Get AI study commentary on a non-scripture book chapter", print_purple("/study-book <book> [chapter]"));
     println!("    {} - Link Scripture and non-scripture books with custom notes", print_purple("/crossref <source> <-> <target> <notes>"));
-    println!("    {} - End conversation session", print_purple("/bye or /end"));
+    println!("    {} - End conversation session", print_purple("/bye, /end, /exit, /quit"));
     println!("    {} - List available Ollama and local models", print_purple("/models"));
     println!("    {} - Switch active chat LLM", print_purple("/model <name>"));
     println!("    {} - Run full system diagnostic health check", print_purple("/doctor"));
@@ -1269,9 +1265,9 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     });
 
     // 7. Tool & RAG Executors & Bible Reader & Reticulum Mesh & Dendrite Memory
-    let tool_executor = ToolExecutor::new(persona.clone());
+    let _tool_executor = ToolExecutor::new(persona.clone());
     let rag_engine = RagEngine::new(&ollama, &qdrant);
-    let config_path = PathBuf::from("config.yaml");
+    let config_path = Config::find_or_default_config_path();
     let bible_reader = BibleReader::load_auto().ok();
     let mesh_engine = ReticulumEngine::new().ok();
 
@@ -1333,11 +1329,17 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
+        let (cmd, args) = match input_str.split_once(char::is_whitespace) {
+            Some((c, a)) => (c.trim(), a.trim()),
+            None => (input_str, ""),
+        };
+        let cmd_lower = cmd.to_lowercase();
+
         // Strict Exit Commands (/bye, /end, /exit, /quit)
-        if input_str.eq_ignore_ascii_case("/bye")
-            || input_str.eq_ignore_ascii_case("/end")
-            || input_str.eq_ignore_ascii_case("/exit")
-            || input_str.eq_ignore_ascii_case("/quit")
+        if cmd_lower == "/bye"
+            || cmd_lower == "/end"
+            || cmd_lower == "/exit"
+            || cmd_lower == "/quit"
         {
             println!(
                 "\n{} {}\n",
@@ -1348,17 +1350,17 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         }
 
         // Interactive Slash Commands
-        if input_str.eq_ignore_ascii_case("/help") {
+        if cmd_lower == "/help" {
             print_help_menu();
             continue;
         }
 
-        if input_str.eq_ignore_ascii_case("/bible") {
+        if cmd_lower == "/bible" {
             let _ = handle_bible_menu(&mut rl, &mut cfg, &config_path).await;
             continue;
         }
 
-        if input_str.eq_ignore_ascii_case("/read") {
+        if cmd_lower == "/read" {
             if let Some(ref reader) = bible_reader {
                 let _ = handle_read_cmd(&mut rl, reader, &library_engine, &cfg, &mut history).await;
             } else {
@@ -1367,8 +1369,17 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.starts_with("/matrix") {
-            let topic = input_str.trim_start_matches("/matrix").trim();
+        if cmd_lower == "/compare" {
+            if let Some(ref reader) = bible_reader {
+                let _ = handle_compare_cmd(&mut rl, reader, &ollama, &mut history).await;
+            } else {
+                println!("{}", "⚠️ Bible database not loaded.".red());
+            }
+            continue;
+        }
+
+        if cmd_lower == "/matrix" {
+            let topic = args;
             if topic.is_empty() {
                 println!("{}", "⚠️ Please specify a topic: /matrix <topic> (e.g. /matrix Faith)".yellow());
             } else {
@@ -1383,9 +1394,9 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.starts_with("/mesh-send") {
-            let parts: Vec<&str> = input_str.trim_start_matches("/mesh-send").trim().splitn(2, ' ').collect();
-            if parts.len() < 2 {
+        if cmd_lower == "/mesh-send" {
+            let parts: Vec<&str> = args.splitn(2, ' ').collect();
+            if parts.len() < 2 || parts[0].is_empty() || parts[1].is_empty() {
                 println!("{}", "⚠️ Usage: /mesh-send <recipient_identity> <message_text>".yellow());
             } else {
                 if let Some(ref mesh) = mesh_engine {
@@ -1398,7 +1409,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str == "/mesh-inbox" {
+        if cmd_lower == "/mesh-inbox" {
             if let Some(ref mesh) = mesh_engine {
                 let msgs = mesh.read_mailbox();
                 println!("\n{}", print_gold("=== Reticulum Off-Grid Mailbox Inbox ==="));
@@ -1413,9 +1424,19 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.starts_with("/backup") {
-            let pass = input_str.trim_start_matches("/backup").trim();
-            let passkey = if pass.is_empty() { "paraclea_secret_key_2026" } else { pass };
+        if cmd_lower == "/backup" {
+            let passkey_input = if args.is_empty() {
+                let p = read_line_prompt(&mut rl, &format!("{} ", print_gold("Enter backup encryption passphrase (or leave empty to cancel) >")));
+                p.trim().to_string()
+            } else {
+                args.to_string()
+            };
+
+            if passkey_input.is_empty() {
+                println!("{}", "⚠️ Backup cancelled: an encryption passphrase is required for security.".yellow());
+                continue;
+            }
+            let passkey = &passkey_input;
             println!("{}", print_purple("🔒 Exporting 1-Click Encrypted USB Backup (AES-256 / SHA-256)..."));
             
             if let Ok(home) = std::env::var("HOME") {
@@ -1423,15 +1444,22 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 let mut target_dir = std::path::PathBuf::from(&home).join(".paraclea/backups");
                 
                 // Auto-detect mounted USB flash drive
-                let user_name = std::env::var("USER").unwrap_or_else(|_| "orangepi".to_string());
-                let media_dir = std::path::PathBuf::from(format!("/media/{}", user_name));
-                if media_dir.exists() {
-                    if let Ok(entries) = std::fs::read_dir(&media_dir) {
-                        for e in entries.flatten() {
-                            if e.path().is_dir() {
-                                target_dir = e.path();
-                                println!("  ✓ Auto-detected mounted USB flash drive: {:?}", target_dir);
-                                break;
+                let user_name = std::env::var("USER").unwrap_or_default();
+                let candidate_media_dirs = vec![
+                    format!("/media/{}", user_name),
+                    format!("/run/media/{}", user_name),
+                    "/media".to_string(),
+                ];
+                for m_dir_str in candidate_media_dirs {
+                    let media_dir = std::path::PathBuf::from(m_dir_str);
+                    if media_dir.exists() {
+                        if let Ok(entries) = std::fs::read_dir(&media_dir) {
+                            for e in entries.flatten() {
+                                if e.path().is_dir() {
+                                    target_dir = e.path();
+                                    println!("  ✓ Auto-detected mounted USB flash drive: {:?}", target_dir);
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1469,9 +1497,9 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str == "/mesh" || input_str.starts_with("/mesh ") {
+        if cmd_lower == "/mesh" {
             if let Some(ref mesh) = mesh_engine {
-                let arg = input_str.trim_start_matches("/mesh").trim().to_lowercase();
+                let arg = args.to_lowercase();
                 match arg.as_str() {
                     "announce" => {
                         println!("{}", print_purple("Broadcasting Reticulum announcement packet..."));
@@ -1503,15 +1531,10 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str == "/dendrite" || input_str.starts_with("/dendrite ") || input_str == "/memory" || input_str.starts_with("/memory ") {
-            let arg = if input_str.starts_with("/dendrite") {
-                input_str.trim_start_matches("/dendrite").trim()
-            } else {
-                input_str.trim_start_matches("/memory").trim()
-            };
-
-            if arg.starts_with("search ") {
-                let query = arg.trim_start_matches("search ").trim();
+        if cmd_lower == "/dendrite" || cmd_lower == "/memory" {
+            let arg = args;
+            if arg.to_lowercase().starts_with("search ") {
+                let query = arg[7..].trim();
                 println!("\n{}", print_gold(&format!("=== Dendrite Graph Memory Search: '{}' ===", query)));
                 let results = dendrite_graph.search_bm25(query, 10);
                 if results.is_empty() {
@@ -1534,14 +1557,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str == "/library" || input_str.starts_with("/library ") || input_str == "/books" || input_str.starts_with("/books ") {
-            let arg = if input_str.starts_with("/library") {
-                input_str.trim_start_matches("/library").trim()
-            } else {
-                input_str.trim_start_matches("/books").trim()
-            };
-
-            let category_filter = if arg.is_empty() { None } else { Some(arg) };
+        if cmd_lower == "/library" || cmd_lower == "/books" {
+            let category_filter = if args.is_empty() { None } else { Some(args) };
             println!("\n{}", print_gold("=== Paraclea Multi-Category Book Library ==="));
             let books = library_engine.list_books(category_filter);
             if books.is_empty() {
@@ -1555,10 +1572,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.starts_with("/read-book ") {
-            let args_str = input_str.trim_start_matches("/read-book ").trim();
-            let parts: Vec<&str> = args_str.split_whitespace().collect();
-            if !parts.is_empty() {
+        if cmd_lower == "/read-book" {
+            let parts: Vec<&str> = args.split_whitespace().collect();
+            if parts.is_empty() {
+                println!("{}", "⚠️ Usage: /read-book <book> [chapter]".yellow());
+            } else {
                 let book_query = parts[0];
                 let ch_num: usize = if parts.len() > 1 { parts[1].parse().unwrap_or(1) } else { 1 };
                 if let Some((book, chapter)) = library_engine.read_chapter(book_query, ch_num) {
@@ -1572,10 +1590,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.starts_with("/study-book ") {
-            let args_str = input_str.trim_start_matches("/study-book ").trim();
-            let parts: Vec<&str> = args_str.split_whitespace().collect();
-            if !parts.is_empty() {
+        if cmd_lower == "/study-book" {
+            let parts: Vec<&str> = args.split_whitespace().collect();
+            if parts.is_empty() {
+                println!("{}", "⚠️ Usage: /study-book <book> [chapter]".yellow());
+            } else {
                 let book_query = parts[0];
                 let ch_num: usize = if parts.len() > 1 { parts[1].parse().unwrap_or(1) } else { 1 };
                 if let Some((book, chapter)) = library_engine.read_chapter(book_query, ch_num) {
@@ -1584,7 +1603,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                         "Provide a thoughtful, wise, and structured study commentary on the following chapter from '{}' (Category: {}).\n\nChapter Content:\n{}\n",
                         book.title, book.category, chapter.content
                     );
-                    let mut msgs = vec![
+                    let msgs = vec![
                         ChatMessage { role: "system".to_string(), content: persona.build_system_prompt() },
                         ChatMessage { role: "user".to_string(), content: study_prompt },
                     ];
@@ -1602,8 +1621,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.starts_with("/crossref ") {
-            let raw_args = input_str.trim_start_matches("/crossref ").trim();
+        if cmd_lower == "/crossref" {
+            let raw_args = args;
             if let Some((source_target, notes)) = raw_args.split_once(' ') {
                 if let Some((source, target)) = source_target.split_once("<->") {
                     match crossref_linker.create_cross_reference(source, target, notes) {
@@ -1619,26 +1638,32 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
-        if input_str.eq_ignore_ascii_case("/doctor") {
+        if cmd_lower == "/doctor" {
             run_doctor(&cfg, &ollama, &qdrant, &pocket_tts).await;
             continue;
         }
 
-        if input_str.eq_ignore_ascii_case("/models") || input_str.eq_ignore_ascii_case("/list") {
+        if cmd_lower == "/models" || cmd_lower == "/list" {
             print_available_models(&ollama).await;
             continue;
         }
 
-        if input_str.starts_with("/model ") {
-            let target = input_str.trim_start_matches("/model ").trim();
-            let available_models = ollama.fetch_available_models().await;
-            if let Err(e) = select_and_apply_model(target, &available_models, &mut cfg) {
-                eprintln!("{}", format!("Error: {}", e).red());
+        if cmd_lower == "/model" {
+            let target = args;
+            if target.is_empty() {
+                println!("{}", "⚠️ Usage: /model <name or number> (run '/models' to list available)".yellow());
+            } else {
+                let available_models = ollama.fetch_available_models().await;
+                if let Err(e) = select_and_apply_model(target, &available_models, &mut cfg) {
+                    eprintln!("{}", format!("Error: {}", e).red());
+                } else {
+                    let _ = cfg.save(&config_path);
+                }
             }
             continue;
         }
 
-        if input_str.eq_ignore_ascii_case("/clear") {
+        if cmd_lower == "/clear" {
             history.clear();
             println!("{}", print_gold("✓ Conversation context cleared."));
             continue;
@@ -1707,7 +1732,6 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         print!("{} ", print_purple("Paraclea >"));
         io::stdout().flush()?;
 
-        let mut streamed_text = String::new();
         match ollama
             .chat_with_model_stream(target_model, messages.clone(), |token| {
                 print!("{}", token);
@@ -1715,9 +1739,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             })
             .await
         {
-            Ok(full_response) => {
+            Ok(streamed_text) => {
                 println!("\n");
-                streamed_text = full_response;
 
                 if !rag_ret.sources.is_empty() {
                     println!(
@@ -1787,6 +1810,7 @@ fn print_banner(cfg: &Config) {
     );
 }
 
+#[allow(dead_code)]
 async fn display_and_speak(
     text: &str,
     persona: &PersonaManager,
@@ -1811,3 +1835,31 @@ async fn display_and_speak(
         let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_case_insensitive_command_parsing() {
+        let test_cases = vec![
+            ("/Bible 1", "/bible", "1"),
+            ("/BIBLE", "/bible", ""),
+            ("/Compare Genesis 1:1 kjv bsb", "/compare", "Genesis 1:1 kjv bsb"),
+            ("/Mesh status", "/mesh", "status"),
+            ("/LIBRARY psychology", "/library", "psychology"),
+            ("/Dendrite search faith", "/dendrite", "search faith"),
+            ("/Exit", "/exit", ""),
+            ("/QUIT", "/quit", ""),
+            ("/BYE", "/bye", ""),
+        ];
+
+        for (raw_input, expected_cmd, expected_args) in test_cases {
+            let (cmd, args) = match raw_input.trim().split_once(char::is_whitespace) {
+                Some((c, a)) => (c.to_lowercase(), a.trim()),
+                None => (raw_input.trim().to_lowercase(), ""),
+            };
+            assert_eq!(cmd, expected_cmd);
+            assert_eq!(args, expected_args);
+        }
+    }
+}
+

@@ -53,8 +53,7 @@ impl LibraryEngine {
         self.books.clear();
         if !self.library_dir.exists() {
             let _ = fs::create_dir_all(&self.library_dir);
-            self.create_sample_category()?;
-            return Ok(());
+            let _ = self.create_sample_categories();
         }
 
         let cat_entries = fs::read_dir(&self.library_dir)
@@ -87,13 +86,48 @@ impl LibraryEngine {
                 }
             }
         }
+
+        if self.books.is_empty() {
+            let _ = self.create_sample_categories();
+            if let Ok(cat_entries) = fs::read_dir(&self.library_dir) {
+                for entry in cat_entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        let category_name = path.file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+
+                        if let Ok(files) = fs::read_dir(&path) {
+                            for f_entry in files.flatten() {
+                                let f_path = f_entry.path();
+                                if let Some(ext) = f_path.extension() {
+                                    let ext_str = ext.to_string_lossy().to_lowercase();
+                                    if ext_str == "json" {
+                                        if let Ok(book) = Self::load_json_book(&f_path, &category_name) {
+                                            self.books.push(book);
+                                        }
+                                    } else if ext_str == "md" || ext_str == "txt" {
+                                        if let Ok(book) = Self::load_text_book(&f_path, &category_name) {
+                                            self.books.push(book);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
-    fn create_sample_category(&self) -> Result<()> {
-        let sample_dir = self.library_dir.join("psychology");
-        let _ = fs::create_dir_all(&sample_dir);
-        let sample_book = GenericBook {
+    fn create_sample_categories(&self) -> Result<()> {
+        // 1. Psychology & Wellness
+        let psych_dir = self.library_dir.join("psychology");
+        let _ = fs::create_dir_all(&psych_dir);
+        let psych_book = GenericBook {
             title: "Principles of Mind & Wellness".to_string(),
             author: Some("Paraclea Research".to_string()),
             category: "psychology".to_string(),
@@ -111,10 +145,100 @@ impl LibraryEngine {
             ],
             file_path: None,
         };
+        let _ = fs::write(psych_dir.join("principles_of_mind.json"), serde_json::to_string_pretty(&psych_book)?);
 
-        let sample_json = serde_json::to_string_pretty(&sample_book)?;
-        let sample_path = sample_dir.join("principles_of_mind.json");
-        let _ = fs::write(sample_path, sample_json);
+        // 2. Survival & Preparedness
+        let surv_dir = self.library_dir.join("survival");
+        let _ = fs::create_dir_all(&surv_dir);
+        let surv_book = GenericBook {
+            title: "Emergency Preparedness & Bushcraft Manual".to_string(),
+            author: Some("Field Preparedness Institute".to_string()),
+            category: "survival".to_string(),
+            chapters: vec![
+                BookChapter {
+                    chapter_number: 1,
+                    title: "Water Purification & Filtration".to_string(),
+                    content: "Access to clean water is the first priority in survival. Methods include boiling (rolling boil for 1-3 minutes), solar disinfection (SODIS), charcoal and sand filtration beds, and chemical purification tablets.".to_string(),
+                },
+                BookChapter {
+                    chapter_number: 2,
+                    title: "Shelter & Thermal Regulation".to_string(),
+                    content: "Hypothermia and hyperthermia are rapid threats. Insulate yourself from the ground using dry leaves or branches, construct debris huts or lean-tos, and ensure wind and moisture barriers.".to_string(),
+                },
+            ],
+            file_path: None,
+        };
+        let _ = fs::write(surv_dir.join("emergency_preparedness.json"), serde_json::to_string_pretty(&surv_book)?);
+
+        // 3. Medical First Aid
+        let med_dir = self.library_dir.join("medical");
+        let _ = fs::create_dir_all(&med_dir);
+        let med_book = GenericBook {
+            title: "Field Trauma & Emergency First Aid".to_string(),
+            author: Some("Medical Field Corps".to_string()),
+            category: "medical".to_string(),
+            chapters: vec![
+                BookChapter {
+                    chapter_number: 1,
+                    title: "Hemorrhage Control & Tourniquets".to_string(),
+                    content: "Direct pressure is the initial response to external bleeding. For life-threatening extremity arterial bleeding, apply a commercial tourniquet 2-3 inches above the wound high and tight until bleeding stops.".to_string(),
+                },
+                BookChapter {
+                    chapter_number: 2,
+                    title: "Airway Management & Recovery Position".to_string(),
+                    content: "Ensure patent airway using head-tilt chin-lift or jaw thrust for suspected spinal trauma. Place unresponsive breathing casualties in lateral recovery position to prevent aspiration.".to_string(),
+                },
+            ],
+            file_path: None,
+        };
+        let _ = fs::write(med_dir.join("field_first_aid.json"), serde_json::to_string_pretty(&med_book)?);
+
+        // 4. Ellen G. White Spiritual Works
+        let egw_dir = self.library_dir.join("egw");
+        let _ = fs::create_dir_all(&egw_dir);
+        let egw_book = GenericBook {
+            title: "Steps to Christ".to_string(),
+            author: Some("Ellen G. White".to_string()),
+            category: "egw".to_string(),
+            chapters: vec![
+                BookChapter {
+                    chapter_number: 1,
+                    title: "God's Love for Man".to_string(),
+                    content: "Nature and revelation alike testify of God's love. Our Father in heaven is the source of life, of wisdom, and of joy. Look at the wonderful and beautiful things of nature. Think of their marvelous adaptation to the needs and happiness, not only of man, but of all living creatures. The sunshine and the rain, that gladden and refresh the earth, the hills and seas and plains, all speak to us of the Creator's love.".to_string(),
+                },
+                BookChapter {
+                    chapter_number: 2,
+                    title: "The Sinner's Need of Christ".to_string(),
+                    content: "Man was originally endowed with noble powers and a well-balanced mind. He was perfect in his being, and in harmony with God. His thoughts were pure, his aims holy. But through disobedience, his powers were perverted, and selfishness took the place of love.".to_string(),
+                },
+            ],
+            file_path: None,
+        };
+        let _ = fs::write(egw_dir.join("steps_to_christ.json"), serde_json::to_string_pretty(&egw_book)?);
+
+        // 5. Educational & Philosophy
+        let edu_dir = self.library_dir.join("educational");
+        let _ = fs::create_dir_all(&edu_dir);
+        let edu_book = GenericBook {
+            title: "Foundations of Natural Philosophy & Science".to_string(),
+            author: Some("Classical Scholarship".to_string()),
+            category: "educational".to_string(),
+            chapters: vec![
+                BookChapter {
+                    chapter_number: 1,
+                    title: "Observation, Hypothesis & Scientific Inquiry".to_string(),
+                    content: "Knowledge advances through rigorous empirical observation, formulation of falsifiable hypotheses, deductive reasoning, and iterative experimental verification.".to_string(),
+                },
+                BookChapter {
+                    chapter_number: 2,
+                    title: "Astronomy & the Structure of the Cosmos".to_string(),
+                    content: "From planetary orbits governed by celestial mechanics to stellar nucleosynthesis and galactic clusters, cosmological laws display remarkable symmetry and fine-tuning.".to_string(),
+                },
+            ],
+            file_path: None,
+        };
+        let _ = fs::write(edu_dir.join("foundations_of_philosophy.json"), serde_json::to_string_pretty(&edu_book)?);
+
         Ok(())
     }
 
@@ -182,3 +306,38 @@ impl LibraryEngine {
         Some((book, chapter))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_library_engine_initializes_samples() {
+        let dir = tempdir().expect("Failed to create tempdir");
+        let engine = LibraryEngine::new(dir.path().to_path_buf());
+
+        let categories = engine.list_categories();
+        assert_eq!(categories.len(), 5);
+        assert!(categories.contains(&"psychology".to_string()));
+        assert!(categories.contains(&"survival".to_string()));
+        assert!(categories.contains(&"medical".to_string()));
+        assert!(categories.contains(&"egw".to_string()));
+        assert!(categories.contains(&"educational".to_string()));
+
+        let books = engine.list_books(None);
+        assert_eq!(books.len(), 5);
+
+        let egw_books = engine.list_books(Some("egw"));
+        assert_eq!(egw_books.len(), 1);
+        assert_eq!(egw_books[0].title, "Steps to Christ");
+
+        let chapter_res = engine.read_chapter("Steps to Christ", 1);
+        assert!(chapter_res.is_some());
+        let (book, ch) = chapter_res.unwrap();
+        assert_eq!(book.title, "Steps to Christ");
+        assert_eq!(ch.chapter_number, 1);
+        assert!(ch.content.contains("Nature and revelation alike testify"));
+    }
+}
+

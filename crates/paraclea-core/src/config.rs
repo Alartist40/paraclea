@@ -201,3 +201,36 @@ impl Config {
         cwd_cfg
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_config_defaults() {
+        let cfg = Config::default();
+        assert_eq!(cfg.system.name, "Paraclea");
+        assert_eq!(cfg.model.backend, "ollama");
+        assert_eq!(cfg.bible.language, "English");
+        assert_eq!(cfg.bible.translation, "KJV");
+    }
+
+    #[test]
+    fn test_config_save_and_load() {
+        let dir = tempdir().expect("Failed to create tempdir");
+        let cfg_path = dir.path().join("test_config.yaml");
+
+        let mut cfg = Config::default();
+        cfg.model.ollama.model = "custom-test-model".to_string();
+        cfg.bible.translation = "BSB".to_string();
+
+        cfg.save(&cfg_path).expect("Failed to save config");
+        assert!(cfg_path.exists());
+
+        let loaded = Config::load(&cfg_path).expect("Failed to load config");
+        assert_eq!(loaded.model.ollama.model, "custom-test-model");
+        assert_eq!(loaded.bible.translation, "BSB");
+    }
+}
+

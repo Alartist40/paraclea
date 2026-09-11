@@ -29,38 +29,77 @@ pub struct TranslationOption {
 pub fn code_to_language_name(code: &str) -> &'static str {
     match code.to_lowercase().as_str() {
         "afr" | "af" => "Afrikaans",
+        "alb" | "sqi" | "sq" => "Albanian (Shqip)",
         "amh" | "am" => "Amharic (አማርኛ)",
-        "arb" | "ar" => "Arabic (العربية)",
+        "arb" | "ara" | "ar" => "Arabic (العربية)",
+        "arm" | "hye" | "hy" => "Armenian (Հայերեն)",
+        "arn" => "Mapudungun (Mapuche)",
         "ben" | "bn" => "Bengali (বাংলা)",
-        "zho" | "zh" => "Chinese (中文)",
-        "nld" | "nl" => "Dutch (Nederlands)",
+        "ceb" => "Cebuano (Sinugboanon)",
+        "ces" | "cze" | "cs" => "Czech (Čeština)",
+        "che" => "Chechen (Нохчийн)",
+        "chu" => "Church Slavic",
+        "cop" => "Coptic (Sahidic)",
+        "dan" | "da" => "Danish (Dansk)",
+        "deu" | "ger" | "de" => "German (Deutsch)",
+        "dut" | "nld" | "nl" => "Dutch (Nederlands)",
+        "ell" | "el" | "grc" | "gre" => "Greek (Ελληνικά)",
         "eng" | "en" => "English",
-        "fra" | "fr" => "French (Français)",
-        "deu" | "de" => "German (Deutsch)",
-        "ell" | "el" | "grc" => "Greek (Ελληνικά)",
+        "epo" | "eo" => "Esperanto",
+        "est" | "et" => "Estonian (Eesti)",
+        "fin" | "fi" => "Finnish (Suomi)",
+        "fra" | "fre" | "fr" => "French (Français)",
+        "glv" => "Manx Gaelic",
+        "got" => "Gothic (Wulfila)",
         "guj" | "gu" => "Gujarati (ગુજરાતી)",
+        "hat" | "hai" | "ht" => "Haitian Creole (Kreyòl)",
         "hau" | "ha" => "Hausa",
         "heb" | "he" => "Hebrew (עברית)",
         "hin" | "hi" => "Hindi (हिन्दी)",
+        "hrv" | "cro" | "hr" => "Croatian (Hrvatski)",
         "hun" | "hu" => "Hungarian (Magyar)",
         "ibo" | "ig" => "Igbo",
+        "ind" | "id" => "Indonesian (Bahasa Indonesia)",
+        "ita" | "it" => "Italian (Italiano)",
         "jpn" | "ja" => "Japanese (日本語)",
+        "kan" | "kn" => "Kannada (ಕನ್ನಡ)",
         "kor" | "ko" => "Korean (한국어)",
         "lat" | "la" => "Latin (Vulgata)",
         "lug" | "lg" => "Luganda",
         "mal" | "ml" => "Malayalam (മലയാളം)",
+        "mar" | "mr" => "Marathi (मराठी)",
+        "mlg" => "Malagasy",
+        "mri" | "mao" | "mi" => "Maori (Te Reo Māori)",
+        "mya" => "Burmese (Judson)",
         "nep" | "ne" => "Nepali (नेपाली)",
+        "nor" | "nob" | "nno" | "no" => "Norwegian (Norsk)",
         "nso" => "Sepedi (Northern Sotho)",
-        "por" | "pt" => "Portuguese (Português)",
+        "ori" | "or" => "Oriya (ଓଡ଼ିଆ)",
         "pan" | "pa" => "Punjabi (ਪੰਜਾਬੀ)",
+        "pol" | "pl" => "Polish (Polski)",
+        "pon" => "Pohnpeian",
+        "por" | "pt" => "Portuguese (Português)",
         "rus" | "ru" => "Russian (Русский)",
+        "sam" => "Samaritan Hebrew",
+        "slv" | "slo" | "sl" => "Slovenian (Slovenščina)",
+        "sml" => "Central Sama",
         "sna" | "sn" => "Shona",
         "spa" | "es" => "Spanish (Español)",
+        "srp" | "srb" | "sr" => "Serbian (Српски)",
+        "swe" | "sv" => "Swedish (Svenska)",
         "swh" | "sw" => "Swahili (Kiswahili)",
+        "syr" => "Syriac (Peshitta)",
         "tam" | "ta" => "Tamil (தமிழ்)",
         "tel" | "te" => "Telugu (తెలుగు)",
+        "tgl" | "tl" | "tag" => "Tagalog (Filipino)",
+        "tha" | "th" => "Thai (ไทย)",
+        "tpi" => "Tok Pisin",
+        "tsg" => "Tausug",
         "tsn" | "tn" => "Setswana",
         "twi" | "tw" => "Twi (Ghana - Akuapem & Asante)",
+        "ukr" | "uk" => "Ukrainian (Українська)",
+        "vie" | "vi" => "Vietnamese (Tiếng Việt)",
+        "vls" => "West Flemish",
         "xho" | "xh" => "Xhosa (isiXhosa)",
         "yor" | "yo" => "Yoruba",
         "zul" | "zu" => "Zulu (isiZulu)",
@@ -79,13 +118,33 @@ pub fn format_translation_name(stem: &str, lang_code: &str) -> String {
         "en-nasb" | "nasb" => "New American Standard Bible (NASB)".to_string(),
         "en-asv" | "asv" => "American Standard Version (ASV 1901)".to_string(),
         "en-bsb" | "bsb" => "Berean Standard Bible (BSB)".to_string(),
+        "en-bbe" | "bbe" => "Bible in Basic English (BBE)".to_string(),
         "en-web" | "web" => "World English Bible (WEB)".to_string(),
+        "webster" => "Webster Bible (1833)".to_string(),
         "en-webbe" | "webbe" => "World English Bible British Edition (WEBBE)".to_string(),
         "en-webus" | "webus" => "World English Bible US Edition (WEBUS)".to_string(),
-        "en-gnv" | "gnv" => "Geneva Bible (1599)".to_string(),
+        "geneva1599" | "en-gnv" | "gnv" => "Geneva Bible (1599)".to_string(),
         "en-ylt" | "ylt" => "Young's Literal Translation (1898)".to_string(),
-        "en-dra" | "dra" => "Douay-Rheims American Edition (1899)".to_string(),
+        "en-dra" | "dra" | "drc" => "Douay-Rheims American Edition (1899)".to_string(),
         "en-rv" | "rv" => "Revised Version (1885)".to_string(),
+        "darby" => "Darby Translation (1890)".to_string(),
+        "akjv" => "American King James Version (AKJV)".to_string(),
+        "acv" => "A Conservative Version (ACV)".to_string(),
+        "cpdv" => "Catholic Public Domain Version (CPDV)".to_string(),
+        "tyndale" => "William Tyndale Bible (1526)".to_string(),
+        "wycliffe" => "John Wycliffe Bible (1382)".to_string(),
+        "sparv" | "sparv1865" | "rv1909" => "Reina Valera (Español)".to_string(),
+        "frecrampon" | "fregeneve1669" | "lsg" => "French Bible (Français)".to_string(),
+        "gerbolut" | "gerelb1871" | "luther" => "German Luther Bible (Deutsch)".to_string(),
+        "russynodal" | "synodal" => "Russian Synodal Bible (Синодальный)".to_string(),
+        "vulgate" | "vulgata" => "Latin Vulgate (Vulgata)".to_string(),
+        "porblivre" | "pornva" | "almeida" => "Portuguese Bible (Português)".to_string(),
+        "dutsvv" | "dutsvva" => "Dutch Statenvertaling (Nederlands)".to_string(),
+        "tagangbiblia" => "Ang Dating Biblia (Tagalog 1905)".to_string(),
+        "ukrogienko" => "Ukrainian Ogienko Bible (Українська)".to_string(),
+        "viet" => "Vietnamese Bible (1934)".to_string(),
+        "korrv" | "korhkjv" => "Korean Bible (한국어)".to_string(),
+        "chisb" | "chiun" | "cuv" => "Chinese Union Version (中文和合本)".to_string(),
         "tw-wakna" => "Twi Akuapem Bible (Nkwa Asɛm)".to_string(),
         "tw-wasna" => "Twi Asante Bible (Nkwa Asɛm)".to_string(),
         "zulu_bible" | "zul" => "Zulu Bible (isiZulu)".to_string(),
@@ -144,15 +203,8 @@ pub struct BibleReader {
 }
 
 impl BibleReader {
-    /// Load Bible dataset from primary JSON file (e.g. data/kjv.json).
-    pub fn load_primary<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path_ref = path.as_ref();
-        if !path_ref.exists() {
-            anyhow::bail!("Bible JSON dataset not found at {:?}", path_ref);
-        }
-
-        let content_raw = fs::read_to_string(path_ref)
-            .with_context(|| format!("Failed to read Bible dataset: {:?}", path_ref))?;
+    /// Parse Bible dataset from a JSON string.
+    pub fn from_json_str(content_raw: &str) -> Result<Self> {
         let content = content_raw.trim_start_matches('\u{feff}');
         let json_val: Value = serde_json::from_str(content)
             .with_context(|| "Failed to parse Bible JSON structure")?;
@@ -188,14 +240,48 @@ impl BibleReader {
         })
     }
 
+    /// Load Bible dataset from primary JSON file (e.g. data/kjv.json).
+    pub fn load_primary<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path_ref = path.as_ref();
+        if !path_ref.exists() {
+            anyhow::bail!("Bible JSON dataset not found at {:?}", path_ref);
+        }
+
+        let content_raw = fs::read_to_string(path_ref)
+            .with_context(|| format!("Failed to read Bible dataset: {:?}", path_ref))?;
+        Self::from_json_str(&content_raw)
+    }
+
     /// Automatically locate and load Bible dataset from standard global or repository paths.
     pub fn load_auto() -> Result<Self> {
-        let candidates = vec![
+        let mut candidates = vec![
+            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/bibles/eng/kjv.json")),
+            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/bibles/eng/web.json")),
             std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/data/kjv.json")),
-            Some(PathBuf::from("/home/orangepi/Documents/portfolio/paraclea/data/kjv.json")),
             Some(PathBuf::from("data/kjv.json")),
+            Some(PathBuf::from("bibles/eng/kjv.json")),
             Some(PathBuf::from("../data/kjv.json")),
+            Some(PathBuf::from("../bibles/eng/kjv.json")),
         ];
+
+        if let Ok(home) = std::env::var("HOME") {
+            let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
+            if bibles_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&bibles_dir) {
+                    for lang_entry in entries.flatten() {
+                        if lang_entry.path().is_dir() {
+                            if let Ok(files) = fs::read_dir(lang_entry.path()) {
+                                for f in files.flatten() {
+                                    if f.path().extension().and_then(|e| e.to_str()) == Some("json") {
+                                        candidates.push(Some(f.path()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         for cand in candidates.into_iter().flatten() {
             if cand.exists() {
@@ -260,7 +346,7 @@ impl BibleReader {
             let bibles_dir = PathBuf::from(home).join(format!(".paraclea/bibles/{}", lang_code));
             if bibles_dir.exists() {
                 if let Ok(entries) = fs::read_dir(&bibles_dir) {
-                    let mut files: Vec<PathBuf> = entries
+                    let files: Vec<PathBuf> = entries
                         .flatten()
                         .map(|e| e.path())
                         .filter(|p| p.extension().and_then(|ext| ext.to_str()) == Some("json"))
@@ -469,22 +555,36 @@ pub struct BibleSearchResult {
 }
 
 pub fn find_json_bible_file(translation_tag: &str) -> Option<PathBuf> {
+    let mut check_dirs = Vec::new();
     if let Ok(home) = std::env::var("HOME") {
-        let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
+        check_dirs.push(PathBuf::from(home).join(".paraclea/bibles"));
+    }
+    check_dirs.push(PathBuf::from("bibles"));
+    check_dirs.push(PathBuf::from("../bibles"));
+    check_dirs.push(PathBuf::from("data"));
+
+    for bibles_dir in check_dirs {
         if bibles_dir.exists() {
             if let Ok(entries) = fs::read_dir(&bibles_dir) {
-                for lang_entry in entries.flatten() {
-                    if lang_entry.path().is_dir() {
-                        if let Ok(files) = fs::read_dir(lang_entry.path()) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        if let Ok(files) = fs::read_dir(&p) {
                             for f in files.flatten() {
-                                let p = f.path();
-                                if p.extension().and_then(|e| e.to_str()) == Some("json") {
-                                    if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                                let fp = f.path();
+                                if fp.extension().and_then(|e| e.to_str()) == Some("json") {
+                                    if let Some(stem) = fp.file_stem().and_then(|s| s.to_str()) {
                                         if matches_tag(stem, translation_tag) {
-                                            return Some(p);
+                                            return Some(fp);
                                         }
                                     }
                                 }
+                            }
+                        }
+                    } else if p.extension().and_then(|e| e.to_str()) == Some("json") {
+                        if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                            if matches_tag(stem, translation_tag) {
+                                return Some(p);
                             }
                         }
                     }
@@ -586,11 +686,15 @@ pub struct CsvBibleReader;
 impl CsvBibleReader {
     pub fn locate_csv(tag: &str) -> Option<PathBuf> {
         let filename = format!("{}.csv", tag);
-        let candidate_paths = vec![
-            PathBuf::from(format!("/home/orangepi/Documents/reference/bible_databases/formats/csv/{}", filename)),
+        let mut candidate_paths = vec![
             PathBuf::from(format!("data/{}", filename)),
-            PathBuf::from(format!("../Documents/reference/bible_databases/formats/csv/{}", filename)),
+            PathBuf::from(format!("bibles/csv/{}", filename)),
         ];
+        if let Ok(home) = std::env::var("HOME") {
+            candidate_paths.push(PathBuf::from(home.clone()).join(format!(".paraclea/data/{}", filename)));
+            candidate_paths.push(PathBuf::from(home.clone()).join(format!(".paraclea/bibles/csv/{}", filename)));
+            candidate_paths.push(PathBuf::from(home).join(format!("Documents/reference/bible_databases/formats/csv/{}", filename)));
+        }
         candidate_paths.into_iter().find(|p| p.exists())
     }
 
@@ -665,3 +769,65 @@ impl CsvBibleReader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_code_to_language_name() {
+        assert_eq!(code_to_language_name("eng"), "English");
+        assert_eq!(code_to_language_name("spa"), "Spanish (Español)");
+        assert_eq!(code_to_language_name("fra"), "French (Français)");
+        assert_eq!(code_to_language_name("deu"), "German (Deutsch)");
+        assert_eq!(code_to_language_name("rus"), "Russian (Русский)");
+        assert_eq!(code_to_language_name("unknown_code"), "Other Language");
+    }
+
+    #[test]
+    fn test_format_translation_name() {
+        assert_eq!(format_translation_name("kjv", "eng"), "King James Version (KJV 1611 - Authorized)");
+        assert_eq!(format_translation_name("web", "eng"), "World English Bible (WEB)");
+        assert_eq!(format_translation_name("bsb", "eng"), "Berean Standard Bible (BSB)");
+        assert_eq!(format_translation_name("custom_ver", "eng"), "CUSTOM VER (English)");
+    }
+
+    #[test]
+    fn test_bible_reader_in_memory() {
+        let sample_json = r#"[
+            {
+                "name": "Genesis",
+                "chapters": [
+                    ["In the beginning God created the heaven and the earth.", "And the earth was without form, and void;"]
+                ]
+            },
+            {
+                "name": "John",
+                "chapters": [
+                    [],
+                    [],
+                    ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "For God so loved the world, that he gave his only begotten Son..."]
+                ]
+            }
+        ]"#;
+
+        let reader = BibleReader::from_json_str(sample_json).expect("Failed to parse sample bible JSON");
+        assert_eq!(reader.books.len(), 2);
+
+        let verse = reader.read_verse("Genesis", 1, 1);
+        assert_eq!(verse, Some("In the beginning God created the heaven and the earth.".to_string()));
+
+        let verse_case = reader.read_verse("genesis", 1, 2);
+        assert_eq!(verse_case, Some("And the earth was without form, and void;".to_string()));
+
+        let john_verse = reader.read_verse("John", 3, 16);
+        assert!(john_verse.unwrap().contains("For God so loved the world"));
+
+        let results = reader.search_keyword("heaven", 10);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].book, "Genesis");
+        assert_eq!(results[0].chapter, 1);
+        assert_eq!(results[0].verse, 1);
+    }
+}
+
