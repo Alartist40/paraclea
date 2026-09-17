@@ -136,8 +136,8 @@ def convert_bible_api_repo():
                                 verse_texts.append(item["text"])
                     if verse_texts:
                         chapters.append(verse_texts)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"  ⚠️ Warning: Failed to parse {ch_file}: {e}", file=sys.stderr)
             
             if chapters:
                 books.append({"name": bk_name.capitalize(), "chapters": chapters})
@@ -173,8 +173,8 @@ def convert_godlytalias_repo():
             
             if books:
                 save_bible(lang_code, tag, books)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  ⚠️ Warning: Failed to convert {json_file}: {e}", file=sys.stderr)
 
 def convert_bible_databases_repo():
     print("📦 Inspecting scrollmapper/bible_databases...")
@@ -191,8 +191,8 @@ def convert_bible_databases_repo():
                 data = json.load(f)
             if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
                 save_bible(lang_code, json_file.stem, data)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  ⚠️ Warning: Failed to process {json_file}: {e}", file=sys.stderr)
 
 def parse_full_egw_books():
     print("📦 Organizing Ellen G. White Spiritual Library...")

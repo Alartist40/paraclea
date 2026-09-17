@@ -15,16 +15,17 @@ impl AudioPlayer {
             return Ok(());
         }
 
-        let temp_file = "/tmp/paraclea_speech.wav";
-        let _ = fs::write(temp_file, wav_bytes);
+        let temp_file = format!("/tmp/paraclea_speech_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4());
+        let _ = fs::write(&temp_file, wav_bytes);
 
         let _ = Command::new("aplay")
             .arg("-q")
-            .arg(temp_file)
+            .arg(&temp_file)
             .status()
-            .or_else(|_| Command::new("paplay").arg(temp_file).status())
-            .or_else(|_| Command::new("pw-play").arg(temp_file).status());
+            .or_else(|_| Command::new("paplay").arg(&temp_file).status())
+            .or_else(|_| Command::new("pw-play").arg(&temp_file).status());
 
+        let _ = fs::remove_file(&temp_file);
         Ok(())
     }
 }

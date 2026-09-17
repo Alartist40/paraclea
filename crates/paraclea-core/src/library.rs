@@ -49,13 +49,7 @@ impl LibraryEngine {
         Self::new(dir)
     }
 
-    pub fn reload(&mut self) -> Result<()> {
-        self.books.clear();
-        if !self.library_dir.exists() {
-            let _ = fs::create_dir_all(&self.library_dir);
-            let _ = self.create_sample_categories();
-        }
-
+    fn scan_directory(&mut self) -> Result<()> {
         let cat_entries = fs::read_dir(&self.library_dir)
             .context("Failed to read library directory")?;
 
@@ -86,38 +80,21 @@ impl LibraryEngine {
                 }
             }
         }
+        Ok(())
+    }
+
+    pub fn reload(&mut self) -> Result<()> {
+        self.books.clear();
+        if !self.library_dir.exists() {
+            let _ = fs::create_dir_all(&self.library_dir);
+            let _ = self.create_sample_categories();
+        }
+
+        self.scan_directory()?;
 
         if self.books.is_empty() {
             let _ = self.create_sample_categories();
-            if let Ok(cat_entries) = fs::read_dir(&self.library_dir) {
-                for entry in cat_entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        let category_name = path.file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string();
-
-                        if let Ok(files) = fs::read_dir(&path) {
-                            for f_entry in files.flatten() {
-                                let f_path = f_entry.path();
-                                if let Some(ext) = f_path.extension() {
-                                    let ext_str = ext.to_string_lossy().to_lowercase();
-                                    if ext_str == "json" {
-                                        if let Ok(book) = Self::load_json_book(&f_path, &category_name) {
-                                            self.books.push(book);
-                                        }
-                                    } else if ext_str == "md" || ext_str == "txt" {
-                                        if let Ok(book) = Self::load_text_book(&f_path, &category_name) {
-                                            self.books.push(book);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            let _ = self.scan_directory();
         }
 
         Ok(())

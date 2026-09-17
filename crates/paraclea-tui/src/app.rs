@@ -35,9 +35,28 @@ use crate::views::{
     chat::{render_chat_view, ChatMessage},
     crossref::{render_crossref_view, CrossrefViewState},
     doctor::render_doctor_view,
+    galaxy::{GalaxyState, GalaxyView},
     library::{render_library_view, LibraryViewState},
     mesh::{render_mesh_view, MeshViewState},
 };
+
+pub const COMMAND_PALETTE: &[(&str, &str)] = &[
+    ("/help", "Show help and keyboard shortcuts"),
+    ("/theme", "Cycle color themes (5 available)"),
+    ("/language", "Pick Bible language (66 languages)"),
+    ("/version", "Pick Bible translation version"),
+    ("/bible", "Open Bible reader / interactive scripture"),
+    ("/compare", "Compare translations side-by-side"),
+    ("/library", "Browse offline book library"),
+    ("/galaxy", "Open 3D celestial knowledge galaxy"),
+    ("/memory", "Inspect Dendrite knowledge graph"),
+    ("/mesh", "Reticulum mesh network status"),
+    ("/model", "Switch active Ollama AI model"),
+    ("/doctor", "System health diagnostics & doctor"),
+    ("/backup", "1-Click AES-256-GCM encrypted USB backup"),
+    ("/crossref", "Cross-reference lookup"),
+    ("/clear", "Clear chat history"),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveTab {
@@ -45,8 +64,9 @@ pub enum ActiveTab {
     Bible = 1,
     Library = 2,
     Crossref = 3,
-    Mesh = 4,
-    Doctor = 5,
+    Galaxy = 4,
+    Mesh = 5,
+    Doctor = 6,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,9 +80,10 @@ pub enum ActiveFocus {
 pub enum ActiveModal {
     None,
     Help,
+    CommandPalette,
+    LanguagePicker,
     TranslationPicker,
     ModelPicker,
-    CommandPalette,
     BackupPrompt,
 }
 
@@ -97,6 +118,8 @@ pub struct App {
     pub qdrant_online: bool,
     pub bible_lang_count: usize,
     pub bible_version_count: usize,
+    pub selected_language_code: Option<String>,
+    pub selected_language_name: Option<String>,
 
     // Views State
     pub chat_history: Vec<ChatMessage>,
@@ -108,7 +131,7 @@ pub struct App {
     pub bible_state: BibleViewState,
     pub bible_books: Vec<String>,
     pub bible_verses: Vec<(usize, String)>,
-    pub bible_comparison: Vec<(&'static str, Vec<(usize, String)>)>,
+    pub bible_comparison: Vec<(String, Vec<(usize, String)>)>,
 
     pub library_state: LibraryViewState,
     pub library_categories: Vec<String>,
@@ -118,6 +141,7 @@ pub struct App {
 
     pub crossref_state: CrossrefViewState,
     pub mesh_state: MeshViewState,
+    pub galaxy_state: GalaxyState,
 
     // Prompt & Modals
     pub input_buffer: String,
@@ -127,6 +151,7 @@ pub struct App {
     pub modal_filter: String,
     pub modal_items: Vec<String>,
     pub modal_selected_idx: usize,
+    pub command_palette_items: Vec<(&'static str, &'static str)>,
     pub input_modal_buffer: String,
 
     pub backup_status: Option<String>,
@@ -204,6 +229,12 @@ impl App {
             bible_version_count = 1;
         }
 
+        let fallback_reader = BibleReader::from_json_str("[]").unwrap();
+        let galaxy_state = GalaxyState::new(
+            bible_reader.as_ref().unwrap_or(&fallback_reader),
+            &library_engine,
+        );
+
         Self {
             cfg,
             config_path,
@@ -227,6 +258,8 @@ impl App {
             qdrant_online: false,
             bible_lang_count,
             bible_version_count,
+            selected_language_code: Some("eng".to_string()),
+            selected_language_name: Some("English".to_string()),
 
             chat_history: Vec::new(),
             streaming_text: String::new(),
@@ -247,6 +280,7 @@ impl App {
 
             crossref_state: CrossrefViewState::default(),
             mesh_state: MeshViewState::default(),
+            galaxy_state,
 
             input_buffer: String::new(),
             input_history: Vec::new(),
@@ -255,6 +289,7 @@ impl App {
             modal_filter: String::new(),
             modal_items: Vec::new(),
             modal_selected_idx: 0,
+            command_palette_items: COMMAND_PALETTE.to_vec(),
             input_modal_buffer: String::new(),
 
             backup_status: None,
@@ -305,6 +340,11 @@ impl App {
                         });
                     }
                 }
+            }
+
+            // Update galaxy simulation clock only when active
+            if self.active_tab == ActiveTab::Galaxy {
+                self.galaxy_state.update(0.033);
             }
 
             // Draw 30 FPS Frame
@@ -378,6 +418,45 @@ impl App {
                 return Ok(false);
             }
 
+            if self.active_modal == ActiveModal::CommandPalette {
+                match code {
+                    KeyCode::Esc => {
+                        self.active_modal = ActiveModal::None;
+                        self.modal_filter.clear();
+                        self.input_buffer.clear();
+                    }
+                    KeyCode::Up => {
+                        if self.modal_selected_idx > 0 {
+                            self.modal_selected_idx -= 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        if self.modal_selected_idx + 1 < self.command_palette_items.len() {
+                            self.modal_selected_idx += 1;
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if self.modal_filter.len() <= 1 {
+                            self.active_modal = ActiveModal::None;
+                            self.modal_filter.clear();
+                            self.input_buffer.clear();
+                        } else {
+                            self.modal_filter.pop();
+                            self.filter_command_palette();
+                        }
+                    }
+                    KeyCode::Char(c) => {
+                        self.modal_filter.push(c);
+                        self.filter_command_palette();
+                    }
+                    KeyCode::Enter => {
+                        self.apply_command_palette_selection().await;
+                    }
+                    _ => {}
+                }
+                return Ok(false);
+            }
+
             match code {
                 KeyCode::Esc => {
                     self.active_modal = ActiveModal::None;
@@ -409,32 +488,49 @@ impl App {
             return Ok(false);
         }
 
-        // Tab Switching via F-keys
-        match code {
-            KeyCode::F(1) => { self.active_tab = ActiveTab::Chat; return Ok(false); }
-            KeyCode::F(2) => { self.active_tab = ActiveTab::Bible; return Ok(false); }
-            KeyCode::F(3) => { self.active_tab = ActiveTab::Library; return Ok(false); }
-            KeyCode::F(4) => { self.active_tab = ActiveTab::Crossref; return Ok(false); }
-            KeyCode::F(5) => { self.active_tab = ActiveTab::Mesh; return Ok(false); }
-            KeyCode::F(6) => {
-                self.active_tab = ActiveTab::Doctor;
-                self.refresh_doctor_status().await;
-                return Ok(false);
+        // Global Tab Navigation
+        if code == KeyCode::Tab {
+            self.active_focus = match self.active_focus {
+                ActiveFocus::Sidebar => ActiveFocus::MainViewport,
+                ActiveFocus::MainViewport => ActiveFocus::PromptInput,
+                ActiveFocus::PromptInput => ActiveFocus::Sidebar,
+            };
+            return Ok(false);
+        }
+
+        // Quick Numeric Tab Switching when not focused on prompt
+        if self.active_focus != ActiveFocus::PromptInput {
+            match code {
+                KeyCode::Char('1') => { self.active_tab = ActiveTab::Chat; return Ok(false); }
+                KeyCode::Char('2') => { self.active_tab = ActiveTab::Bible; return Ok(false); }
+                KeyCode::Char('3') => { self.active_tab = ActiveTab::Library; return Ok(false); }
+                KeyCode::Char('4') => { self.active_tab = ActiveTab::Crossref; return Ok(false); }
+                KeyCode::Char('5') => { self.active_tab = ActiveTab::Galaxy; return Ok(false); }
+                KeyCode::Char('6') => { self.active_tab = ActiveTab::Mesh; return Ok(false); }
+                KeyCode::Char('7') => {
+                    self.active_tab = ActiveTab::Doctor;
+                    self.refresh_doctor_status().await;
+                    return Ok(false);
+                }
+                KeyCode::Char('/') => {
+                    self.active_focus = ActiveFocus::PromptInput;
+                    self.open_command_palette();
+                    return Ok(false);
+                }
+                KeyCode::Char('?') => {
+                    self.active_modal = ActiveModal::Help;
+                    return Ok(false);
+                }
+                _ => {}
             }
-            KeyCode::Tab => {
-                self.active_focus = match self.active_focus {
-                    ActiveFocus::Sidebar => ActiveFocus::MainViewport,
-                    ActiveFocus::MainViewport => ActiveFocus::PromptInput,
-                    ActiveFocus::PromptInput => ActiveFocus::Sidebar,
-                };
-                return Ok(false);
-            }
-            _ => {}
         }
 
         // Focus Specific Navigation
         match self.active_focus {
             ActiveFocus::PromptInput => match code {
+                KeyCode::Char('/') if self.input_buffer.is_empty() => {
+                    self.open_command_palette();
+                }
                 KeyCode::Enter => {
                     let input = self.input_buffer.trim().to_string();
                     if !input.is_empty() {
@@ -493,27 +589,44 @@ impl App {
                     _ => {}
                 },
                 ActiveTab::Bible => match code {
-                    KeyCode::Up => {
+                    KeyCode::PageUp => {
+                        self.bible_state.scroll = self.bible_state.scroll.saturating_sub(5);
+                    }
+                    KeyCode::PageDown => {
+                        let max_scroll = self.bible_verses.len().saturating_sub(1);
+                        self.bible_state.scroll = (self.bible_state.scroll + 5).min(max_scroll);
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
                         if self.bible_state.selected_book_idx > 0 {
                             self.bible_state.selected_book_idx -= 1;
+                            self.bible_state.scroll = 0;
                             self.load_active_bible_chapter();
                         }
                     }
-                    KeyCode::Down => {
+                    KeyCode::Down | KeyCode::Char('j') => {
                         if self.bible_state.selected_book_idx + 1 < self.bible_books.len() {
                             self.bible_state.selected_book_idx += 1;
+                            self.bible_state.scroll = 0;
                             self.load_active_bible_chapter();
                         }
                     }
-                    KeyCode::Left => {
+                    KeyCode::Left | KeyCode::Char('h') => {
                         if self.bible_state.selected_chapter > 1 {
                             self.bible_state.selected_chapter -= 1;
+                            self.bible_state.scroll = 0;
                             self.load_active_bible_chapter();
                         }
                     }
-                    KeyCode::Right => {
-                        self.bible_state.selected_chapter += 1;
-                        self.load_active_bible_chapter();
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        let max_chapters = self.bible_reader.as_ref().and_then(|r| {
+                            let bname = self.bible_books.get(self.bible_state.selected_book_idx)?;
+                            r.get_chapter_count(bname)
+                        }).unwrap_or(150);
+                        if self.bible_state.selected_chapter < max_chapters {
+                            self.bible_state.selected_chapter += 1;
+                            self.bible_state.scroll = 0;
+                            self.load_active_bible_chapter();
+                        }
                     }
                     KeyCode::Char('c') => {
                         self.bible_state.compare_mode = !self.bible_state.compare_mode;
@@ -534,20 +647,53 @@ impl App {
                             self.load_active_library_chapter();
                         }
                     }
-                    KeyCode::Left => {
-                        if self.library_state.selected_category_idx > 0 {
-                            self.library_state.selected_category_idx -= 1;
-                            self.refresh_library_category();
-                        }
+                    KeyCode::Left if self.library_state.selected_category_idx > 0 => {
+                        self.library_state.selected_category_idx -= 1;
+                        self.refresh_library_category();
                     }
-                    KeyCode::Right => {
-                        if self.library_state.selected_category_idx + 1 < self.library_categories.len() {
-                            self.library_state.selected_category_idx += 1;
-                            self.refresh_library_category();
-                        }
+                    KeyCode::Right if self.library_state.selected_category_idx + 1 < self.library_categories.len() => {
+                        self.library_state.selected_category_idx += 1;
+                        self.refresh_library_category();
                     }
                     _ => {}
                 },
+                ActiveTab::Galaxy => {
+                    match self.galaxy_state.handle_key(code, mods) {
+                        crate::views::galaxy::GalaxyAction::Handled => return Ok(false),
+                        crate::views::galaxy::GalaxyAction::Inspect(node) => {
+                            match node.entity_type {
+                                crate::galaxy::physics::EntityType::Sun => {
+                                    self.active_tab = ActiveTab::Bible;
+                                    self.load_active_bible_chapter();
+                                }
+                                crate::galaxy::physics::EntityType::Planet => {
+                                    self.active_tab = ActiveTab::Bible;
+                                    self.selected_language_code = Some(node.short_code.to_lowercase());
+                                    self.selected_language_name = Some(node.name.clone());
+                                    self.open_translation_picker();
+                                }
+                                crate::galaxy::physics::EntityType::Moon => {
+                                    self.bible_state.active_translation = node.short_code.to_uppercase();
+                                    self.active_tab = ActiveTab::Bible;
+                                    self.load_active_bible_chapter();
+                                }
+                                crate::galaxy::physics::EntityType::Asteroid => {
+                                    self.active_tab = ActiveTab::Library;
+                                    let cat_name = node.id.replace("cat_", "");
+                                    if let Some(pos) = self.library_categories.iter().position(|c| c.eq_ignore_ascii_case(&cat_name)) {
+                                        self.library_state.selected_category_idx = pos;
+                                        self.refresh_library_category();
+                                    } else if let Some(pos) = self.library_books.iter().position(|b| node.name.starts_with(b)) {
+                                        self.library_state.selected_book_idx = pos;
+                                        self.load_active_library_chapter();
+                                    }
+                                }
+                            }
+                            return Ok(false);
+                        }
+                        crate::views::galaxy::GalaxyAction::None => {}
+                    }
+                }
                 _ => {}
             },
             ActiveFocus::Sidebar => match code {
@@ -559,20 +705,22 @@ impl App {
                             1 => ActiveTab::Bible,
                             2 => ActiveTab::Library,
                             3 => ActiveTab::Crossref,
-                            4 => ActiveTab::Mesh,
+                            4 => ActiveTab::Galaxy,
+                            5 => ActiveTab::Mesh,
                             _ => ActiveTab::Doctor,
                         };
                     }
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
                     let current = self.active_tab as usize;
-                    if current < 5 {
+                    if current < 6 {
                         self.active_tab = match current + 1 {
                             1 => ActiveTab::Bible,
                             2 => ActiveTab::Library,
                             3 => ActiveTab::Crossref,
-                            4 => ActiveTab::Mesh,
-                            5 => ActiveTab::Doctor,
+                            4 => ActiveTab::Galaxy,
+                            5 => ActiveTab::Mesh,
+                            6 => ActiveTab::Doctor,
                             _ => ActiveTab::Chat,
                         };
                     }
@@ -619,8 +767,17 @@ impl App {
         // 4. Overlays & Modals
         match self.active_modal {
             ActiveModal::Help => render_help_modal(f, size, &self.theme),
+            ActiveModal::CommandPalette => {
+                crate::modals::render_command_palette_modal(
+                    f, size, &self.command_palette_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
+                );
+            }
+            ActiveModal::LanguagePicker => render_list_picker_modal(
+                f, size, "🌐 Select Scripture Language (66 Available)",
+                &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
+            ),
             ActiveModal::TranslationPicker => render_list_picker_modal(
-                f, size, "📖 Select Scripture Translation (160 Available)",
+                f, size, "📖 Select Scripture Translation",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
             ),
             ActiveModal::ModelPicker => render_list_picker_modal(
@@ -637,12 +794,13 @@ impl App {
 
     fn render_header(&self, f: &mut Frame, area: Rect) {
         let tabs = vec![
-            (ActiveTab::Chat, "[F1] Chat"),
-            (ActiveTab::Bible, "[F2] Bible"),
-            (ActiveTab::Library, "[F3] Library"),
-            (ActiveTab::Crossref, "[F4] Cross-Ref"),
-            (ActiveTab::Mesh, "[F5] Mesh"),
-            (ActiveTab::Doctor, "[F6] Doctor"),
+            (ActiveTab::Chat, "[1] Chat"),
+            (ActiveTab::Bible, "[2] Bible"),
+            (ActiveTab::Library, "[3] Library"),
+            (ActiveTab::Crossref, "[4] Cross-Ref"),
+            (ActiveTab::Galaxy, "[5] Galaxy"),
+            (ActiveTab::Mesh, "[6] Mesh"),
+            (ActiveTab::Doctor, "[7] Doctor"),
         ];
 
         let mut spans = Vec::new();
@@ -684,7 +842,13 @@ impl App {
             Span::styled("📖 Scripture Engine", self.theme.header_title()),
         ])));
         items.push(ListItem::new(format!("  • Active: {}", self.bible_state.active_translation)));
-        items.push(ListItem::new(format!("  • Available: 160 across 66 langs")));
+        items.push(ListItem::new("  • Available: 160 across 66 langs".to_string()));
+        items.push(ListItem::new(""));
+
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("🌌 Paraclea Galaxy", self.theme.header_title()),
+        ])));
+        items.push(ListItem::new(format!("  • Celestial Nodes: {}", self.galaxy_state.system.nodes.len())).style(Style::default().fg(Color::Rgb(255, 215, 0))));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
@@ -724,8 +888,11 @@ impl App {
                 self.is_streaming, self.is_speaking, self.chat_scroll, &self.theme,
             ),
             ActiveTab::Bible => {
+                let comp_refs: Vec<(&str, Vec<(usize, String)>)> = self.bible_comparison.iter()
+                    .map(|(tag, v)| (tag.as_str(), v.clone()))
+                    .collect();
                 render_bible_view(
-                    f, area, &self.bible_state, &self.bible_books, &self.bible_verses, &[], &self.theme,
+                    f, area, &self.bible_state, &self.bible_books, &self.bible_verses, &comp_refs, &self.theme,
                 );
             }
             ActiveTab::Library => render_library_view(
@@ -737,6 +904,9 @@ impl App {
                     (n.id, n.title, n.content, n.node_type.as_str().to_string())
                 }).collect();
                 render_crossref_view(f, area, &self.crossref_state, &nodes, &self.theme);
+            }
+            ActiveTab::Galaxy => {
+                f.render_widget(GalaxyView::new(&self.galaxy_state, self.theme), area);
             }
             ActiveTab::Mesh => {
                 let status = self.mesh_engine.as_ref().map(|m| m.status()).unwrap_or_else(|| "Reticulum Mesh Standby".to_string());
@@ -791,6 +961,12 @@ impl App {
             "/theme" => {
                 self.theme = self.theme.next();
             }
+            "/language" | "/lang" => {
+                self.open_language_picker();
+            }
+            "/version" | "/translation" => {
+                self.open_translation_picker();
+            }
             "/bible" | "/read" => {
                 self.active_tab = ActiveTab::Bible;
                 if !args.is_empty() {
@@ -804,12 +980,12 @@ impl App {
                             self.bible_state.selected_chapter = ch;
                         }
                     }
-                    self.load_active_bible_chapter();
                 }
+                self.load_active_bible_chapter();
             }
             "/compare" => {
                 self.active_tab = ActiveTab::Bible;
-                self.bible_state.compare_mode = true;
+                self.bible_state.compare_mode = !self.bible_state.compare_mode;
                 self.load_active_bible_chapter();
             }
             "/library" | "/books" => {
@@ -821,12 +997,27 @@ impl App {
                     }
                 }
             }
+            "/galaxy" => {
+                self.active_tab = ActiveTab::Galaxy;
+            }
+            "/memory" => {
+                self.active_tab = ActiveTab::Crossref;
+            }
             "/mesh" => {
                 self.active_tab = ActiveTab::Mesh;
+            }
+            "/model" => {
+                self.open_model_picker().await;
             }
             "/doctor" => {
                 self.active_tab = ActiveTab::Doctor;
                 self.refresh_doctor_status().await;
+            }
+            "/backup" => {
+                self.trigger_encrypted_backup();
+            }
+            "/crossref" => {
+                self.active_tab = ActiveTab::Crossref;
             }
             "/clear" => {
                 self.chat_history.clear();
@@ -861,11 +1052,39 @@ impl App {
     }
 
     fn load_active_bible_chapter(&mut self) {
+        let active_tag = self.bible_state.active_translation.clone();
+        if let Some(target_file) = paraclea_core::bible::find_json_bible_file(&active_tag) {
+            if let Ok(new_reader) = BibleReader::load_primary(&target_file) {
+                let books: Vec<String> = new_reader.books.iter().map(|b| b.name.clone()).collect();
+                if !books.is_empty() {
+                    self.bible_books = books;
+                }
+                self.bible_reader = Some(new_reader);
+            }
+        }
+
         if let Some(ref reader) = self.bible_reader {
             let book_name = self.bible_books.get(self.bible_state.selected_book_idx).cloned().unwrap_or_else(|| "Genesis".to_string());
             let ch = self.bible_state.selected_chapter;
-            let verses = reader.read_chapter(&book_name, ch).unwrap_or_default();
-            self.bible_verses = verses;
+            let verses = reader.read_translation_chapter(&active_tag, &book_name, ch).unwrap_or_default();
+            self.bible_verses = verses.clone();
+
+            if self.bible_state.compare_mode {
+                let mut comparisons = Vec::new();
+                comparisons.push((active_tag.clone(), verses.clone()));
+                let candidate_tags = ["KJV", "WEB", "BSB", "ASV", "BBE"];
+                for tag in candidate_tags {
+                    if !tag.eq_ignore_ascii_case(&active_tag) && comparisons.len() < 3 {
+                        let v = reader.read_translation_chapter(tag, &book_name, ch).unwrap_or_default();
+                        if !v.is_empty() {
+                            comparisons.push((tag.to_string(), v));
+                        }
+                    }
+                }
+                self.bible_comparison = comparisons;
+            } else {
+                self.bible_comparison.clear();
+            }
         }
     }
 
@@ -899,13 +1118,63 @@ impl App {
         self.bible_version_count = total_ver.max(1);
     }
 
-    pub fn open_translation_picker(&mut self) {
+    pub fn open_command_palette(&mut self) {
+        self.command_palette_items = COMMAND_PALETTE.to_vec();
+        self.modal_selected_idx = 0;
+        self.modal_filter = "/".to_string();
+        self.active_modal = ActiveModal::CommandPalette;
+    }
+
+    pub fn filter_command_palette(&mut self) {
+        let q = self.modal_filter.to_lowercase();
+        self.command_palette_items = COMMAND_PALETTE
+            .iter()
+            .copied()
+            .filter(|(cmd, desc)| cmd.to_lowercase().contains(&q) || desc.to_lowercase().contains(&q))
+            .collect();
+        if self.modal_selected_idx >= self.command_palette_items.len() {
+            self.modal_selected_idx = 0;
+        }
+    }
+
+    pub async fn apply_command_palette_selection(&mut self) {
+        if let Some(&(cmd, _)) = self.command_palette_items.get(self.modal_selected_idx) {
+            self.active_modal = ActiveModal::None;
+            self.modal_filter.clear();
+            self.input_buffer.clear();
+            self.process_command(cmd).await;
+        } else {
+            self.active_modal = ActiveModal::None;
+            self.modal_filter.clear();
+            self.input_buffer.clear();
+        }
+    }
+
+    pub fn open_language_picker(&mut self) {
         let languages = BibleReader::list_languages();
-        let mut items = Vec::new();
-        for lang in &languages {
-            let trans = BibleReader::list_translations_for_lang(&lang.code);
-            for t in trans {
-                items.push(format!("{} - {} ({})", t.tag, t.name, lang.name));
+        self.modal_items = languages
+            .iter()
+            .map(|lang| format!("{} ({})", lang.name, lang.code))
+            .collect();
+        self.modal_selected_idx = 0;
+        self.modal_filter.clear();
+        self.active_modal = ActiveModal::LanguagePicker;
+    }
+
+    pub fn open_translation_picker(&mut self) {
+        let lang_code = self.selected_language_code.as_deref().unwrap_or("eng");
+        let trans = BibleReader::list_translations_for_lang(lang_code);
+        let lang_name = self.selected_language_name.as_deref().unwrap_or("English");
+        let mut items: Vec<String> = trans
+            .iter()
+            .map(|t| format!("{} - {} ({})", t.tag, t.name, lang_name))
+            .collect();
+        if items.is_empty() {
+            let all_langs = BibleReader::list_languages();
+            for lang in &all_langs {
+                for t in BibleReader::list_translations_for_lang(&lang.code) {
+                    items.push(format!("{} - {} ({})", t.tag, t.name, lang.name));
+                }
             }
         }
         if items.is_empty() {
@@ -934,8 +1203,22 @@ impl App {
     }
 
     pub fn filter_modal_items(&mut self) {
-        let q = self.modal_filter.to_lowercase();
+        let q = self.modal_filter.trim().to_lowercase();
         if q.is_empty() { return; }
+        // 1. Exact tag match
+        if let Some(pos) = self.modal_items.iter().position(|i| {
+            let first_token = i.split_whitespace().next().unwrap_or("").to_lowercase();
+            first_token == q
+        }) {
+            self.modal_selected_idx = pos;
+            return;
+        }
+        // 2. Prefix match
+        if let Some(pos) = self.modal_items.iter().position(|i| i.to_lowercase().starts_with(&q)) {
+            self.modal_selected_idx = pos;
+            return;
+        }
+        // 3. Substring match
         if let Some(pos) = self.modal_items.iter().position(|i| i.to_lowercase().contains(&q)) {
             self.modal_selected_idx = pos;
         }
@@ -943,10 +1226,24 @@ impl App {
 
     pub fn apply_modal_selection(&mut self) {
         match self.active_modal {
+            ActiveModal::LanguagePicker => {
+                if let Some(sel) = self.modal_items.get(self.modal_selected_idx).cloned() {
+                    if let Some(start) = sel.rfind('(') {
+                        if let Some(end) = sel.rfind(')') {
+                            let code = sel[start + 1..end].trim().to_string();
+                            let name = sel[..start].trim().to_string();
+                            self.selected_language_code = Some(code);
+                            self.selected_language_name = Some(name);
+                        }
+                    }
+                    self.open_translation_picker();
+                    return;
+                }
+            }
             ActiveModal::TranslationPicker => {
                 if let Some(sel) = self.modal_items.get(self.modal_selected_idx) {
-                    let tag = sel.split_whitespace().next().unwrap_or("KJV");
-                    self.bible_state.active_translation = tag.to_string();
+                    let tag = sel.split_whitespace().next().unwrap_or("KJV").to_uppercase();
+                    self.bible_state.active_translation = tag;
                     self.load_active_bible_chapter();
                 }
             }
@@ -1003,23 +1300,13 @@ impl App {
             let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", ts));
 
             if db_path.exists() {
-                use sha2::{Sha256, Digest};
-                use std::io::{Read, Write};
-                if let Ok(mut fin) = std::fs::File::open(&db_path) {
-                    let mut buf = Vec::new();
-                    let _ = fin.read_to_end(&mut buf);
-                    let mut hasher = Sha256::new();
-                    hasher.update(trimmed_key.as_bytes());
-                    hasher.update(b"PARACLEA_SECURE_SALT_2026");
-                    let key = hasher.finalize();
-                    let mut enc = Vec::with_capacity(buf.len());
-                    for (i, b) in buf.iter().enumerate() {
-                        enc.push(b ^ key[i % key.len()]);
+                match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, trimmed_key) {
+                    Ok(bytes) => {
+                        self.backup_status = Some(format!("✓ AES-256-GCM Backup Saved: {:?} ({} bytes)", backup_file, bytes));
+                        return;
                     }
-                    if let Ok(mut fout) = std::fs::File::create(&backup_file) {
-                        let _ = fout.write_all(b"PARACLEA_ENC_v1");
-                        let _ = fout.write_all(&enc);
-                        self.backup_status = Some(format!("✓ Encrypted Backup Saved: {:?} ({} bytes)", backup_file, enc.len()));
+                    Err(e) => {
+                        self.backup_status = Some(format!("⚠️ Backup failed: {}", e));
                         return;
                     }
                 }

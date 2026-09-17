@@ -1,6 +1,8 @@
 //! Paraclea TUI — Terminal Graphical Interface Library.
 
 pub mod app;
+pub mod ascii_art;
+pub mod galaxy;
 pub mod modals;
 pub mod terminal;
 pub mod theme;
@@ -9,6 +11,7 @@ pub mod views {
     pub mod chat;
     pub mod crossref;
     pub mod doctor;
+    pub mod galaxy;
     pub mod library;
     pub mod mesh;
 }
@@ -44,7 +47,36 @@ mod tests {
         let t4 = t3.next();
         assert_eq!(t4, AppTheme::EmeraldMatrix);
         let t5 = t4.next();
-        assert_eq!(t5, AppTheme::RoyalByzantium);
+        assert_eq!(t5, AppTheme::CelestialMidnight);
+        let t6 = t5.next();
+        assert_eq!(t6, AppTheme::RoyalByzantium);
+
+        // Verify color definitions for all themes
+        for theme in [
+            AppTheme::RoyalByzantium,
+            AppTheme::MonasteryAmber,
+            AppTheme::CyberScholar,
+            AppTheme::EmeraldMatrix,
+            AppTheme::CelestialMidnight,
+        ] {
+            assert!(!theme.name().is_empty());
+            let _ = theme.primary();
+            let _ = theme.secondary();
+            let _ = theme.scripture_text();
+            let _ = theme.thinking_block();
+            let _ = theme.ascii_char_style('@');
+            let _ = theme.ascii_char_style(':');
+        }
+    }
+
+    #[test]
+    fn test_ascii_art_banner_rendering() {
+        use crate::ascii_art::{render_ascii_line, PARACLEA_BANNER};
+        assert!(!PARACLEA_BANNER.is_empty());
+        for line in PARACLEA_BANNER.lines() {
+            let rendered = render_ascii_line(line, 4, &AppTheme::RoyalByzantium);
+            assert!(!rendered.spans.is_empty() || line.is_empty());
+        }
     }
 
     #[test]
@@ -65,12 +97,13 @@ mod tests {
         let cfg = Config::default();
         let mut app = App::new(cfg);
 
-        // Switch to Bible tab via F2
-        let _ = app.handle_key_event(KeyCode::F(2), KeyModifiers::NONE).await;
+        // Switch to Bible tab via 2 when not focused on prompt
+        app.active_focus = crate::app::ActiveFocus::Sidebar;
+        let _ = app.handle_key_event(KeyCode::Char('2'), KeyModifiers::NONE).await;
         assert_eq!(app.active_tab, ActiveTab::Bible);
 
-        // Switch to Library tab via F3
-        let _ = app.handle_key_event(KeyCode::F(3), KeyModifiers::NONE).await;
+        // Switch to Library tab via 3
+        let _ = app.handle_key_event(KeyCode::Char('3'), KeyModifiers::NONE).await;
         assert_eq!(app.active_tab, ActiveTab::Library);
 
         // Toggle sidebar with Ctrl+B
@@ -103,6 +136,22 @@ mod tests {
         app.process_command("/library survival").await;
         assert_eq!(app.active_tab, ActiveTab::Library);
 
+        // /language command
+        app.process_command("/language").await;
+        assert_eq!(app.active_modal, ActiveModal::LanguagePicker);
+
+        // /version command
+        app.process_command("/version").await;
+        assert_eq!(app.active_modal, ActiveModal::TranslationPicker);
+
+        // /memory /crossref command
+        app.process_command("/memory").await;
+        assert_eq!(app.active_tab, ActiveTab::Crossref);
+
+        // /mesh command
+        app.process_command("/mesh").await;
+        assert_eq!(app.active_tab, ActiveTab::Mesh);
+
         // /help modal
         app.process_command("/help").await;
         assert_eq!(app.active_modal, ActiveModal::Help);
@@ -133,6 +182,79 @@ mod tests {
         app.apply_modal_selection();
         assert_eq!(app.active_modal, ActiveModal::None);
         assert_eq!(app.bible_state.active_translation, "BSB");
+    }
+
+    #[tokio::test]
+    async fn test_command_palette_and_language_flow() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        // Trigger command palette via '/' on empty prompt
+        app.active_focus = crate::app::ActiveFocus::PromptInput;
+        app.input_buffer.clear();
+        let _ = app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_modal, ActiveModal::CommandPalette);
+        assert!(!app.command_palette_items.is_empty());
+        app.active_modal = ActiveModal::None;
+
+        // Trigger command palette via '/' from Sidebar
+        app.active_focus = crate::app::ActiveFocus::Sidebar;
+        let _ = app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_modal, ActiveModal::CommandPalette);
+        assert_eq!(app.active_focus, crate::app::ActiveFocus::PromptInput);
+        app.active_modal = ActiveModal::None;
+
+        // Trigger help modal via '?' from MainViewport
+        app.active_focus = crate::app::ActiveFocus::MainViewport;
+        let _ = app.handle_key_event(KeyCode::Char('?'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_modal, ActiveModal::Help);
+        app.active_modal = ActiveModal::None;
+
+        // Filter palette for 'doctor'
+        app.modal_filter = "/doc".to_string();
+        app.filter_command_palette();
+        assert!(app.command_palette_items.iter().any(|(c, _)| *c == "/doctor"));
+
+        // Language -> Translation two-step selection
+        app.open_language_picker();
+        assert_eq!(app.active_modal, ActiveModal::LanguagePicker);
+        // Find English
+        app.modal_filter = "English".to_string();
+        app.filter_modal_items();
+        app.apply_modal_selection();
+        assert_eq!(app.active_modal, ActiveModal::TranslationPicker);
+        assert_eq!(app.selected_language_code.as_deref(), Some("eng"));
+    }
+
+    #[tokio::test]
+    async fn test_translation_reload_and_comparison_dedup() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        // 1. Initial State: KJV
+        assert_eq!(app.bible_state.active_translation, "KJV");
+        assert!(!app.bible_verses.is_empty());
+
+        // 2. Switch to WEB translation via picker
+        app.open_translation_picker();
+        app.modal_filter = "WEB".to_string();
+        app.filter_modal_items();
+        app.apply_modal_selection();
+        assert_eq!(app.bible_state.active_translation, "WEB");
+        assert!(!app.bible_verses.is_empty());
+
+        // 3. Enable compare mode via /compare
+        app.process_command("/compare").await;
+        assert!(app.bible_state.compare_mode);
+        assert!(!app.bible_comparison.is_empty());
+
+        // 4. Assert active translation is first and all column tags are distinct (no duplicates)
+        assert_eq!(app.bible_comparison[0].0, "WEB");
+        let mut seen_tags = std::collections::HashSet::new();
+        for (tag, verses) in &app.bible_comparison {
+            assert!(seen_tags.insert(tag.to_uppercase()), "Duplicate comparison tag found: {}", tag);
+            assert!(!verses.is_empty(), "Comparison column for {} was unexpectedly empty", tag);
+        }
     }
 
     #[test]

@@ -13,6 +13,8 @@ def clean_ocr_text(text):
     text = re.sub(r'\bTHE\s+DESIRE\s+OF\s+AGES\b\.?', '', text, flags=re.IGNORECASE)
     text = re.sub(r'\b\d+\s+THE\s+GREAT\s+CONTROVERSY\b\.?', '', text, flags=re.IGNORECASE)
     text = re.sub(r'\bTHE\s+GREAT\s+CONTROVERSY\b\.?', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b\d+\s+EDUCATION\b\.?', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bEDUCATION\b\.?', '', text, flags=re.IGNORECASE)
     
     # Remove OCR symbol noise
     text = re.sub(r'\^\^[A-Za-z0-9]+\^', '', text)
@@ -33,9 +35,7 @@ def parse_steps_to_christ():
     with open(fpath, 'r', encoding='utf-8', errors='ignore') as fp:
         lines = fp.readlines()
         
-    # Full body text is between line 200 and line 5125
-    body_lines = lines[200:5125]
-    full_text = ''.join(body_lines)
+    full_text = ''.join(lines)
     
     chapter_headers = [
         "GOD'S LOVE FOR MAN",
@@ -140,8 +140,7 @@ def parse_education():
     with open(fpath, 'r', encoding='utf-8', errors='ignore') as fp:
         lines = fp.readlines()
         
-    body_lines = lines[200:9610]
-    full_text = ''.join(body_lines)
+    full_text = ''.join(lines)
     
     # Matches lines like "_Source and Aim of True Education_" or "_The Eden School_"
     chapter_regex = re.compile(r'^\s*_([A-Za-z0-9\s\,\-\’\']+_\s*$)', re.MULTILINE)
@@ -187,8 +186,7 @@ def parse_the_desire_of_ages():
     with open(fpath, 'r', encoding='utf-8', errors='ignore') as fp:
         lines = fp.readlines()
         
-    body_lines = lines[455:40200]
-    full_text = ''.join(body_lines)
+    full_text = ''.join(lines)
     
     chapter_regex = re.compile(r'^\s*([«\s]*CHAPTER\s+[A-Z\-\s]+[\.,]?)\s*$', re.MULTILINE)
     

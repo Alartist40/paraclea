@@ -233,10 +233,8 @@ impl DendriteStore {
             )?;
             let rows = stmt.query_map(params![query, limit as i64], |row| row.get(0))?;
             let mut ids = Vec::new();
-            for row in rows {
-                if let Ok(id) = row {
-                    ids.push(id);
-                }
+            for id in rows.flatten() {
+                ids.push(id);
             }
             return Ok(ids);
         }
@@ -254,10 +252,8 @@ impl DendriteStore {
                 row.get(0)
             })?;
         let mut ids = Vec::new();
-        for row in rows {
-            if let Ok(id) = row {
-                ids.push(id);
-            }
+        for id in rows.flatten() {
+            ids.push(id);
         }
         Ok(ids)
     }

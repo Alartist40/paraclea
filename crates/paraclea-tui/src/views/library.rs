@@ -28,6 +28,7 @@ impl Default for LibraryViewState {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_library_view(
     f: &mut Frame,
     area: Rect,

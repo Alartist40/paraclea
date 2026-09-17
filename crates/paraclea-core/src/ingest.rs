@@ -41,7 +41,7 @@ impl<'a> BibleIngestor<'a> {
             .with_context(|| format!("Failed to read Bible JSON file: {:?}", json_path))?;
         let content = content_raw.trim_start_matches('\u{feff}');
 
-        let json_val: Value = serde_json::from_str(&content)
+        let json_val: Value = serde_json::from_str(content)
             .with_context(|| "Failed to parse Bible JSON structure")?;
 
         self.qdrant.create_collection(&self.collection, 768).await.ok();
@@ -213,7 +213,7 @@ impl<'a> BookIngestor<'a> {
         let entries = fs::read_dir(dir_path)?;
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 let filename = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
                 let text = fs::read_to_string(&path)?;
 

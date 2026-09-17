@@ -45,7 +45,7 @@ pub struct OllamaConfig {
 }
 
 fn default_heavy_model() -> String {
-    "qwen3:8b".to_string()
+    "qwen3.5:9b".to_string()
 }
 
 fn default_embed_model() -> String {
@@ -54,6 +54,10 @@ fn default_embed_model() -> String {
 
 fn default_ocr_model() -> String {
     "frob/unlimited-ocr:q8_0".to_string()
+}
+
+fn default_vector_dim() -> usize {
+    768
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -67,6 +71,8 @@ pub struct VectorDbConfig {
     pub collection_bible: String,
     pub collection_books: String,
     pub collection_survival: String,
+    #[serde(default = "default_vector_dim")]
+    pub vector_dim: usize,
 }
 
 impl Default for VectorDbConfig {
@@ -76,6 +82,7 @@ impl Default for VectorDbConfig {
             collection_bible: "bible".to_string(),
             collection_books: "books".to_string(),
             collection_survival: "survival".to_string(),
+            vector_dim: 768,
         }
     }
 }
@@ -142,7 +149,7 @@ impl Default for Config {
             voice: VoiceConfig {
                 pocket_tts_url: "http://localhost:8000".to_string(),
                 pocket_tts_voice: "alba".to_string(),
-                pocket_tts_cli: "/home/xander/Documents/reference/pocket-tts/.venv/bin/pocket-tts".to_string(),
+                pocket_tts_cli: "pocket-tts".to_string(),
             },
             persona: PersonaConfig {
                 dir: std::env::var("HOME")

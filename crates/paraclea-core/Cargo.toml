@@ -21,8 +21,11 @@ anyhow = "1.0"
 uuid = { version = "1.6", features = ["v4"] }
 regex = "1.10"
 rusqlite = { version = "0.31", features = ["bundled"] }
-colored = "2.1"
-rustyline = "14.0"
+aes-gcm = "0.10"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3.10"

@@ -10,6 +10,7 @@ use ratatui::{
 
 use crate::theme::AppTheme;
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_doctor_view(
     f: &mut Frame,
     area: Rect,

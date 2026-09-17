@@ -68,21 +68,29 @@ impl PocketTtsEngine {
 
         // 2. Fallback to CLI execution if available
         if let Some(ref cli) = self.cli_path {
+            let unique_out = format!("/tmp/paraclea_tts_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4());
             let output = Command::new(cli)
                 .arg("generate")
                 .arg("--text")
                 .arg(text)
                 .arg("--voice")
                 .arg(&self.voice)
+                .arg("--output")
+                .arg(&unique_out)
                 .arg("-q")
                 .output();
 
             match output {
                 Ok(out) if out.status.success() => {
-                    let default_wav = std::path::Path::new("tts_output.wav");
-                    if default_wav.exists() {
-                        let bytes = std::fs::read(default_wav)?;
-                        let _ = std::fs::remove_file(default_wav);
+                    let out_path = std::path::Path::new(&unique_out);
+                    let fallback_default = std::path::Path::new("tts_output.wav");
+                    if out_path.exists() {
+                        let bytes = std::fs::read(out_path)?;
+                        let _ = std::fs::remove_file(out_path);
+                        return Ok(bytes);
+                    } else if fallback_default.exists() {
+                        let bytes = std::fs::read(fallback_default)?;
+                        let _ = std::fs::remove_file(fallback_default);
                         return Ok(bytes);
                     }
                 }

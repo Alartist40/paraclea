@@ -122,6 +122,16 @@ impl ToolExecutor {
             }
             "execute_command" => {
                 let cmd = self.get_arg_str(&call.arguments, &["command", "cmd"])?;
+                let cmd_lower = cmd.to_lowercase();
+                let dangerous_patterns = [
+                    "rm -rf /", "rm -rf /*", "mkfs", "dd if=", ":(){ :|:& };:", "> /dev/sd", "shutdown", "reboot", "init 0"
+                ];
+                for pat in dangerous_patterns {
+                    if cmd_lower.contains(pat) {
+                        anyhow::bail!("Command rejected: potentially destructive pattern '{}' detected", pat);
+                    }
+                }
+
                 let output = Command::new("sh")
                     .arg("-c")
                     .arg(&cmd)

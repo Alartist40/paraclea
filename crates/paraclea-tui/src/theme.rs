@@ -5,10 +5,11 @@ use ratatui::widgets::BorderType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppTheme {
-    RoyalByzantium, // Paraclea signature: Gold & Regal Purple
-    MonasteryAmber,  // Warm parchment ochre & sepia
-    CyberScholar,    // Neon Cyan & Electric Magenta
-    EmeraldMatrix,   // Mint green & Obsidian
+    RoyalByzantium,    // Paraclea signature: Gold & Regal Purple
+    MonasteryAmber,    // Warm parchment ochre & sepia
+    CyberScholar,      // Neon Cyan & Electric Magenta
+    EmeraldMatrix,     // Mint green & Obsidian
+    CelestialMidnight, // Deep Starlight Indigo & Solar Gold
 }
 
 impl AppTheme {
@@ -18,6 +19,7 @@ impl AppTheme {
             AppTheme::MonasteryAmber => "Monastery Parchment (Amber)",
             AppTheme::CyberScholar => "Cyber Scholar (Cyan & Magenta)",
             AppTheme::EmeraldMatrix => "Emerald Matrix (Green)",
+            AppTheme::CelestialMidnight => "Celestial Midnight (Indigo & Gold)",
         }
     }
 
@@ -26,7 +28,8 @@ impl AppTheme {
             AppTheme::RoyalByzantium => AppTheme::MonasteryAmber,
             AppTheme::MonasteryAmber => AppTheme::CyberScholar,
             AppTheme::CyberScholar => AppTheme::EmeraldMatrix,
-            AppTheme::EmeraldMatrix => AppTheme::RoyalByzantium,
+            AppTheme::EmeraldMatrix => AppTheme::CelestialMidnight,
+            AppTheme::CelestialMidnight => AppTheme::RoyalByzantium,
         }
     }
 
@@ -36,19 +39,41 @@ impl AppTheme {
 
     pub fn primary(&self) -> Color {
         match self {
-            AppTheme::RoyalByzantium => Color::Rgb(255, 215, 0),   // Gold
-            AppTheme::MonasteryAmber => Color::Rgb(255, 191, 0),   // Amber
-            AppTheme::CyberScholar => Color::Rgb(0, 229, 255),     // Cyan
-            AppTheme::EmeraldMatrix => Color::Rgb(0, 255, 127),    // Mint
+            AppTheme::RoyalByzantium => Color::Rgb(255, 215, 0),     // Gold
+            AppTheme::MonasteryAmber => Color::Rgb(255, 191, 0),     // Amber
+            AppTheme::CyberScholar => Color::Rgb(0, 229, 255),       // Cyan
+            AppTheme::EmeraldMatrix => Color::Rgb(0, 255, 127),      // Mint
+            AppTheme::CelestialMidnight => Color::Rgb(100, 181, 246), // Starlight Cyan
         }
     }
 
     pub fn secondary(&self) -> Color {
         match self {
-            AppTheme::RoyalByzantium => Color::Rgb(177, 74, 237),  // Purple
-            AppTheme::MonasteryAmber => Color::Rgb(212, 163, 115),  // Sepia
-            AppTheme::CyberScholar => Color::Rgb(255, 0, 127),     // Magenta
-            AppTheme::EmeraldMatrix => Color::Rgb(0, 150, 70),     // Dark Green
+            AppTheme::RoyalByzantium => Color::Rgb(177, 74, 237),    // Purple
+            AppTheme::MonasteryAmber => Color::Rgb(212, 163, 115),    // Sepia
+            AppTheme::CyberScholar => Color::Rgb(255, 0, 127),       // Magenta
+            AppTheme::EmeraldMatrix => Color::Rgb(0, 150, 70),       // Dark Green
+            AppTheme::CelestialMidnight => Color::Rgb(255, 215, 0),  // Solar Gold
+        }
+    }
+
+    pub fn accent(&self) -> Color {
+        match self {
+            AppTheme::RoyalByzantium => Color::Rgb(255, 140, 0),     // Regal Orange
+            AppTheme::MonasteryAmber => Color::Rgb(220, 100, 60),     // Terracotta
+            AppTheme::CyberScholar => Color::Rgb(180, 0, 255),       // Electric Violet
+            AppTheme::EmeraldMatrix => Color::Rgb(0, 210, 230),      // Matrix Teal
+            AppTheme::CelestialMidnight => Color::Rgb(186, 104, 200), // Nebula Orchid
+        }
+    }
+
+    pub fn text(&self) -> Color {
+        match self {
+            AppTheme::RoyalByzantium => Color::Rgb(240, 235, 255),
+            AppTheme::MonasteryAmber => Color::Rgb(255, 245, 220),
+            AppTheme::CyberScholar => Color::Rgb(220, 245, 255),
+            AppTheme::EmeraldMatrix => Color::Rgb(220, 255, 220),
+            AppTheme::CelestialMidnight => Color::Rgb(230, 240, 255),
         }
     }
 
@@ -93,6 +118,7 @@ impl AppTheme {
             AppTheme::MonasteryAmber => Style::default().fg(Color::Rgb(255, 245, 220)),
             AppTheme::CyberScholar => Style::default().fg(Color::Rgb(220, 245, 255)),
             AppTheme::EmeraldMatrix => Style::default().fg(Color::Rgb(220, 255, 220)),
+            AppTheme::CelestialMidnight => Style::default().fg(Color::Rgb(230, 240, 255)),
         }
     }
 
@@ -114,6 +140,7 @@ impl AppTheme {
             AppTheme::MonasteryAmber => Style::default().fg(Color::Rgb(200, 150, 70)).add_modifier(Modifier::ITALIC),
             AppTheme::CyberScholar => Style::default().fg(Color::Rgb(220, 100, 180)).add_modifier(Modifier::ITALIC),
             AppTheme::EmeraldMatrix => Style::default().fg(Color::Rgb(100, 180, 100)).add_modifier(Modifier::ITALIC),
+            AppTheme::CelestialMidnight => Style::default().fg(Color::Rgb(130, 170, 230)).add_modifier(Modifier::ITALIC),
         }
     }
 
@@ -122,5 +149,22 @@ impl AppTheme {
             .fg(Color::Black)
             .bg(self.primary())
             .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn ascii_char_style(&self, ch: char) -> Style {
+        match ch {
+            '@' => Style::default().fg(self.primary()).add_modifier(Modifier::BOLD),
+            '#' | '%' => Style::default().fg(self.primary()),
+            '+' | '*' => Style::default().fg(self.secondary()).add_modifier(Modifier::BOLD),
+            '=' | '-' => Style::default().fg(self.accent()),
+            ':' | '.' | ' ' => match self {
+                AppTheme::RoyalByzantium => Style::default().fg(Color::Rgb(55, 45, 75)),
+                AppTheme::MonasteryAmber => Style::default().fg(Color::Rgb(70, 55, 40)),
+                AppTheme::CyberScholar => Style::default().fg(Color::Rgb(30, 50, 70)),
+                AppTheme::EmeraldMatrix => Style::default().fg(Color::Rgb(25, 55, 35)),
+                AppTheme::CelestialMidnight => Style::default().fg(Color::Rgb(35, 45, 70)),
+            },
+            _ => Style::default().fg(self.text()),
+        }
     }
 }

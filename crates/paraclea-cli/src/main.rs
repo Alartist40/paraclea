@@ -58,6 +58,10 @@ fn read_line_prompt(rl: &mut Option<DefaultEditor>, prompt: &str) -> String {
     long_about = None
 )]
 struct Cli {
+    /// Launch the interactive graphical Ratatui Terminal UI (default)
+    #[arg(long, short = 't', default_value_t = false)]
+    tui: bool,
+
     /// Fallback to plain text REPL instead of interactive graphical TUI
     #[arg(long, default_value_t = false)]
     repl: bool,
@@ -347,10 +351,9 @@ async fn run_doctor(
         if let Ok(home) = std::env::var("HOME") {
             let bin_dir = std::path::PathBuf::from(&home).join(".local/bin");
             let target = bin_dir.join("paraclea");
-            if std::fs::create_dir_all(&bin_dir).is_ok() {
-                if std::fs::copy(&exe_path, &target).is_ok() {
-                    resolved.push("Auto-installed 'paraclea' binary to ~/.local/bin/paraclea".to_string());
-                }
+            if std::fs::create_dir_all(&bin_dir).is_ok()
+                && std::fs::copy(&exe_path, &target).is_ok() {
+                resolved.push("Auto-installed 'paraclea' binary to ~/.local/bin/paraclea".to_string());
             }
         }
     }
@@ -441,8 +444,8 @@ async fn run_doctor(
 
     if qdrant_ok {
         println!("     • Vector DB Service:    {}", "ONLINE".green().bold());
-        let _ = qdrant.create_collection(&cfg.vector_db.collection_bible, 768).await;
-        let _ = qdrant.create_collection(&cfg.vector_db.collection_books, 768).await;
+        let _ = qdrant.create_collection(&cfg.vector_db.collection_bible, cfg.vector_db.vector_dim).await;
+        let _ = qdrant.create_collection(&cfg.vector_db.collection_books, cfg.vector_db.vector_dim).await;
         println!("     • Vector Collections:   {}", "VERIFIED & INITIALIZED".green().bold());
     } else {
         println!("     • Vector DB Service:    {}", "STANDBY (Optional RAG disabled)".yellow().bold());
@@ -662,19 +665,15 @@ const DYNAMIC_FAREWELLS: &[&str] = &[
 ];
 
 fn get_random_greeting() -> &'static str {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as usize)
-        .unwrap_or(0);
-    DYNAMIC_GREETINGS[now % DYNAMIC_GREETINGS.len()]
+    use rand::Rng;
+    let idx = rand::thread_rng().gen_range(0..DYNAMIC_GREETINGS.len());
+    DYNAMIC_GREETINGS[idx]
 }
 
 fn get_random_farewell() -> &'static str {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as usize)
-        .unwrap_or(0);
-    DYNAMIC_FAREWELLS[now % DYNAMIC_FAREWELLS.len()]
+    use rand::Rng;
+    let idx = rand::thread_rng().gen_range(0..DYNAMIC_FAREWELLS.len());
+    DYNAMIC_FAREWELLS[idx]
 }
 
 fn print_help_menu() {
@@ -744,25 +743,27 @@ async fn handle_bible_menu(rl: &mut Option<DefaultEditor>, cfg: &mut Config, con
     );
 
     let languages = BibleReader::list_languages();
-    println!("  {}", print_gold("Select your preferred language:"));
+    let total_translations: usize = languages.iter().map(|l| BibleReader::list_translations_for_lang(&l.code).len()).sum();
+    println!("  {}", print_gold(&format!("Select your preferred language ({} languages, {} total translations available):", languages.len(), total_translations)));
     for lang in &languages {
-        println!("    [{}] {}", lang.id, lang.name);
+        let trans_count = BibleReader::list_translations_for_lang(&lang.code).len();
+        println!("    [{}] {} ({} translations)", lang.id, lang.name, trans_count);
     }
 
-    let input = read_line_prompt(rl, &format!("\n{} ", print_gold("Select language [1-5] >")));
+    let input = read_line_prompt(rl, &format!("\n{} ", print_gold(&format!("Select language [1-{}]", languages.len()))));
 
     let lang_id = input.trim().parse::<usize>().unwrap_or(1);
     let selected_lang = languages.iter().find(|l| l.id == lang_id).cloned().unwrap_or(languages[0].clone());
 
     let translations = BibleReader::list_translations_for_lang(&selected_lang.code);
-    println!("\n  {}", print_gold(&format!("Available translations for {}:", selected_lang.name)));
+    println!("\n  {}", print_gold(&format!("Available translations for {} ({} versions):", selected_lang.name, translations.len())));
     for trans in &translations {
         let easy_tag = if trans.is_easy { " (Recommended / Easy)" } else { "" };
         println!("    [{}] {}{}", trans.id, trans.name, easy_tag);
     }
     println!("    [{}] Not Sure / Recommended (Defaults to Easy Version)", translations.len() + 1);
 
-    let trans_input = read_line_prompt(rl, &format!("\n{} ", print_gold("Select translation >")));
+    let trans_input = read_line_prompt(rl, &format!("\n{} ", print_gold(&format!("Select translation [1-{}]", translations.len() + 1))));
 
     let trans_id = trans_input.trim().parse::<usize>().unwrap_or(1);
     let selected_trans = if trans_id <= translations.len() {
@@ -775,14 +776,40 @@ async fn handle_bible_menu(rl: &mut Option<DefaultEditor>, cfg: &mut Config, con
     cfg.bible.translation = selected_trans.clone();
     let _ = cfg.save(config_path);
 
-    println!(
-        "\n{} {}\n",
-        print_purple("Paraclea >"),
-        print_gold(&format!(
-            "✓ Saved! Preferred Bible language set to '{}' and translation to '{}'.",
-            cfg.bible.language, cfg.bible.translation
-        ))
-    );
+    // Show detailed stats for the selected translation
+    if let Some(ref trans_file) = translations.get(trans_id.saturating_sub(1)).and_then(|t| t.file_path.as_ref()) {
+        if let Ok(reader) = BibleReader::load_primary(trans_file) {
+            let total_books = reader.books.len();
+            let total_chapters: usize = reader.books.iter().map(|b| b.total_chapters).sum();
+            let total_verses: usize = reader.books.iter().map(|b| b.chapter_verse_counts.iter().sum::<usize>()).sum();
+            println!(
+                "\n{} {}\n",
+                print_purple("Paraclea >"),
+                print_gold(&format!(
+                    "✓ Saved! Language: '{}' | Translation: '{}' | {} books, {} chapters, {} verses",
+                    cfg.bible.language, cfg.bible.translation, total_books, total_chapters, total_verses
+                ))
+            );
+        } else {
+            println!(
+                "\n{} {}\n",
+                print_purple("Paraclea >"),
+                print_gold(&format!(
+                    "✓ Saved! Preferred Bible language set to '{}' and translation to '{}'.",
+                    cfg.bible.language, cfg.bible.translation
+                ))
+            );
+        }
+    } else {
+        println!(
+            "\n{} {}\n",
+            print_purple("Paraclea >"),
+            print_gold(&format!(
+                "✓ Saved! Preferred Bible language set to '{}' and translation to '{}'.",
+                cfg.bible.language, cfg.bible.translation
+            ))
+        );
+    }
     Ok(())
 }
 
@@ -853,7 +880,7 @@ async fn read_bible_flow(
     rl: &mut Option<DefaultEditor>,
     reader: &BibleReader,
     cfg: &Config,
-    history: &mut Vec<ChatMessage>,
+    history: &mut std::collections::VecDeque<ChatMessage>,
     selected_book_name: &str,
 ) -> Result<()> {
     let book_meta = match reader.find_book(selected_book_name) {
@@ -877,7 +904,7 @@ async fn read_bible_flow(
         return Ok(());
     }
 
-    let verse_count = book_meta.chapter_verse_counts[chapter_num - 1];
+    let verse_count = book_meta.chapter_verse_counts.get(chapter_num.saturating_sub(1)).copied().unwrap_or(0);
     println!(
         "  📌 {}",
         print_gold(&format!("'{} Chapter {}' has {} verses.", book_meta.name, chapter_num, verse_count))
@@ -900,10 +927,13 @@ async fn read_bible_flow(
                 print!("{}", line.truecolor(177, 74, 237));
                 full_passage.push_str(&line);
             }
-            history.push(ChatMessage {
+            history.push_back(ChatMessage {
                 role: "system".to_string(),
                 content: format!("User is reading {} Chapter {} [{}]:\n{}", book_meta.name, chapter_num, trans_tag, full_passage),
             });
+            while history.len() > 20 {
+                history.pop_front();
+            }
             println!("\n{}", print_gold("✓ Passage loaded. Ask Paraclea any questions about this chapter!"));
         }
     } else if let Ok(verse_num) = v_str.parse::<usize>() {
@@ -915,10 +945,13 @@ async fn read_bible_flow(
                     citation.truecolor(255, 215, 0).bold(),
                     text.truecolor(177, 74, 237)
                 );
-                history.push(ChatMessage {
+                history.push_back(ChatMessage {
                     role: "system".to_string(),
                     content: format!("User is reading Scripture passage {}: \"{}\"", citation, text),
                 });
+                while history.len() > 20 {
+                    history.pop_front();
+                }
                 println!("\n{}", print_gold("✓ Passage loaded into conversation. Ask Paraclea anything about it!"));
             }
         } else {
@@ -934,7 +967,7 @@ async fn read_non_scripture_category_flow(
     library: &LibraryEngine,
     cat_tag: &str,
     cat_title: &str,
-    history: &mut Vec<ChatMessage>,
+    history: &mut std::collections::VecDeque<ChatMessage>,
 ) -> Result<()> {
     let mut books = Vec::new();
     if cat_tag == "survival" {
@@ -989,10 +1022,13 @@ async fn read_non_scripture_category_flow(
             b.title, ch.chapter_number
         );
         println!("\n{}\n", ch.content.truecolor(177, 74, 237));
-        history.push(ChatMessage {
+        history.push_back(ChatMessage {
             role: "system".to_string(),
             content: format!("User is reading {} [Category: {}] Chapter {}: \"{}\"", b.title, b.category, ch.chapter_number, ch.content.chars().take(500).collect::<String>()),
         });
+        while history.len() > 20 {
+            history.pop_front();
+        }
         println!("{}", print_gold("✓ Book chapter loaded into conversation context! Ask Paraclea anything about it."));
     } else {
         println!("{}", "Invalid chapter number.".red());
@@ -1006,7 +1042,7 @@ async fn handle_read_cmd(
     reader: &BibleReader,
     library: &LibraryEngine,
     cfg: &Config,
-    history: &mut Vec<ChatMessage>,
+    history: &mut std::collections::VecDeque<ChatMessage>,
 ) -> Result<()> {
     println!(
         "\n{}",
@@ -1069,7 +1105,7 @@ async fn handle_compare_cmd(
     rl: &mut Option<DefaultEditor>,
     reader: &BibleReader,
     ollama: &OllamaClient,
-    history: &mut Vec<ChatMessage>,
+    history: &mut std::collections::VecDeque<ChatMessage>,
 ) -> Result<()> {
     println!(
         "\n{}",
@@ -1104,31 +1140,47 @@ async fn handle_compare_cmd(
     };
 
     let chap_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select Chapter (1-{}) >", book_meta.total_chapters))));
-    let chapter_num: usize = chap_input.trim().parse().unwrap_or(1);
+    let chapter_num: usize = match chap_input.trim().parse() {
+        Ok(n) if n >= 1 && n <= book_meta.total_chapters => n,
+        _ => {
+            println!("{}", format!("Invalid chapter number. Pick between 1 and {}.", book_meta.total_chapters).red());
+            return Ok(());
+        }
+    };
 
     let verse_count = reader.get_verse_count(&book_meta.name, chapter_num).unwrap_or(1);
     let verse_input = read_line_prompt(rl, &format!("{} ", print_gold(&format!("Select Verse (1-{}) >", verse_count))));
-    let verse_num: usize = verse_input.trim().parse().unwrap_or(1);
+    let verse_num: usize = match verse_input.trim().parse() {
+        Ok(n) if n >= 1 && n <= verse_count => n,
+        _ => {
+            println!("{}", format!("Invalid verse number. Pick between 1 and {}.", verse_count).red());
+            return Ok(());
+        }
+    };
 
     let primary_text = reader.read_verse(&book_meta.name, chapter_num, verse_num)
         .unwrap_or_else(|| "Text unavailable".to_string());
+    let secondary_text = reader.read_translation_verse("WEB", &book_meta.name, chapter_num, verse_num)
+        .or_else(|| reader.read_translation_verse("BSB", &book_meta.name, chapter_num, verse_num))
+        .unwrap_or_else(|| primary_text.clone());
 
     let passage_ref = format!("{} {}:{}", book_meta.name, chapter_num, verse_num);
 
     println!("\n  {}", print_gold(&format!("=== Comparative Passages for {} ===", passage_ref)));
     println!("  • [KJV (Authorized)] : {}", primary_text.truecolor(177, 74, 237));
-    println!("  • [WEB (Modern Easy)]: {}", primary_text.truecolor(177, 74, 237));
+    println!("  • [WEB (Modern Easy)]: {}", secondary_text.truecolor(177, 74, 237));
 
     let compare_prompt = format!(
-        "I am performing a comparative study of {passage_ref}.\nPassage text: \"{primary_text}\"\n\nPlease provide a clear comparative study of this verse, highlighting key original language meanings (Hebrew/Greek), nuances across different translations, and practical wisdom.",
+        "I am performing a comparative study of {passage_ref}.\n[KJV]: \"{primary_text}\"\n[WEB]: \"{secondary_text}\"\n\nPlease provide a clear comparative study of this verse, highlighting key original language meanings (Hebrew/Greek), nuances across different translations, and practical wisdom.",
         passage_ref = passage_ref,
-        primary_text = primary_text
+        primary_text = primary_text,
+        secondary_text = secondary_text
     );
 
     println!("\n{} ", print_purple("Paraclea Commentary >"));
     io::stdout().flush()?;
 
-    let mut stream_history = history.clone();
+    let mut stream_history: Vec<ChatMessage> = history.iter().cloned().collect();
     stream_history.push(ChatMessage {
         role: "user".to_string(),
         content: compare_prompt.clone(),
@@ -1142,14 +1194,17 @@ async fn handle_compare_cmd(
     println!();
 
     if let Ok(full_text) = stream_res {
-        history.push(ChatMessage {
+        history.push_back(ChatMessage {
             role: "user".to_string(),
             content: format!("Comparative study of {}", passage_ref),
         });
-        history.push(ChatMessage {
+        history.push_back(ChatMessage {
             role: "assistant".to_string(),
             content: full_text,
         });
+        while history.len() > 20 {
+            history.pop_front();
+        }
     }
 
     Ok(())
@@ -1229,8 +1284,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     }
     if qdrant_online {
         println!("{}", print_gold("ONLINE"));
-        qdrant.create_collection(&cfg.vector_db.collection_bible, 768).await.ok();
-        qdrant.create_collection(&cfg.vector_db.collection_books, 768).await.ok();
+        qdrant.create_collection(&cfg.vector_db.collection_bible, cfg.vector_db.vector_dim).await.ok();
+        qdrant.create_collection(&cfg.vector_db.collection_books, cfg.vector_db.vector_dim).await.ok();
     } else {
         println!("{}", "STANDBY".yellow());
     }
@@ -1256,7 +1311,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     if !missing.is_empty() {
         println!(
             "{}",
-            format!("⚠️  Recommended models missing: run 'paraclea doctor' for details").yellow()
+            "⚠️  Recommended models missing: run 'paraclea doctor' for details".yellow()
         );
     }
 
@@ -1317,7 +1372,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     println!("{} {}", print_gold("ONLINE"), format!("({} categories, {} books loaded)", lib_cats, lib_books).purple());
 
     // 8. Interactive REPL Shell Loop
-    let mut history: Vec<ChatMessage> = Vec::new();
+    let mut history: std::collections::VecDeque<ChatMessage> = std::collections::VecDeque::with_capacity(20);
     let mut rl = DefaultEditor::new().ok();
 
     println!(
@@ -1478,24 +1533,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", timestamp));
                 
                 if db_path.exists() {
-                    // Perform SHA-256 passkey encryption
-                    use sha2::{Sha256, Digest};
-                    use std::io::{Read, Write};
-                    if let Ok(mut fin) = std::fs::File::open(&db_path) {
-                        let mut buf = Vec::new();
-                        let _ = fin.read_to_end(&mut buf);
-                        let mut hasher = Sha256::new();
-                        hasher.update(passkey.as_bytes());
-                        hasher.update(b"PARACLEA_SECURE_SALT_2026");
-                        let key = hasher.finalize();
-                        let mut enc = Vec::with_capacity(buf.len());
-                        for (i, b) in buf.iter().enumerate() {
-                            enc.push(b ^ key[i % key.len()]);
+                    match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, passkey) {
+                        Ok(bytes) => {
+                            println!("  {}", print_gold(&format!("✓ AES-256-GCM Encrypted USB Backup Created: {:?} ({} bytes)", backup_file, bytes)));
                         }
-                        if let Ok(mut fout) = std::fs::File::create(&backup_file) {
-                            let _ = fout.write_all(b"PARACLEA_ENC_v1");
-                            let _ = fout.write_all(&enc);
-                            println!("  {}", print_gold(&format!("✓ Encrypted USB Backup Created: {:?} ({} bytes)", backup_file, enc.len())));
+                        Err(e) => {
+                            println!("{}", format!("⚠️ Backup failed: {}", e).red());
                         }
                     }
                 } else {
@@ -1759,17 +1802,21 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 }
 
                 let _ = persona.append_daily_log(&format!("Paraclea: {}", streamed_text));
-                history.push(ChatMessage {
+                history.push_back(ChatMessage {
                     role: "user".to_string(),
                     content: input_str.to_string(),
                 });
-                history.push(ChatMessage {
+                history.push_back(ChatMessage {
                     role: "assistant".to_string(),
                     content: streamed_text.clone(),
                 });
 
+                while history.len() > 20 {
+                    history.pop_front();
+                }
+
                 // Spawn background Dendrite reflection worker to learn user study habits & preferences
-                reflection_worker.spawn_reflection(history.clone());
+                reflection_worker.spawn_reflection(history.iter().cloned().collect());
 
                 if let Ok(audio_bytes) = pocket_tts.synthesize(&streamed_text).await {
                     println!("{}", print_purple("speaking..."));
@@ -1816,32 +1863,6 @@ fn print_banner(cfg: &Config) {
         print_purple("Active Model:"),
         print_gold(&cfg.model.ollama.model)
     );
-}
-
-#[allow(dead_code)]
-async fn display_and_speak(
-    text: &str,
-    persona: &PersonaManager,
-    tts: &PocketTtsEngine,
-    history: &mut Vec<ChatMessage>,
-    user_input: &str,
-) {
-    println!("{} {}\n", print_purple("Paraclea >"), text);
-    let _ = persona.append_daily_log(&format!("Paraclea: {}", text));
-
-    history.push(ChatMessage {
-        role: "user".to_string(),
-        content: user_input.to_string(),
-    });
-    history.push(ChatMessage {
-        role: "assistant".to_string(),
-        content: text.to_string(),
-    });
-
-    if let Ok(audio_bytes) = tts.synthesize(text).await {
-        println!("{}", print_purple("speaking..."));
-        let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
-    }
 }
 
 #[cfg(test)]

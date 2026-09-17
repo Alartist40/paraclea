@@ -8,6 +8,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::ascii_art::{render_ascii_line, PARACLEA_BANNER};
 use crate::theme::AppTheme;
 
 #[derive(Debug, Clone)]
@@ -18,6 +19,7 @@ pub struct ChatMessage {
     pub timestamp: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_chat_view(
     f: &mut Frame,
     area: Rect,
@@ -32,35 +34,38 @@ pub fn render_chat_view(
 
     if history.is_empty() && !is_streaming {
         lines.push(Line::from(""));
+        let indent = (area.width.saturating_sub(60)) as usize / 2;
+        for banner_line in PARACLEA_BANNER.lines() {
+            lines.push(render_ascii_line(banner_line, indent, theme));
+        }
+        lines.push(Line::from(""));
+        let pad = " ".repeat(indent.max(2));
         lines.push(Line::from(vec![
-            Span::styled("   ╒═════════════════════════════════════════════════════════════════════════════╕", theme.header_badge()),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("   │ ", theme.header_badge()),
+            Span::raw(pad.clone()),
             Span::styled("PARACLEA SCHOLAR AI — Multi-Lingual Scripture & Knowledge Assistant", theme.header_title()),
-            Span::styled("     │", theme.header_badge()),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("   ╘═════════════════════════════════════════════════════════════════════════════╛", theme.header_badge()),
         ]));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("   • Type any question or scripture reference to begin study.", Style::default().fg(Color::Gray)),
+            Span::raw(pad.clone()),
+            Span::styled("• Type any question or scripture reference to begin study.", Style::default().fg(Color::Gray)),
         ]));
         lines.push(Line::from(vec![
-            Span::styled("   • Type ", Style::default().fg(Color::Gray)),
+            Span::raw(pad.clone()),
+            Span::styled("• Type ", Style::default().fg(Color::Gray)),
             Span::styled("/bible", theme.header_title()),
             Span::styled(" or ", Style::default().fg(Color::Gray)),
             Span::styled("/compare", theme.header_title()),
             Span::styled(" to read & cross-examine across 160 translations.", Style::default().fg(Color::Gray)),
         ]));
         lines.push(Line::from(vec![
-            Span::styled("   • Type ", Style::default().fg(Color::Gray)),
+            Span::raw(pad.clone()),
+            Span::styled("• Type ", Style::default().fg(Color::Gray)),
             Span::styled("/library", theme.header_title()),
             Span::styled(" to explore Psychology, Survival, Medical, EGW, and Philosophy.", Style::default().fg(Color::Gray)),
         ]));
         lines.push(Line::from(vec![
-            Span::styled("   • Press ", Style::default().fg(Color::Gray)),
+            Span::raw(pad),
+            Span::styled("• Press ", Style::default().fg(Color::Gray)),
             Span::styled("F1 – F6", theme.header_badge()),
             Span::styled(" to switch between dedicated interactive workspace decks.", Style::default().fg(Color::Gray)),
         ]));

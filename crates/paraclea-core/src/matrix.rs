@@ -64,14 +64,10 @@ impl TopicMatrixEngine {
                         excerpt: snippet,
                     };
 
-                    if cat == "egw" {
-                        if egw_matches.len() < 4 {
-                            egw_matches.push(entry);
-                        }
-                    } else if cat == "survival" || cat == "medical" {
-                        if survival_matches.len() < 4 {
-                            survival_matches.push(entry);
-                        }
+                    if cat == "egw" && egw_matches.len() < 4 {
+                        egw_matches.push(entry);
+                    } else if (cat == "survival" || cat == "medical") && survival_matches.len() < 4 {
+                        survival_matches.push(entry);
                     }
                 }
             }
@@ -114,8 +110,22 @@ impl TopicMatrixEngine {
             }
         }
 
-        let start = best_pos.saturating_sub(60);
-        let end = (best_pos + 180).min(text.len());
+        let mut start = best_pos.saturating_sub(60);
+        while start > 0 && !text.is_char_boundary(start) {
+            start -= 1;
+        }
+
+        let mut end = (best_pos + 180).min(text.len());
+        while end < text.len() && !text.is_char_boundary(end) {
+            end += 1;
+        }
+        if end > text.len() {
+            end = text.len();
+            while end > start && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+        }
+
         let snippet = &text[start..end];
 
         let prefix = if start > 0 { "..." } else { "" };
@@ -123,3 +133,24 @@ impl TopicMatrixEngine {
         format!("{}{}{}", prefix, snippet.trim(), suffix)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matrix_utf8_snippet_safety() {
+        // Multi-byte Unicode: Russian, Greek, Hebrew, Chinese, Emoji
+        let text = "В начале было Слово, и Слово было у Бога. Ἐν ἀρχῇ ἦν ὁ λόγος. בְּרֵאשִׁית בָּרָא אֱלֹהִים. 太初有道，道与神同在。🔥💡🌟";
+        let words = ["слово", "λόγος", "神"];
+        let snippet = TopicMatrixEngine::extract_snippet(text, &words);
+        assert!(!snippet.is_empty());
+        assert!(snippet.contains("Слово") || snippet.contains("слово"));
+
+        // Boundary slicing near multi-byte character
+        let short_utf8 = "Привет мир, это тестирование UTF-8 срезов.";
+        let res = TopicMatrixEngine::extract_snippet(short_utf8, &["тестирование"]);
+        assert!(res.contains("тестирование"));
+    }
+}
+

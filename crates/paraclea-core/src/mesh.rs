@@ -69,7 +69,6 @@ impl ReticulumEngine {
             .arg("nohup rnsd > /tmp/rnsd.log 2>&1 &")
             .spawn();
 
-        std::thread::sleep(std::time::Duration::from_millis(800));
         true
     }
 
@@ -106,9 +105,20 @@ impl ReticulumEngine {
             }
         }
 
-        let fallback_hash = "a2f8386e3fa060e28a17b4ebf2b971a7".to_string();
-        self.identity_hash = Some(fallback_hash.clone());
-        Ok(fallback_hash)
+        // Compute dynamic hash fallback from identity file bytes or machine context
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        if let Ok(bytes) = std::fs::read(&self.identity_path) {
+            hasher.update(&bytes);
+        } else {
+            hasher.update(self.identity_path.to_string_lossy().as_bytes());
+            if let Ok(user) = std::env::var("USER") {
+                hasher.update(user.as_bytes());
+            }
+        }
+        let dynamic_hash = format!("{:x}", hasher.finalize())[..32].to_string();
+        self.identity_hash = Some(dynamic_hash.clone());
+        Ok(dynamic_hash)
     }
 
     /// Broadcast an announcement packet on Reticulum mesh.

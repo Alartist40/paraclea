@@ -1,12 +1,19 @@
 use axum::{
     extract::{Query, State},
-    response::Html,
+    http::StatusCode,
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        Html,
+    },
     routing::{get, post},
     Json, Router,
 };
 use colored::*;
+use futures_util::stream::Stream;
+use tokio_stream::StreamExt;
 use paraclea_core::{
     bible::{self, BibleReader},
+    config::Config,
     dendrite::{Dendrite, DendriteStore},
     library::LibraryEngine,
     mesh::ReticulumEngine,
@@ -15,20 +22,26 @@ use paraclea_core::{
     qdrant::QdrantClient,
 };
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tower_http::cors::CorsLayer;
 
 const HTML_CONTENT: &str = include_str!("../public/index.html");
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct AppState {
     ollama: Arc<OllamaClient>,
     persona: Arc<PersonaManager>,
     library: Arc<tokio::sync::RwLock<LibraryEngine>>,
     dendrite_store: Option<Arc<DendriteStore>>,
+    dendrite_graph: Arc<Dendrite>,
+    bible_reader: Arc<tokio::sync::RwLock<Option<BibleReader>>>,
     mesh: Option<Arc<ReticulumEngine>>,
     qdrant: Arc<QdrantClient>,
+    config: Arc<Config>,
 }
 
 #[tokio::main]
@@ -37,13 +50,27 @@ async fn main() -> anyhow::Result<()> {
     println!("{}", "║     PARACLEA AI ASSISTANT — DESKTOP APPLICATION SERVER       ║".yellow().bold());
     println!("{}", "╚══════════════════════════════════════════════════════════════╝".purple().bold());
 
+    let config_path = Config::find_or_default_config_path();
+    let cfg = Config::load(&config_path).unwrap_or_default();
+    let config = Arc::new(cfg);
+
     let persona_dir = std::env::var("HOME")
         .map(|h| PathBuf::from(h).join(".paraclea/persona"))
         .unwrap_or_else(|_| PathBuf::from("persona"));
     let persona = Arc::new(PersonaManager::new(persona_dir).unwrap_or_else(|_| PersonaManager { persona_dir: PathBuf::from("persona") }));
 
-    let ollama = Arc::new(OllamaClient::new("http://localhost:11434", "ministral-3:3b")?);
-    let qdrant = Arc::new(QdrantClient::new("http://localhost:6333")?);
+    // Gracefully initialize Ollama client
+    let ollama_client = OllamaClient::new(&config.model.ollama.url, &config.model.ollama.model)
+        .or_else(|_| OllamaClient::new("http://localhost:11434", "ministral-3:3b"))
+        .expect("Ollama client initialization");
+    let ollama = Arc::new(ollama_client);
+
+    // Gracefully initialize Qdrant client
+    let qdrant_client = QdrantClient::new(&config.vector_db.qdrant_url)
+        .or_else(|_| QdrantClient::new("http://localhost:6333"))
+        .expect("Qdrant client initialization");
+    let qdrant = Arc::new(qdrant_client);
+
     let library = Arc::new(tokio::sync::RwLock::new(LibraryEngine::load_auto()));
     let mesh = ReticulumEngine::new().ok().map(Arc::new);
 
@@ -56,13 +83,19 @@ async fn main() -> anyhow::Result<()> {
         let _ = store.load_all(&dendrite_graph);
     }
 
+    let initial_reader = BibleReader::load_auto().ok();
+    let bible_reader = Arc::new(tokio::sync::RwLock::new(initial_reader));
+
     let state = AppState {
         ollama,
         persona,
         library,
         dendrite_store,
+        dendrite_graph,
+        bible_reader,
         mesh,
         qdrant,
+        config,
     };
 
     let app = Router::new()
@@ -74,15 +107,21 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/library/books", get(get_library_books))
         .route("/api/library/read", get(read_library_chapter))
         .route("/api/chat", post(handle_chat))
+        .route("/api/chat/stream", post(handle_chat_stream))
         .route("/api/memory", get(get_memory_nodes))
         .route("/api/mesh", get(get_mesh_status))
         .route("/api/mesh/mailbox", get(get_mesh_mailbox))
         .route("/api/mesh/send", post(send_mesh_message))
         .route("/api/matrix", get(get_matrix_results))
         .route("/api/doctor", get(run_doctor_checks))
+        .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 7860));
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(7860);
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!("{}", format!("  ✓ Server listening on http://{}", addr).green().bold());
     println!("{}", "  ✓ Launching Desktop Web Browser...".yellow().bold());
@@ -136,12 +175,12 @@ struct BibleBookDto {
     total_chapters: usize,
 }
 
-async fn get_bible_books() -> Json<Vec<BibleBookDto>> {
-    let reader = BibleReader::load_auto().ok();
+async fn get_bible_books(State(state): State<AppState>) -> Json<Vec<BibleBookDto>> {
+    let reader_lock = state.bible_reader.read().await;
     let mut books = Vec::new();
 
     for &b in bible::OLD_TESTAMENT_BOOKS {
-        let total_chapters = reader.as_ref().and_then(|r| r.get_chapter_count(b)).unwrap_or(1);
+        let total_chapters = reader_lock.as_ref().and_then(|r| r.get_chapter_count(b)).unwrap_or(1);
         books.push(BibleBookDto {
             name: b.to_string(),
             testament: "Old Testament".to_string(),
@@ -150,7 +189,7 @@ async fn get_bible_books() -> Json<Vec<BibleBookDto>> {
     }
 
     for &b in bible::NEW_TESTAMENT_BOOKS {
-        let total_chapters = reader.as_ref().and_then(|r| r.get_chapter_count(b)).unwrap_or(1);
+        let total_chapters = reader_lock.as_ref().and_then(|r| r.get_chapter_count(b)).unwrap_or(1);
         books.push(BibleBookDto {
             name: b.to_string(),
             testament: "New Testament".to_string(),
@@ -183,11 +222,15 @@ struct BibleChapterResponse {
     verses: Vec<BibleVerseDto>,
 }
 
-async fn read_bible_chapter(Query(params): Query<ReadBibleParams>) -> Json<BibleChapterResponse> {
+async fn read_bible_chapter(
+    State(state): State<AppState>,
+    Query(params): Query<ReadBibleParams>,
+) -> Json<BibleChapterResponse> {
+    let reader_guard = state.bible_reader.read().await;
     let reader = if let Some(path) = bible::find_json_bible_file(&params.tag) {
         BibleReader::load_primary(&path).ok()
     } else {
-        BibleReader::load_auto().ok()
+        reader_guard.clone()
     };
 
     if let Some(r) = reader {
@@ -326,7 +369,7 @@ struct ChatResponse {
 async fn handle_chat(
     State(state): State<AppState>,
     Json(payload): Json<ChatRequest>,
-) -> Json<ChatResponse> {
+) -> Result<Json<ChatResponse>, (StatusCode, Json<ChatResponse>)> {
     let system_prompt = state.persona.build_system_prompt();
     let msgs = vec![
         ChatMessage { role: "system".to_string(), content: system_prompt },
@@ -334,11 +377,41 @@ async fn handle_chat(
     ];
 
     match state.ollama.chat(msgs).await {
-        Ok(reply) => Json(ChatResponse { reply }),
-        Err(err) => Json(ChatResponse {
-            reply: format!("⚠️ Unable to connect to Ollama model: {}", err),
-        }),
+        Ok(reply) => Ok(Json(ChatResponse { reply })),
+        Err(err) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ChatResponse {
+                reply: format!("⚠️ Unable to connect to Ollama model: {}", err),
+            }),
+        )),
     }
+}
+
+async fn handle_chat_stream(
+    State(state): State<AppState>,
+    Json(payload): Json<ChatRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let system_prompt = state.persona.build_system_prompt();
+    let msgs = vec![
+        ChatMessage { role: "system".to_string(), content: system_prompt },
+        ChatMessage { role: "user".to_string(), content: payload.message },
+    ];
+
+    let ollama = state.ollama.clone();
+    tokio::spawn(async move {
+        let _ = ollama
+            .chat_stream(msgs, move |token| {
+                let _ = tx.send(token.to_string());
+            })
+            .await;
+    });
+
+    let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx).map(|token| {
+        Ok(Event::default().data(token))
+    });
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 #[derive(Serialize)]
@@ -351,18 +424,13 @@ struct MemoryNodeDto {
 
 async fn get_memory_nodes(State(state): State<AppState>) -> Json<Vec<MemoryNodeDto>> {
     let mut list = Vec::new();
-    if let Some(ref store) = state.dendrite_store {
-        let temp_graph = Dendrite::new();
-        if store.load_all(&temp_graph).is_ok() {
-            for node in temp_graph.by_tier(1) {
-                list.push(MemoryNodeDto {
-                    id: node.id,
-                    label: node.title,
-                    content: node.content,
-                    node_type: "Fact".to_string(),
-                });
-            }
-        }
+    for node in state.dendrite_graph.by_tier(1) {
+        list.push(MemoryNodeDto {
+            id: node.id,
+            label: node.title,
+            content: node.content,
+            node_type: "Fact".to_string(),
+        });
     }
     Json(list)
 }
@@ -396,10 +464,10 @@ async fn get_matrix_results(
     Query(params): Query<MatrixParams>,
     State(state): State<AppState>,
 ) -> Json<paraclea_core::matrix::MatrixResult> {
-    let reader = BibleReader::load_auto().ok();
+    let reader_guard = state.bible_reader.read().await;
     let lib = state.library.read().await;
-    if let Some(r) = reader {
-        let res = paraclea_core::matrix::TopicMatrixEngine::build_matrix(&params.topic, &r, &lib);
+    if let Some(ref r) = *reader_guard {
+        let res = paraclea_core::matrix::TopicMatrixEngine::build_matrix(&params.topic, r, &lib);
         Json(res)
     } else {
         let dummy_reader = BibleReader {
@@ -465,13 +533,10 @@ async fn run_doctor_checks(State(state): State<AppState>) -> Json<DoctorResponse
     let library_books_count = lib.books.len();
     let library_chapters_count: usize = lib.books.iter().map(|b| b.chapters.len()).sum();
 
-    let mut dendrite_nodes_count = 0;
-    if let Some(ref store) = state.dendrite_store {
-        let temp_graph = Dendrite::new();
-        if store.load_all(&temp_graph).is_ok() {
-            dendrite_nodes_count = temp_graph.by_tier(1).len() + temp_graph.by_tier(2).len() + temp_graph.by_tier(3).len() + temp_graph.by_tier(4).len();
-        }
-    }
+    let dendrite_nodes_count = state.dendrite_graph.by_tier(1).len()
+        + state.dendrite_graph.by_tier(2).len()
+        + state.dendrite_graph.by_tier(3).len()
+        + state.dendrite_graph.by_tier(4).len();
 
     Json(DoctorResponse {
         ollama_online,

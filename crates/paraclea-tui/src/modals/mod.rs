@@ -44,8 +44,8 @@ pub fn render_help_modal(f: &mut Frame, area: Rect, theme: &AppTheme) {
             Span::raw("Cycle active pane (Sidebar ↔ Main Viewport ↔ Prompt)"),
         ]),
         Line::from(vec![
-            Span::styled("F1 – F6 / 1 – 6  ", theme.header_badge()),
-            Span::raw("Switch tabs: [1]Chat [2]Bible [3]Library [4]Crossref [5]Mesh [6]Doctor"),
+            Span::styled("1 – 7            ", theme.header_badge()),
+            Span::raw("Switch tabs: [1]Chat [2]Bible [3]Library [4]Crossref [5]Galaxy [6]Mesh [7]Doctor"),
         ]),
         Line::from(vec![
             Span::styled("Ctrl + B         ", theme.header_badge()),
@@ -182,4 +182,58 @@ pub fn render_input_modal(
     let p = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
     f.render_widget(p, modal_area);
 }
+
+pub fn render_command_palette_modal(
+    f: &mut Frame,
+    area: Rect,
+    commands: &[(&str, &str)],
+    selected_idx: usize,
+    filter: &str,
+    theme: &AppTheme,
+) {
+    let modal_area = centered_rect(65, 60, area);
+    f.render_widget(Clear, modal_area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(5)])
+        .split(modal_area);
+
+    // Search bar
+    let search_block = Block::default()
+        .title(" ⚡ Paraclea Slash Commands (/ dropdown) ")
+        .borders(Borders::ALL)
+        .border_type(theme.border_type())
+        .border_style(theme.border_focused());
+    let search_p = Paragraph::new(format!("Command > {}█", filter)).block(search_block);
+    f.render_widget(search_p, chunks[0]);
+
+    // List of commands
+    let list_items: Vec<ListItem> = commands
+        .iter()
+        .enumerate()
+        .map(|(idx, (cmd, desc))| {
+            if idx == selected_idx {
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!(" ▶ {:<14} ", cmd), theme.highlight_item()),
+                    Span::styled(format!("— {}", desc), Style::default().fg(Color::Rgb(255, 255, 255)).add_modifier(Modifier::BOLD)),
+                ]))
+            } else {
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!("   {:<14} ", cmd), theme.header_badge()),
+                    Span::styled(format!("— {}", desc), Style::default().fg(Color::Rgb(180, 180, 200))),
+                ]))
+            }
+        })
+        .collect();
+
+    let list_block = Block::default()
+        .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+        .border_type(theme.border_type())
+        .border_style(theme.border_focused());
+
+    let list = List::new(list_items).block(list_block);
+    f.render_widget(list, chunks[1]);
+}
+
 

@@ -9,34 +9,10 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 use tracing::{debug, info};
+use base64::prelude::*;
 
 fn base64_encode(data: &[u8]) -> String {
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::new();
-    let mut i = 0;
-    while i < data.len() {
-        let b0 = data[i] as u32;
-        let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
-
-        let triple = (b0 << 16) | (b1 << 8) | b2;
-
-        result.push(CHARSET[((triple >> 18) & 63) as usize] as char);
-        result.push(CHARSET[((triple >> 12) & 63) as usize] as char);
-        if i + 1 < data.len() {
-            result.push(CHARSET[((triple >> 6) & 63) as usize] as char);
-        } else {
-            result.push('=');
-        }
-        if i + 2 < data.len() {
-            result.push(CHARSET[(triple & 63) as usize] as char);
-        } else {
-            result.push('=');
-        }
-
-        i += 3;
-    }
-    result
+    BASE64_STANDARD.encode(data)
 }
 
 #[derive(Debug, Clone)]

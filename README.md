@@ -1,6 +1,6 @@
 # 🕊️ Paraclea — Pure Rust AI Companion Engine & Multi-Category Library
 
-> **A fast, lightweight, and completely offline AI companion engine built in pure Rust. Features a 219-version multi-language Bible database across 30 languages, complete Ellen G. White writings (174 chapters), 35-chapter wilderness survival & medical field manuals, self-improving Dendrite v2 knowledge graph memory, off-grid Reticulum mesh communications, and a dedicated Desktop Web Application GUI.**
+> **A fast, lightweight, and completely offline AI companion engine built in pure Rust. Features a 160-version multi-language Bible database across 30 languages, complete Ellen G. White writings (174 chapters), 35-chapter wilderness survival & medical field manuals, self-improving Dendrite v2 knowledge graph memory, off-grid Reticulum mesh communications, and a dedicated Desktop Web Application GUI.**
 
 ---
 
@@ -15,7 +15,7 @@
 Paraclea houses an extensive offline database optimized for fast local recall and low resource usage:
 
 ### 📚 1. Multi-Language Bible Treasury (All 66 Books Covered)
-- **219 Formatted Bible Translations** spanning **30 Languages**, stored locally in `$HOME/.paraclea/bibles/` with 100% strict alphabetical menu navigation.
+- **160 Formatted Bible Translations** spanning **30 Languages**, stored locally in `$HOME/.paraclea/bibles/` with 100% strict alphabetical menu navigation.
 - **Complete Scripture Coverage**: Supports all **66 Books of the Holy Bible** (39 Old Testament + 27 New Testament books) with instant chapter selection and prev/next navigation.
 - **Languages Included**:
   - 🇬🇧 **English** (162 versions including *Authorized KJV 1611*, *NKJV*, *NIV*, *NLT*, *ESV*, *NASB*, *BSB*, *ASV 1901*, *Douay-Rheims 1899*, *Geneva 1599*, *WEB*, *YLT 1898*, *Revised Version 1885*, *Benton Septuagint*)
@@ -75,7 +75,7 @@ Ingested multi-chapter JSON collections stored under `$HOME/.paraclea/library/`:
          ┌───────────────────┬────────────────┼───────────────────┬───────────────────┐
          ▼                   ▼                ▼                   ▼                   ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│ Qdrant Vector   │ │ Ollama LLM /    │ │ Reticulum Mesh  │ │ Pocket TTS      │ │ 219 Bibles &    │
+│ Qdrant Vector   │ │ Ollama LLM /    │ │ Reticulum Mesh  │ │ Pocket TTS      │ │ 160 Bibles &    │
 │ Engine (RAG)    │ │ Vision OCR      │ │ Stack (LoRa)    │ │ Speech Engine   │ │ 211 Ch Library  │
 └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
@@ -134,7 +134,7 @@ paraclea
 - `/study` — Deep Scripture study with 340,000 Treasury of Scripture Knowledge cross-reference links.
 - `/memory` — Inspect and search stored Dendrite v2 knowledge graph nodes.
 - `/mesh` — View Reticulum off-grid network status, cryptographic identity (`RNS`), active peers, or broadcast messages.
-- `/doctor` — Run full system diagnostic checks (Ollama, Qdrant, TTS, Reticulum, SQLite integrity, 219 Bibles, 211 Chapters).
+- `/doctor` — Run full system diagnostic checks (Ollama, Qdrant, TTS, Reticulum, SQLite integrity, 160 Bibles, 211 Chapters).
 - `/help` — Display command overview and usage instructions.
 - `/bye` — Exit Paraclea.
 
@@ -144,7 +144,7 @@ Run `paraclea-gui` to launch the desktop server and web interface:
 paraclea-gui
 ```
 - Listens on `http://127.0.0.1:7860` and automatically opens your desktop web browser.
-- Features live AI chat, dropdown selectors for all 66 Bible books & 219 translations, category tab filtering for all 211 non-scripture library chapters, Dendrite memory inspector, Reticulum mesh stack status, and live System Doctor diagnostics.
+- Features live AI chat, dropdown selectors for all 66 Bible books & 160 translations, category tab filtering for all 211 non-scripture library chapters, Dendrite memory inspector, Reticulum mesh stack status, and live System Doctor diagnostics.
 
 ---
 
@@ -156,7 +156,7 @@ paraclea-gui
 | **Binary Size** | ~12 MB (`paraclea`), ~14 MB (`paraclea-gui`) |
 | **Idle CPU Overhead** | **0.0% CPU** |
 | **RAM Footprint** | ~25 MB base memory |
-| **Bible Database** | 219 Formatted JSON Files (30 Languages, 66 Books) |
+| **Bible Database** | 160 Formatted JSON Files (30 Languages, 66 Books) |
 | **Non-Scripture Library** | 7 Books across 4 Categories (**211 Total Chapters**) |
 | **Graph Database** | SQLite WAL Mode + FTS5 Full-Text Search |
 | **Mesh Protocol** | Reticulum Network Stack (RNS 512-bit Crypto Identity) |

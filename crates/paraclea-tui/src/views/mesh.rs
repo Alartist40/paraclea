@@ -10,20 +10,13 @@ use ratatui::{
 
 use crate::theme::AppTheme;
 
+#[derive(Default)]
 pub struct MeshViewState {
     pub selected_tab: usize, // 0: Status, 1: Peers, 2: Mailbox
     pub scroll: usize,
 }
 
-impl Default for MeshViewState {
-    fn default() -> Self {
-        Self {
-            selected_tab: 0,
-            scroll: 0,
-        }
-    }
-}
-
+#[allow(clippy::too_many_arguments)]
 pub fn render_mesh_view(
     f: &mut Frame,
     area: Rect,

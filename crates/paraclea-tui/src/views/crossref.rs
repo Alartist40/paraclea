@@ -10,20 +10,11 @@ use ratatui::{
 
 use crate::theme::AppTheme;
 
+#[derive(Default)]
 pub struct CrossrefViewState {
     pub selected_idx: usize,
     pub query: String,
     pub scroll: usize,
-}
-
-impl Default for CrossrefViewState {
-    fn default() -> Self {
-        Self {
-            selected_idx: 0,
-            query: String::new(),
-            scroll: 0,
-        }
-    }
 }
 
 pub fn render_crossref_view(

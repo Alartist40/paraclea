@@ -73,8 +73,17 @@ impl NodeType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> NodeType {
-        match s {
+        s.parse().unwrap_or(NodeType::Custom)
+    }
+}
+
+impl std::str::FromStr for NodeType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
             "identity" => NodeType::Identity,
             "person" => NodeType::Person,
             "concept" => NodeType::Concept,
@@ -85,7 +94,7 @@ impl NodeType {
             "turn_log" => NodeType::TurnLog,
             "memory" => NodeType::Memory,
             _ => NodeType::Custom,
-        }
+        })
     }
 }
 
@@ -286,7 +295,7 @@ impl Dendrite {
     pub fn all(&self) -> Vec<Node> {
         let inner = lock_inner(&self.inner);
         let mut nodes: Vec<Node> = inner.nodes.values().cloned().collect();
-        nodes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        nodes.sort_by_key(|b| std::cmp::Reverse(b.updated_at));
         nodes
     }
 
@@ -299,7 +308,7 @@ impl Dendrite {
             .filter(|n| n.node_type.tier() == tier)
             .cloned()
             .collect();
-        nodes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        nodes.sort_by_key(|b| std::cmp::Reverse(b.updated_at));
         nodes
     }
 

@@ -81,7 +81,7 @@ impl ReflectionWorker {
             },
         ];
 
-        let output = match ollama.chat_with_model("ministral-3:3b", req_messages).await {
+        let output = match ollama.chat_with_model(&ollama.model, req_messages).await {
             Ok(res) => res.trim().to_string(),
             Err(e) => return Err(e.to_string()),
         };

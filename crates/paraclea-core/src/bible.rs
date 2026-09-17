@@ -262,6 +262,8 @@ impl BibleReader {
             Some(PathBuf::from("bibles/eng/kjv.json")),
             Some(PathBuf::from("../data/kjv.json")),
             Some(PathBuf::from("../bibles/eng/kjv.json")),
+            Some(PathBuf::from("../../data/kjv.json")),
+            Some(PathBuf::from("../../bibles/eng/kjv.json")),
         ];
 
         if let Ok(home) = std::env::var("HOME") {
@@ -294,12 +296,23 @@ impl BibleReader {
         anyhow::bail!("Bible JSON dataset not found on system.");
     }
 
-    /// Dynamic listing of all supported Bible languages discovered in ~/.paraclea/bibles/, sorted strictly alphabetically.
+    pub fn get_bible_search_dirs() -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        if let Ok(home) = std::env::var("HOME") {
+            dirs.push(PathBuf::from(home).join(".paraclea/bibles"));
+        }
+        dirs.push(PathBuf::from("bibles"));
+        dirs.push(PathBuf::from("../bibles"));
+        dirs.push(PathBuf::from("../../bibles"));
+        dirs.push(PathBuf::from("../../../bibles"));
+        dirs
+    }
+
+    /// Dynamic listing of all supported Bible languages discovered in ~/.paraclea/bibles/ or local bibles/, sorted strictly alphabetically.
     pub fn list_languages() -> Vec<LanguageOption> {
         let mut raw_map: Vec<(String, String)> = Vec::new(); // (code, display_name)
 
-        if let Ok(home) = std::env::var("HOME") {
-            let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
+        for bibles_dir in Self::get_bible_search_dirs() {
             if bibles_dir.exists() {
                 if let Ok(entries) = fs::read_dir(&bibles_dir) {
                     for entry in entries.flatten() {
@@ -319,8 +332,8 @@ impl BibleReader {
         }
 
         // Sort strictly in alphabetical order by display_name
-        raw_map.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
-        raw_map.dedup_by(|a, b| a.1 == b.1);
+        raw_map.sort_by_key(|a| a.1.to_lowercase());
+        raw_map.dedup_by(|a, b| a.0 == b.0);
 
         let mut languages = Vec::new();
         for (id, (code, name)) in raw_map.into_iter().enumerate() {
@@ -341,9 +354,10 @@ impl BibleReader {
     /// Dynamic listing of available Bible translations for a given language code, sorted alphabetically.
     pub fn list_translations_for_lang(lang_code: &str) -> Vec<TranslationOption> {
         let mut raw_items = Vec::new();
+        let mut seen_tags = std::collections::HashSet::new();
 
-        if let Ok(home) = std::env::var("HOME") {
-            let bibles_dir = PathBuf::from(home).join(format!(".paraclea/bibles/{}", lang_code));
+        for base_dir in Self::get_bible_search_dirs() {
+            let bibles_dir = base_dir.join(lang_code);
             if bibles_dir.exists() {
                 if let Ok(entries) = fs::read_dir(&bibles_dir) {
                     let files: Vec<PathBuf> = entries
@@ -355,16 +369,18 @@ impl BibleReader {
                     for f in files {
                         let stem = f.file_stem().unwrap_or_default().to_string_lossy().to_string();
                         let tag = stem.to_uppercase();
-                        let display_name = format_translation_name(&stem, lang_code);
-                        let is_easy = stem.contains("easy") || stem.contains("bbe") || stem.contains("nlt") || stem.contains("web");
-                        raw_items.push((tag, display_name, is_easy, f.to_string_lossy().to_string()));
+                        if seen_tags.insert(tag.clone()) {
+                            let display_name = format_translation_name(&stem, lang_code);
+                            let is_easy = stem.contains("easy") || stem.contains("bbe") || stem.contains("nlt") || stem.contains("web");
+                            raw_items.push((tag, display_name, is_easy, f.to_string_lossy().to_string()));
+                        }
                     }
                 }
             }
         }
 
         // Sort strictly 100% alphabetically by display_name across all languages
-        raw_items.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+        raw_items.sort_by_key(|a| a.1.to_lowercase());
 
         let mut options = Vec::new();
         for (id, (tag, name, is_easy, file_path)) in raw_items.into_iter().enumerate() {
@@ -561,7 +577,10 @@ pub fn find_json_bible_file(translation_tag: &str) -> Option<PathBuf> {
     }
     check_dirs.push(PathBuf::from("bibles"));
     check_dirs.push(PathBuf::from("../bibles"));
+    check_dirs.push(PathBuf::from("../../bibles"));
     check_dirs.push(PathBuf::from("data"));
+    check_dirs.push(PathBuf::from("../data"));
+    check_dirs.push(PathBuf::from("../../data"));
 
     for bibles_dir in check_dirs {
         if bibles_dir.exists() {
