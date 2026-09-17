@@ -235,10 +235,12 @@ impl App {
             &library_engine,
         );
 
+        let initial_theme = AppTheme::from_name(&cfg.theme).unwrap_or(AppTheme::RoyalByzantium);
+
         Self {
             cfg,
             config_path,
-            theme: AppTheme::RoyalByzantium,
+            theme: initial_theme,
             active_tab: ActiveTab::Chat,
             active_focus: ActiveFocus::PromptInput,
             is_sidebar_open: true,
@@ -352,13 +354,35 @@ impl App {
 
             // Event Poll (33ms = ~30 FPS)
             if event::poll(Duration::from_millis(33))? {
-                if let Event::Key(key) = event::read()? {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-                        break;
+                let evt = event::read()?;
+                match evt {
+                    Event::Key(key) => {
+                        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+                            break;
+                        }
+                        if self.handle_key_event(key.code, key.modifiers).await? {
+                            break;
+                        }
                     }
-                    if self.handle_key_event(key.code, key.modifiers).await? {
-                        break;
+                    Event::Mouse(mouse) if self.active_tab == ActiveTab::Galaxy => {
+                        use crossterm::event::{MouseButton, MouseEventKind};
+                        match mouse.kind {
+                            MouseEventKind::Drag(MouseButton::Left) | MouseEventKind::Down(MouseButton::Left) => {
+                                let dx = mouse.column as i32 - self.galaxy_state.last_mouse_x.map_or(mouse.column as i32, |x| x);
+                                let dy = mouse.row as i32 - self.galaxy_state.last_mouse_y.map_or(mouse.row as i32, |y| y);
+                                self.galaxy_state.camera.rotate_yaw(dx as f32 * 0.005);
+                                self.galaxy_state.camera.rotate_pitch(-dy as f32 * 0.003);
+                            }
+                            MouseEventKind::Up(MouseButton::Left) => {
+                                self.galaxy_state.last_mouse_x = None;
+                                self.galaxy_state.last_mouse_y = None;
+                            }
+                            _ => {}
+                        }
+                        self.galaxy_state.last_mouse_x = Some(mouse.column as i32);
+                        self.galaxy_state.last_mouse_y = Some(mouse.row as i32);
                     }
+                    _ => {}
                 }
             }
         }
@@ -371,6 +395,8 @@ impl App {
             match code {
                 KeyCode::Char('t') => {
                     self.theme = self.theme.next();
+                    self.cfg.theme = self.theme.to_str().to_string();
+                    let _ = self.cfg.save(&self.config_path);
                     return Ok(false);
                 }
                 KeyCode::Char('b') => {
@@ -586,6 +612,11 @@ impl App {
                         let max_scroll = total_lines.saturating_sub(10);
                         self.chat_scroll = (self.chat_scroll + 5).min(max_scroll);
                     }
+                    KeyCode::Home => self.chat_scroll = 0,
+                    KeyCode::End => {
+                        let total_lines: usize = self.chat_history.iter().map(|m| m.content.lines().count() + 3).sum();
+                        self.chat_scroll = total_lines.saturating_sub(10);
+                    }
                     _ => {}
                 },
                 ActiveTab::Bible => match code {
@@ -632,6 +663,11 @@ impl App {
                         self.bible_state.compare_mode = !self.bible_state.compare_mode;
                         self.load_active_bible_chapter();
                     }
+                    KeyCode::Home => self.bible_state.scroll = 0,
+                    KeyCode::End => {
+                        let max_scroll = self.bible_verses.len().saturating_sub(1);
+                        self.bible_state.scroll = max_scroll;
+                    }
                     _ => {}
                 },
                 ActiveTab::Library => match code {
@@ -646,6 +682,16 @@ impl App {
                             self.library_state.selected_book_idx += 1;
                             self.load_active_library_chapter();
                         }
+                    }
+                    KeyCode::PageUp => self.library_state.scroll = self.library_state.scroll.saturating_sub(5),
+                    KeyCode::PageDown => {
+                        let max_scroll = self.library_chapter_content.lines().count().saturating_sub(1);
+                        self.library_state.scroll = (self.library_state.scroll + 5).min(max_scroll);
+                    }
+                    KeyCode::Home => self.library_state.scroll = 0,
+                    KeyCode::End => {
+                        let max_scroll = self.library_chapter_content.lines().count().saturating_sub(1);
+                        self.library_state.scroll = max_scroll;
                     }
                     KeyCode::Left if self.library_state.selected_category_idx > 0 => {
                         self.library_state.selected_category_idx -= 1;
@@ -960,6 +1006,8 @@ impl App {
             }
             "/theme" => {
                 self.theme = self.theme.next();
+                self.cfg.theme = self.theme.to_str().to_string();
+                let _ = self.cfg.save(&self.config_path);
             }
             "/language" | "/lang" => {
                 self.open_language_picker();

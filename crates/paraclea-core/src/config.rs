@@ -17,6 +17,8 @@ pub struct Config {
     pub persona: PersonaConfig,
     #[serde(default)]
     pub bible: BibleConfig,
+    #[serde(default = "default_theme")]
+    pub theme: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -116,6 +118,10 @@ fn default_bible_translation() -> String {
     "KJV".to_string()
 }
 
+fn default_theme() -> String {
+    "RoyalByzantium".to_string()
+}
+
 impl Default for BibleConfig {
     fn default() -> Self {
         Self {
@@ -158,6 +164,7 @@ impl Default for Config {
                 heartbeat_interval: 15,
             },
             bible: BibleConfig::default(),
+            theme: default_theme(),
         }
     }
 }
@@ -219,6 +226,7 @@ mod tests {
         let cfg = Config::default();
         assert_eq!(cfg.system.name, "Paraclea");
         assert_eq!(cfg.model.backend, "ollama");
+        assert_eq!(cfg.theme, "RoyalByzantium");
         assert_eq!(cfg.bible.language, "English");
         assert_eq!(cfg.bible.translation, "KJV");
     }

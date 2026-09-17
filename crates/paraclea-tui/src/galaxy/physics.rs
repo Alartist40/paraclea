@@ -194,6 +194,7 @@ pub fn pseudo_scatter(seed: u64, scatter: f32) -> [f32; 3] {
 pub struct GalaxySystem {
     pub nodes: Vec<GalaxyNode>,
     pub time: f32,
+    pub sim_paused: bool,
 }
 
 impl GalaxySystem {
@@ -201,6 +202,7 @@ impl GalaxySystem {
         Self {
             nodes: Vec::new(),
             time: 0.0,
+            sim_paused: false,
         }
     }
 
@@ -210,6 +212,9 @@ impl GalaxySystem {
 
     /// Step hierarchical orbital simulation forward by dt seconds.
     pub fn update(&mut self, dt: f32) {
+        if self.sim_paused {
+            return;
+        }
         self.time += dt;
 
         // Pass 1: Update Central Sun, Primary Language Planets, and Outer Primary Categories

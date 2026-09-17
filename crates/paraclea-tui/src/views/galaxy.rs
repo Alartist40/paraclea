@@ -20,6 +20,8 @@ pub struct GalaxyState {
     pub system: GalaxySystem,
     pub camera: Camera3D,
     pub selected_index: usize,
+    pub last_mouse_x: Option<i32>,
+    pub last_mouse_y: Option<i32>,
 }
 
 impl GalaxyState {
@@ -29,6 +31,8 @@ impl GalaxyState {
             system,
             camera: Camera3D::new(),
             selected_index: 0,
+            last_mouse_x: None,
+            last_mouse_y: None,
         }
     }
 
@@ -91,6 +95,7 @@ impl GalaxyState {
             }
             KeyCode::Char(' ') => {
                 self.camera.auto_spin = !self.camera.auto_spin;
+                self.system.sim_paused = !self.system.sim_paused;
                 GalaxyAction::Handled
             }
             KeyCode::Tab | KeyCode::Char(']') => {
@@ -154,7 +159,11 @@ impl<'a> Widget for GalaxyView<'a> {
             .border_type(BorderType::Rounded)
             .border_style(self.theme.border_focused())
             .title(Span::styled(
-                " 🌌 PARACLEA GALAXY ATLAS — GOLDEN RATIO 3D DISK ",
+                if self.state.system.sim_paused {
+                    " 🌌 PARACLEA GALAXY ATLAS — PAUSED "
+                } else {
+                    " 🌌 PARACLEA GALAXY ATLAS — GOLDEN RATIO 3D DISK "
+                },
                 self.theme.header_title(),
             ));
 
@@ -189,7 +198,13 @@ impl<'a> Widget for GalaxyView<'a> {
             "No Target Selected".to_string()
         };
 
-        let spin_status = if self.state.camera.auto_spin { "ON" } else { "OFF" };
+        let spin_status = if self.state.system.sim_paused {
+            "PAUSED"
+        } else if self.state.camera.auto_spin {
+            "ON"
+        } else {
+            "OFF"
+        };
         let hud_text = vec![
             Line::from(vec![
                 Span::styled(" [🔭 TARGET] ", Style::default().fg(self.theme.primary()).add_modifier(Modifier::BOLD)),
@@ -197,9 +212,9 @@ impl<'a> Widget for GalaxyView<'a> {
             ]),
             Line::from(vec![
                 Span::styled(" [🎮 CONTROLS] ", Style::default().fg(self.theme.secondary()).add_modifier(Modifier::BOLD)),
-                Span::raw("←/→/↑/↓: Orbit | +/-: Zoom | Space: Auto-spin ["),
-                Span::styled(spin_status, Style::default().fg(if self.state.camera.auto_spin { Color::Green } else { Color::DarkGray })),
-                Span::raw("] | Tab/[: Cycle Node | R: Reset | Enter: Read"),
+                Span::raw("←/→/↑/↓: Orbit | +/-: Zoom | Space: ["),
+                Span::styled(spin_status, Style::default().fg(if self.state.system.sim_paused { Color::Yellow } else if self.state.camera.auto_spin { Color::Green } else { Color::DarkGray })),
+                Span::raw("] | Tab/[: Cycle | Enter: Inspect | Mouse: Drag"),
             ]),
         ];
 

@@ -41,7 +41,7 @@ mod tests {
     fn test_theme_cycling() {
         let t1 = AppTheme::RoyalByzantium;
         let t2 = t1.next();
-        assert_eq!(t2, AppTheme::MonasteryAmber);
+        assert_eq!(t2, AppTheme::CrimsonCodex);
         let t3 = t2.next();
         assert_eq!(t3, AppTheme::CyberScholar);
         let t4 = t3.next();
@@ -54,7 +54,7 @@ mod tests {
         // Verify color definitions for all themes
         for theme in [
             AppTheme::RoyalByzantium,
-            AppTheme::MonasteryAmber,
+            AppTheme::CrimsonCodex,
             AppTheme::CyberScholar,
             AppTheme::EmeraldMatrix,
             AppTheme::CelestialMidnight,
@@ -114,7 +114,7 @@ mod tests {
         // Cycle theme with Ctrl+T
         assert_eq!(app.theme, AppTheme::RoyalByzantium);
         let _ = app.handle_key_event(KeyCode::Char('t'), KeyModifiers::CONTROL).await;
-        assert_eq!(app.theme, AppTheme::MonasteryAmber);
+        assert_eq!(app.theme, AppTheme::CrimsonCodex);
     }
 
     #[tokio::test]
