@@ -1,21 +1,26 @@
-# Gates: Audit Completion & Galaxy TUI Implementation
+# Gates: Mazzaroth Standalone Galaxy Engine Extraction
 
-- [x] G1: All 9 partial/untouched audit items resolved and verified
-  CHECK: cargo check --workspace && python3 -c 'import json; v=json.load(open("bibles/vls/vlsjont.json")); c=json.load(open("bibles/che/che1860.json")); assert all(any(x for x in ch) for b in v+c for ch in b["chapters"])'
+- [x] G1: Standalone mazzaroth crate builds and passes its own unit tests
+  CHECK: cargo test -p mazzaroth
+  EXPECT: test result: ok.
+  EVIDENCE: test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+- [x] G2: Paraclea TUI integrates mazzaroth and passes all galaxy tests
+  CHECK: cargo test -p paraclea-tui
+  EXPECT: test result: ok.
+  EVIDENCE: test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.65s
+
+- [x] G3: Clippy workspace lint clean with no warnings
+  CHECK: cargo clippy --workspace -- -D warnings
   EXPECT: Finished
-  EVIDENCE: Met. All audit items resolved; clean checks and zero empty verses in JSON bibles.
+  EVIDENCE: Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.84s (0 warnings)
 
-- [x] G2: Paraclea Galaxy 3D physics and projection engine compiles and passes unit tests
-  CHECK: cargo test -p paraclea-tui -- test_galaxy
-  EXPECT: test result: ok
-  EVIDENCE: Met. 3 galaxy tests (physics, projection, data population) pass cleanly.
+- [x] G4: Full workspace test suite passes with 100% green tests
+  CHECK: cargo test --workspace
+  EXPECT: test result: ok.
+  EVIDENCE: test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.58s
 
-- [x] G3: 5-theme system and RAII terminal guard pass unit tests
-  CHECK: cargo test -p paraclea-tui -- test_theme
-  EXPECT: test result: ok
-  EVIDENCE: Met. All 5 themes (Byzantium, Monastery, Cyber, Matrix, Celestial) cycle and render styles.
-
-- [x] G4: Full workspace test suite passes with 0 failures and 0 warnings
-  CHECK: cargo test --workspace && cargo clippy --workspace
-  EXPECT: test result: ok
-  EVIDENCE: Met. 22 tests across all crates pass cleanly with 0 compiler or clippy warnings.
+- [x] G5: Release CLI binary compiles and builds successfully
+  CHECK: cargo build --release -p paraclea-cli
+  EXPECT: Finished
+  EVIDENCE: Finished `release` profile [optimized] target(s) in 14.64s

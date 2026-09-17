@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 paraclea-core = { path = "../paraclea-core" }
+mazzaroth = { path = "../mazzaroth" }
 ratatui = { version = "0.29", features = ["all-widgets", "crossterm"] }
 crossterm = { version = "0.28", features = ["event-stream"] }
 tokio = { version = "1.38", features = ["full"] }

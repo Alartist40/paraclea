@@ -1,14 +1,21 @@
-//! Paraclea Galaxy 3D interface module.
+//! Paraclea Galaxy 3D interface module powered by Mazzaroth.
 
-pub mod data;
-pub mod physics;
-pub mod renderer;
+pub mod schema;
+
+// Re-export mazzaroth modules and core types for backwards compatibility
+pub use mazzaroth::{builder, physics, renderer, theme};
+pub use mazzaroth::builder::GalaxyBuilder;
+pub use mazzaroth::physics::{
+    fibonacci_sphere, pseudo_scatter, EntityType, GalaxyNode, GalaxySystem, NodeSubtype,
+};
+pub use mazzaroth::renderer::{Camera3D, GalaxyRenderer, ProjectedPoint};
+pub use mazzaroth::schema::{Category, DatabaseSchema, Deck, DustConfig, Item};
+pub use mazzaroth::theme::{GalaxyTheme, PresetTheme};
+pub use schema::ParacleaSchema;
 
 #[cfg(test)]
 mod tests {
-    use super::data::build_galaxy;
-    use super::physics::{EntityType, GalaxyNode, GalaxySystem};
-    use super::renderer::{Camera3D, GalaxyRenderer};
+    use super::*;
     use paraclea_core::bible::BibleReader;
     use paraclea_core::library::LibraryEngine;
 
@@ -32,7 +39,6 @@ mod tests {
         // Step simulation forward by PI/2
         system.update(std::f32::consts::PI / 2.0);
         assert_eq!(system.nodes[0].pos, [0.0, 0.0, 0.0]);
-        // Planet at angle PI/2 with speed 1.0 => x ~ 0, z ~ 10
         assert!(system.nodes[1].pos[0].abs() < 0.1);
         assert!((system.nodes[1].pos[2] - 10.0).abs() < 0.1);
     }
@@ -46,16 +52,16 @@ mod tests {
         assert_eq!(center.screen_y, 25);
         assert!(center.depth > 0.0);
 
-        // Far away point behind camera
         let behind = GalaxyRenderer::project_point([0.0, 0.0, -100.0], &cam, 100, 50);
         assert!(!behind.visible || behind.depth < 2.0 || behind.screen_x < 0 || behind.screen_x >= 100);
     }
 
     #[test]
-    fn test_galaxy_data_population() {
+    fn test_paraclea_galaxy_data_population() {
         let reader = BibleReader::load_auto().unwrap_or_else(|_| BibleReader::from_json_str("[]").unwrap());
         let library = LibraryEngine::load_auto();
-        let system = build_galaxy(&reader, &library);
+        let schema = ParacleaSchema::new(&reader, &library);
+        let system = GalaxyBuilder::build(&schema);
 
         assert!(!system.nodes.is_empty());
         assert_eq!(system.nodes[0].entity_type, EntityType::Sun);

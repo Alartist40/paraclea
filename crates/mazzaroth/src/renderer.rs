@@ -1,10 +1,11 @@
-//! 3D Perspective Projection and Distance-Alpha Renderer for Paraclea Galaxy (Colibrì Atlas Architecture).
+//! 3D Perspective Projection and Distance-Alpha Renderer for Mazzaroth Galaxy.
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 
-use super::physics::{EntityType, GalaxyNode, GalaxySystem};
+use super::physics::{EntityType, GalaxyNode, GalaxySystem, NodeSubtype};
+use super::theme::GalaxyTheme;
 
 #[derive(Debug, Clone)]
 pub struct Camera3D {
@@ -63,8 +64,6 @@ pub struct ProjectedPoint {
 
 pub struct GalaxyRenderer;
 
-use crate::theme::AppTheme;
-
 fn color_to_rgb(c: Color) -> (u8, u8, u8) {
     match c {
         Color::Rgb(r, g, b) => (r, g, b),
@@ -119,7 +118,7 @@ impl GalaxyRenderer {
         let half_w = width as f32 / 2.0;
         let half_h = height as f32 / 2.0;
         let aspect = 2.0; // Character height vs width compensation
-        let xs = 1.62;   // Colibrì Atlas horizontal galaxy disk stretch factor
+        let xs = 1.62;   // Golden ratio horizontal galaxy disk stretch factor
 
         let proj_x = (x2 / cam_z) * cam.fov * aspect * xs * half_w;
         let proj_y = (y2 / cam_z) * cam.fov * half_h;
@@ -148,7 +147,7 @@ impl GalaxyRenderer {
         selected_node_id: Option<&str>,
         area: Rect,
         buf: &mut Buffer,
-        theme: AppTheme,
+        theme: &dyn GalaxyTheme,
     ) {
         if area.width < 10 || area.height < 5 {
             return;
@@ -231,7 +230,6 @@ impl GalaxyRenderer {
             let (r, g, b) = if rn.is_selected {
                 (255, 255, 255)
             } else {
-                use super::physics::NodeSubtype;
                 match rn.node.sub_type {
                     NodeSubtype::SunWord => {
                         let eff = alpha.max(0.70);
@@ -300,7 +298,7 @@ impl GalaxyRenderer {
                 style = style.add_modifier(Modifier::BOLD);
             }
 
-            // Tri-glyph Core for Central Sun (The Word)
+            // Tri-glyph Core for Central Sun
             if rn.node.entity_type == EntityType::Sun {
                 if gx > area.left() {
                     if let Some(left_cell) = buf.cell_mut((gx - 1, gy)) {
@@ -326,7 +324,7 @@ impl GalaxyRenderer {
             }
         }
 
-        // 4. Render Topic & Language Labels (Front-Hemisphere Gated)
+        // 4. Render Topic & Category Labels (Front-Hemisphere Gated)
         for rn in &render_nodes {
             let gx = area.left() + rn.proj.screen_x as u16;
             let gy = area.top() + rn.proj.screen_y as u16;
@@ -334,7 +332,7 @@ impl GalaxyRenderer {
             // Only show labels for:
             // - Selected node (always)
             // - Sun when in front hemisphere (f > 0.65)
-            // - Primary Language planets when front-facing (f > 0.88)
+            // - Primary Category planets when front-facing (f > 0.88)
             let show_label = rn.is_selected
                 || (rn.node.entity_type == EntityType::Sun && rn.proj.f > 0.65)
                 || (rn.node.entity_type == EntityType::Planet && rn.proj.f > 0.88);
@@ -343,7 +341,7 @@ impl GalaxyRenderer {
                 let label = if rn.is_selected {
                     format!(" [ {} ] ", rn.node.name)
                 } else if rn.node.entity_type == EntityType::Sun {
-                    " ✦ Scripture (The Word) ".to_string()
+                    format!(" ✦ {} ", rn.node.name)
                 } else {
                     format!(" {}", rn.node.short_code)
                 };
@@ -384,4 +382,3 @@ impl GalaxyRenderer {
         }
     }
 }
-

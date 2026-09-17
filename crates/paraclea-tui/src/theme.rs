@@ -189,3 +189,37 @@ impl AppTheme {
         }
     }
 }
+
+impl mazzaroth::theme::GalaxyTheme for AppTheme {
+    fn primary(&self) -> Color {
+        AppTheme::primary(self)
+    }
+
+    fn secondary(&self) -> Color {
+        AppTheme::secondary(self)
+    }
+
+    fn accent(&self) -> Color {
+        AppTheme::accent(self)
+    }
+
+    fn text(&self) -> Color {
+        AppTheme::text(self)
+    }
+
+    fn border_focused(&self) -> Style {
+        AppTheme::border_focused(self)
+    }
+
+    fn border_normal(&self) -> Style {
+        AppTheme::border_normal(self)
+    }
+
+    fn header_title(&self) -> Style {
+        AppTheme::header_title(self)
+    }
+
+    fn header_badge(&self) -> Style {
+        AppTheme::header_badge(self)
+    }
+}

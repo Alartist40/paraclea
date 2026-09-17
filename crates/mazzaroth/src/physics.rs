@@ -1,17 +1,17 @@
-//! 3D Hierarchical coordinate simulation and Fibonacci distribution for Paraclea Galaxy.
+//! 3D Hierarchical coordinate simulation and Fibonacci distribution for Mazzaroth Galaxy.
 //!
 //! Architecture:
-//! - Tier 0: Central Core (Holy Scripture / The Word) at [0, 0, 0]
-//! - Tier 1: Primary Languages (Planets) orbiting the Central Core
-//! - Tier 2: Bible Translations (Moons / Version Rings) orbiting their parent Language Planet
+//! - Tier 0: Central Core (The Primary Anchor) at [0, 0, 0]
+//! - Tier 1: Primary Categories (Planets) orbiting the Central Core
+//! - Tier 2: Category Items (Moons / Version Rings) orbiting their parent Planet
 //! - Tier 3: Knowledge Decks (Outer Anchors & Book Particle Rings) orbiting the perimeter
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityType {
-    Sun,       // Core Scripture
-    Planet,    // Language Systems (Topic Anchors)
-    Moon,      // Bible Translations orbiting their Language Planet
-    Asteroid,  // Knowledge Decks and Chapter Dust Rings
+    Sun,       // Core Center
+    Planet,    // Primary Category Anchors
+    Moon,      // Sub-items orbiting their Category Planet
+    Asteroid,  // Outer Knowledge Decks and Chapter Dust Rings
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +38,7 @@ pub struct GalaxyNode {
     pub phase: f32,
     pub inclination: f32,
     pub pos: [f32; 3],   // Current 3D world position
-    pub brightness: f32, // 0.22 .. 1.0
+    pub brightness: f32, // 0.18 .. 1.0
     pub glyph: char,
     pub is_flagship: bool,
 }
@@ -48,7 +48,7 @@ impl GalaxyNode {
         Self {
             id: id.to_string(),
             name: name.to_string(),
-            short_code: "WORD".to_string(),
+            short_code: "ROOT".to_string(),
             entity_type: EntityType::Sun,
             sub_type: NodeSubtype::SunWord,
             parent_id: None,
@@ -80,7 +80,7 @@ impl GalaxyNode {
             short_code: short_code.to_string(),
             entity_type: EntityType::Planet,
             sub_type: NodeSubtype::LanguagePlanet,
-            parent_id: Some("sun_word".to_string()),
+            parent_id: Some("sun_root".to_string()),
             base_radius,
             orbit_speed,
             phase,
@@ -140,7 +140,7 @@ impl GalaxyNode {
         Self {
             id: id.to_string(),
             name: name.to_string(),
-            short_code: "LIB".to_string(),
+            short_code: "AST".to_string(),
             entity_type: EntityType::Asteroid,
             sub_type,
             parent_id: parent_id.map(|p| p.to_string()),
@@ -152,8 +152,8 @@ impl GalaxyNode {
             brightness: brightness.clamp(0.1, 1.0),
             glyph: match sub_type {
                 NodeSubtype::CategoryDeck => '▪',
-                NodeSubtype::CategoryRingDust => '·',
-                NodeSubtype::CoreDust => '·',
+                NodeSubtype::CategoryRingDust => '+',
+                NodeSubtype::CoreDust => '+',
                 _ => '·',
             },
             is_flagship: false,
@@ -219,7 +219,7 @@ impl GalaxySystem {
 
         // Pass 1: Update Central Sun, Primary Language Planets, and Outer Primary Categories
         let mut parent_positions: std::collections::HashMap<String, [f32; 3]> =
-            std::collections::HashMap::with_capacity(32);
+            std::collections::HashMap::with_capacity(64);
 
         for node in &mut self.nodes {
             match node.entity_type {

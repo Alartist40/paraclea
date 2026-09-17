@@ -9,9 +9,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Paragraph, Widget},
 };
 
-use crate::galaxy::data::build_galaxy;
-use crate::galaxy::physics::{EntityType, GalaxyNode, GalaxySystem};
-use crate::galaxy::renderer::{Camera3D, GalaxyRenderer};
+use crate::galaxy::{GalaxyBuilder, ParacleaSchema};
+use crate::galaxy::{Camera3D, EntityType, GalaxyNode, GalaxyRenderer, GalaxySystem};
 use crate::theme::AppTheme;
 use paraclea_core::bible::BibleReader;
 use paraclea_core::library::LibraryEngine;
@@ -26,7 +25,8 @@ pub struct GalaxyState {
 
 impl GalaxyState {
     pub fn new(reader: &BibleReader, library: &LibraryEngine) -> Self {
-        let system = build_galaxy(reader, library);
+        let schema = ParacleaSchema::new(reader, library);
+        let system = GalaxyBuilder::build(&schema);
         Self {
             system,
             camera: Camera3D::new(),
@@ -178,7 +178,7 @@ impl<'a> Widget for GalaxyView<'a> {
             selected_id,
             inner_canvas,
             buf,
-            self.theme,
+            &self.theme,
         );
 
         // 3. Draw HUD and Telemetry
