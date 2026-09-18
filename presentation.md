@@ -28,6 +28,7 @@ Imagine an AI companion that:
 - Works **entirely offline** — no internet, no cloud APIs, no data leaks
 - Connects to other devices through **encrypted mesh networking** — share messages, study notes, and discoveries without any infrastructure
 - Runs on an **Orange Pi 6 Plus** or any modest ARM device — a 12MB binary with 25MB RAM footprint
+- Runs on **any device** — Linux ARM64, Linux x86_64, macOS (Intel/Apple Silicon), Windows (x86_64), all from the same pure Rust codebase
 
 **Paraclea (Παράκλησις)** — Greek for "The Helper, The One Called Alongside" — is exactly that. A pure Rust AI companion engine designed to be your librarian, your study partner, your memory, and your voice, all running locally on hardware you already own.
 
@@ -125,7 +126,7 @@ Your study habits, your conversations, your spiritual reflections — all stored
 
 ```
 paraclea/
-├── Cargo.toml                          # Workspace root — 4 crates
+├── Cargo.toml                          # Workspace root — 5 crates
 ├── config.toml                         # Global configuration (audio, STT, LLM, TTS, safety, memory)
 ├── install.sh                          # Universal installer (Debian/Arch/Alpine/macOS/Windows/Android)
 ├── persona/                            # Persona files (SOUL, IDENTITY, USER, MEMORY, TOOLS, HEARTBEAT)
@@ -155,8 +156,9 @@ paraclea/
 │   │   └── src/main.rs                 # Clap subcommands: chat, bible, library, crossref, mesh, doctor, persona
 │   ├── paraclea-gui/                   # GUI binary — Axum web server + Askama templates
 │   │   └── src/main.rs                 # Live chat, Bible viewer, Library viewer, Mesh console
-│   └── paraclea-tui/                   # TUI binary — ratatui terminal UI with 6 tabs
-│       └── src/app.rs                  # Interactive terminal interface
+│   ├── paraclea-tui/                   # TUI binary — ratatui terminal UI with 7 tabs
+│   │   └── src/app.rs                  # Interactive terminal interface
+│   └── mazzaroth/                      # Standalone galaxy renderer (generic, reusable)
 └── data/
     ├── bibles/                         # 219 formatted Bible files (organized by language/code)
     ├── egw/                            # Ellen G. White writings
@@ -697,6 +699,47 @@ The tool system provides **83 tools** across four categories:
 └─────────────────────────────────────────────────────────┘
 ```
 
+### Core Module: Mazzaroth Galaxy Engine
+
+The galaxy visualization is powered by **Mazzaroth** — a standalone, database-agnostic 3D celestial renderer extracted from Paraclea into its own crate.
+
+```
+crates/mazzaroth/
+├── Cargo.toml          (only dependency: ratatui)
+├── src/
+│   ├── lib.rs          — Public API re-exports
+│   ├── physics.rs      — Two-pass hierarchical orbital simulation (O(1) parent lookup)
+│   ├── renderer.rs     — 3D→2D projection, painter's algorithm, 350-star parallax background
+│   ├── schema.rs       — DatabaseSchema trait (the generic interface)
+│   ├── builder.rs      — Generic GalaxyBuilder (schema → GalaxySystem)
+│   └── theme.rs        — GalaxyTheme trait + 5 preset themes
+```
+
+**DatabaseSchema trait** — any program implements 3 methods to get a 3D galaxy:
+
+```rust
+pub trait DatabaseSchema {
+    fn root_name(&self) -> &str;
+    fn categories(&self) -> Vec<Category>;
+    fn items_for_category(&self, category_id: &str) -> Vec<Item>;
+}
+```
+
+**Paraclea's implementation** bridges BibleReader and LibraryEngine:
+
+```rust
+impl DatabaseSchema for ParacleaSchema {
+    fn categories(&self) -> Vec<Category> {
+        // BibleReader::list_languages() → Category (14 planets)
+    }
+    fn items_for_category(&self, cat_id: &str) -> Vec<Item> {
+        // BibleReader::list_translations_for_lang() → Item (moons)
+    }
+}
+```
+
+**Visual mapping**: Bible = sun center, Languages = orbiting planets, Translations = moons orbiting their parent language, Library categories = outer asteroid belt with Saturn-like rings.
+
 ### CLI Interface
 
 The CLI (`paraclea-cli/src/main.rs`) provides **Gold/Purple styled** subcommands:
@@ -730,7 +773,7 @@ paraclea persona update --key "name" --value "Xander"
 
 ### TUI Interface
 
-The TUI (`paraclea-tui/src/app.rs`) provides a **6-tab interactive terminal interface**:
+The TUI (`paraclea-tui/src/app.rs`) provides a **7-tab interactive terminal interface** with Tab-tile focus cycling:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -751,11 +794,12 @@ The TUI (`paraclea-tui/src/app.rs`) provides a **6-tab interactive terminal inte
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Tab navigation**:
+**Tab navigation** (cycle with `Tab` key):
 - **Chat** — Interactive conversation with Paraclea
 - **Bible** — Bible reader with version/book/chapter/verse navigation
 - **Library** — Multi-category library browser
 - **Crossref** — Cross-reference lookup and exploration
+- **Galaxy** — 3D Galaxy Atlas (Mazzaroth engine) with mouse drag rotation
 - **Mesh** — Reticulum mesh network console
 - **Doctor** — System diagnostics and health checks
 
@@ -875,11 +919,11 @@ paraclea-gui --port 8080
 curl -sSL https://raw.githubusercontent.com/xander/paraclea/main/install.sh | bash
 
 # Supported platforms
-# • Linux (Debian/Ubuntu/Arch/Alpine)
-# • macOS (Intel/Apple Silicon)
-# • Windows (MSYS2/MinGW)
-# • Android (Termux)
-# • ARM (Orange Pi, Raspberry Pi)
+# • Linux ARM64 (Orange Pi, Raspberry Pi, Pine64)
+# • Linux x86_64 (Debian/Ubuntu/Arch/Alpine)
+# • macOS (Intel / Apple Silicon)
+# • Windows (x86_64)
+# • Zero unsafe code, pure Rust, cross-platform helpers for home dir, temp dir, shell commands
 ```
 
 ### Dependencies

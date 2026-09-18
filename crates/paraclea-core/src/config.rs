@@ -158,9 +158,10 @@ impl Default for Config {
                 pocket_tts_cli: "pocket-tts".to_string(),
             },
             persona: PersonaConfig {
-                dir: std::env::var("HOME")
-                    .map(|h| format!("{}/.paraclea/persona", h))
-                    .unwrap_or_else(|_| "persona".to_string()),
+                dir: crate::home_dir()
+                    .join(".paraclea/persona")
+                    .to_string_lossy()
+                    .to_string(),
                 heartbeat_interval: 15,
             },
             bible: BibleConfig::default(),
@@ -191,28 +192,24 @@ impl Config {
         Ok(())
     }
 
-    /// Determine config path from user home ($HOME/.paraclea/config.yaml) or fallback.
+    /// Determine config path from user home (~/.paraclea/config.yaml) or fallback.
     pub fn find_or_default_config_path() -> PathBuf {
-        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-            let paraclea_cfg = home.join(".paraclea/config.yaml");
-            if paraclea_cfg.exists() {
-                return paraclea_cfg;
-            }
-            let user_cfg = home.join(".config/paraclea/config.yaml");
-            if user_cfg.exists() {
-                return user_cfg;
-            }
+        let home = crate::home_dir();
+        let paraclea_cfg = home.join(".paraclea/config.yaml");
+        if paraclea_cfg.exists() {
+            return paraclea_cfg;
+        }
+        let user_cfg = home.join(".config/paraclea/config.yaml");
+        if user_cfg.exists() {
+            return user_cfg;
         }
         let cwd_cfg = PathBuf::from("config.yaml");
         if cwd_cfg.exists() {
             return cwd_cfg;
         }
-        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-            let paraclea_dir = home.join(".paraclea");
-            let _ = fs::create_dir_all(&paraclea_dir);
-            return paraclea_dir.join("config.yaml");
-        }
-        cwd_cfg
+        let paraclea_dir = home.join(".paraclea");
+        let _ = fs::create_dir_all(&paraclea_dir);
+        paraclea_dir.join("config.yaml")
     }
 }
 

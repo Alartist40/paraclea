@@ -165,11 +165,11 @@ impl App {
         let config_path = Config::find_or_default_config_path();
 
         let bible_reader = BibleReader::load_auto().ok();
-        let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let library_dir = PathBuf::from(&home_dir).join(".paraclea/library");
+        let home = paraclea_core::home_dir();
+        let library_dir = home.join(".paraclea/library");
         let library_engine = LibraryEngine::new(library_dir);
 
-        let dendrite_db_path = PathBuf::from(&home_dir).join(".paraclea/dendrite.db");
+        let dendrite_db_path = home.join(".paraclea/dendrite.db");
         let dendrite_store = DendriteStore::open(&dendrite_db_path).ok().map(Arc::new);
         let dendrite_graph = Arc::new(Dendrite::new());
         if let Some(ref store) = dendrite_store {
@@ -1318,45 +1318,58 @@ impl App {
             return;
         }
 
-        if let Ok(home) = std::env::var("HOME") {
-            let db_path = PathBuf::from(&home).join(".paraclea/dendrite.db");
-            let mut target_dir = PathBuf::from(&home).join(".paraclea/backups");
+        let home = paraclea_core::home_dir();
+        let db_path = home.join(".paraclea/dendrite.db");
+        let mut target_dir = home.join(".paraclea/backups");
 
-            // Auto-detect mounted USB flash drive
-            let user_name = std::env::var("USER").unwrap_or_default();
-            let candidate_media_dirs = vec![
-                format!("/media/{}", user_name),
-                format!("/run/media/{}", user_name),
-                "/media".to_string(),
-            ];
-            for m_dir_str in candidate_media_dirs {
-                let media_dir = PathBuf::from(m_dir_str);
-                if media_dir.exists() {
-                    if let Ok(entries) = std::fs::read_dir(&media_dir) {
-                        for e in entries.flatten() {
-                            if e.path().is_dir() {
-                                target_dir = e.path();
-                                break;
-                            }
+        // Auto-detect mounted USB flash drive across Linux, macOS, and Windows
+        let mut candidate_media_dirs = Vec::new();
+        let user_name = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_default();
+
+        #[cfg(target_os = "macos")]
+        candidate_media_dirs.push(PathBuf::from("/Volumes"));
+
+        #[cfg(target_os = "windows")]
+        for letter in 'D'..='Z' {
+            let drive = PathBuf::from(format!("{}:\\", letter));
+            if drive.exists() {
+                candidate_media_dirs.push(drive);
+            }
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        {
+            candidate_media_dirs.push(PathBuf::from(format!("/media/{}", user_name)));
+            candidate_media_dirs.push(PathBuf::from(format!("/run/media/{}", user_name)));
+            candidate_media_dirs.push(PathBuf::from("/media"));
+        }
+
+        for media_dir in candidate_media_dirs {
+            if media_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&media_dir) {
+                    for e in entries.flatten() {
+                        if e.path().is_dir() {
+                            target_dir = e.path();
+                            break;
                         }
                     }
                 }
             }
+        }
 
-            let _ = std::fs::create_dir_all(&target_dir);
-            let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-            let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", ts));
+        let _ = std::fs::create_dir_all(&target_dir);
+        let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+        let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", ts));
 
-            if db_path.exists() {
-                match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, trimmed_key) {
-                    Ok(bytes) => {
-                        self.backup_status = Some(format!("✓ AES-256-GCM Backup Saved: {:?} ({} bytes)", backup_file, bytes));
-                        return;
-                    }
-                    Err(e) => {
-                        self.backup_status = Some(format!("⚠️ Backup failed: {}", e));
-                        return;
-                    }
+        if db_path.exists() {
+            match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, trimmed_key) {
+                Ok(bytes) => {
+                    self.backup_status = Some(format!("✓ AES-256-GCM Backup Saved: {:?} ({} bytes)", backup_file, bytes));
+                    return;
+                }
+                Err(e) => {
+                    self.backup_status = Some(format!("⚠️ Backup failed: {}", e));
+                    return;
                 }
             }
         }

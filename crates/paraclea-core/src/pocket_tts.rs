@@ -68,7 +68,7 @@ impl PocketTtsEngine {
 
         // 2. Fallback to CLI execution if available
         if let Some(ref cli) = self.cli_path {
-            let unique_out = format!("/tmp/paraclea_tts_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4());
+            let unique_out = crate::temp_dir().join(format!("paraclea_tts_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4()));
             let output = Command::new(cli)
                 .arg("generate")
                 .arg("--text")
@@ -82,11 +82,10 @@ impl PocketTtsEngine {
 
             match output {
                 Ok(out) if out.status.success() => {
-                    let out_path = std::path::Path::new(&unique_out);
                     let fallback_default = std::path::Path::new("tts_output.wav");
-                    if out_path.exists() {
-                        let bytes = std::fs::read(out_path)?;
-                        let _ = std::fs::remove_file(out_path);
+                    if unique_out.exists() {
+                        let bytes = std::fs::read(&unique_out)?;
+                        let _ = std::fs::remove_file(&unique_out);
                         return Ok(bytes);
                     } else if fallback_default.exists() {
                         let bytes = std::fs::read(fallback_default)?;

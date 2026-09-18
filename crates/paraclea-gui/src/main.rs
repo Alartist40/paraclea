@@ -54,9 +54,8 @@ async fn main() -> anyhow::Result<()> {
     let cfg = Config::load(&config_path).unwrap_or_default();
     let config = Arc::new(cfg);
 
-    let persona_dir = std::env::var("HOME")
-        .map(|h| PathBuf::from(h).join(".paraclea/persona"))
-        .unwrap_or_else(|_| PathBuf::from("persona"));
+    let home = paraclea_core::home_dir();
+    let persona_dir = home.join(".paraclea/persona");
     let persona = Arc::new(PersonaManager::new(persona_dir).unwrap_or_else(|_| PersonaManager { persona_dir: PathBuf::from("persona") }));
 
     // Gracefully initialize Ollama client
@@ -75,10 +74,8 @@ async fn main() -> anyhow::Result<()> {
     let mesh = ReticulumEngine::new().ok().map(Arc::new);
 
     let dendrite_graph = Arc::new(Dendrite::new());
-    let dendrite_store = std::env::var("HOME").ok().and_then(|h| {
-        let db_path = PathBuf::from(h).join(".paraclea/dendrite.db");
-        DendriteStore::open(&db_path).ok().map(Arc::new)
-    });
+    let db_path = home.join(".paraclea/dendrite.db");
+    let dendrite_store = DendriteStore::open(&db_path).ok().map(Arc::new);
     if let Some(ref store) = dendrite_store {
         let _ = store.load_all(&dendrite_graph);
     }

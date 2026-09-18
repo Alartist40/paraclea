@@ -15,9 +15,19 @@ impl AudioPlayer {
             return Ok(());
         }
 
-        let temp_file = format!("/tmp/paraclea_speech_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4());
+        let temp_file = crate::temp_dir().join(format!("paraclea_speech_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4()));
         let _ = fs::write(&temp_file, wav_bytes);
 
+        #[cfg(target_os = "macos")]
+        let _ = Command::new("afplay").arg(&temp_file).status();
+
+        #[cfg(target_os = "windows")]
+        let _ = Command::new("powershell")
+            .arg("-c")
+            .arg(format!("(New-Object Media.SoundPlayer '{}').PlaySync()", temp_file.display()))
+            .status();
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         let _ = Command::new("aplay")
             .arg("-q")
             .arg(&temp_file)

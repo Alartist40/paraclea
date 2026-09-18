@@ -37,8 +37,7 @@ pub struct ReticulumEngine {
 impl ReticulumEngine {
     /// Initialize Reticulum engine, ensuring config directory & identity keys exist.
     pub fn new() -> Result<Self> {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let mesh_dir = PathBuf::from(&home).join(".paraclea/mesh");
+        let mesh_dir = crate::home_dir().join(".paraclea/mesh");
         fs::create_dir_all(&mesh_dir)?;
 
         let identity_path = mesh_dir.join("identity");
@@ -64,10 +63,19 @@ impl ReticulumEngine {
             }
         }
 
-        let _ = Command::new("sh")
-            .arg("-c")
-            .arg("nohup rnsd > /tmp/rnsd.log 2>&1 &")
-            .spawn();
+        let log_file = crate::temp_dir().join("rnsd.log");
+        let log_path_str = log_file.to_string_lossy();
+        if cfg!(target_os = "windows") {
+            let _ = crate::shell_command()
+                .arg(crate::shell_arg())
+                .arg(format!("start /B rnsd > \"{}\" 2>&1", log_path_str))
+                .spawn();
+        } else {
+            let _ = crate::shell_command()
+                .arg(crate::shell_arg())
+                .arg(format!("nohup rnsd > \"{}\" 2>&1 &", log_path_str))
+                .spawn();
+        }
 
         true
     }

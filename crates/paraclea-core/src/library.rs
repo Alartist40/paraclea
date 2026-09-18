@@ -41,8 +41,9 @@ impl LibraryEngine {
     }
 
     pub fn load_auto() -> Self {
-        let dir = if let Ok(home) = std::env::var("HOME") {
-            PathBuf::from(home).join(".paraclea/library")
+        let global_dir = crate::home_dir().join(".paraclea/library");
+        let dir = if global_dir.exists() {
+            global_dir
         } else {
             PathBuf::from("library")
         };

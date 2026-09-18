@@ -1,9 +1,10 @@
 # Paraclea TUI Walkthrough
 
 ## Current State
-- **Tests**: 23/23 passed
+- **Tests**: 28/28 passed (4 mazzaroth + 1 cli + 10 core + 13 tui)
 - **Clippy**: 0 warnings
 - **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea`
+- **Crates**: paraclea-core, paraclea-cli, paraclea-gui, paraclea-tui, mazzaroth
 
 ---
 
@@ -230,7 +231,9 @@ Theme persists across restarts via `Config.theme` field (YAML). Toggle with `Ctr
 
 ---
 
-## Galaxy View
+## Galaxy View (Mazzaroth Engine)
+
+The galaxy visualization is powered by **Mazzaroth** — a standalone, database-agnostic 3D celestial renderer extracted from Paraclea.
 
 ### Controls
 - `WASD` or arrow keys: rotate camera (yaw/pitch)
@@ -247,10 +250,83 @@ Theme persists across restarts via `Config.theme` field (YAML). Toggle with `Ctr
 - **Moon**: Bible translations orbiting their parent language
 - **Asteroid**: Library knowledge decks, dust particles
 
-### Architecture
-- `physics.rs`: Two-pass hierarchical orbital simulation (O(1) parent lookup via HashMap)
-- `renderer.rs`: 3D→2D projection with XS=1.62 stretch, painter's algorithm, 350-star parallax background
-- `data.rs`: Bible/library → galaxy binding (14 planets, ~84 moons, 80 core dust, 50 ambient dust)
+### Mazzaroth Architecture
+
+```
+crates/mazzaroth/
+├── src/
+│   ├── lib.rs        — Public API re-exports
+│   ├── physics.rs    — Two-pass hierarchical orbital simulation (O(1) parent lookup)
+│   ├── renderer.rs   — 3D→2D projection, painter's algorithm, 350-star parallax
+│   ├── schema.rs     — DatabaseSchema trait (the generic interface)
+│   ├── builder.rs    — Generic GalaxyBuilder (schema → GalaxySystem)
+│   └── theme.rs      — GalaxyTheme trait + 5 preset themes
+```
+
+### DatabaseSchema Trait
+
+Any program can implement this to get a 3D galaxy:
+
+```rust
+pub trait DatabaseSchema {
+    fn root_name(&self) -> &str;
+    fn categories(&self) -> Vec<Category>;
+    fn items_for_category(&self, category_id: &str) -> Vec<Item>;
+    // Optional overrides with defaults:
+    fn root_id(&self) -> &str { "root" }
+    fn outer_decks(&self) -> Vec<Deck> { vec![] }
+    fn core_dust_config(&self) -> DustConfig { DustConfig { count: 80, scatter: 1.5 } }
+}
+```
+
+### Paraclea Integration
+
+`ParacleaSchema` bridges `BibleReader` and `LibraryEngine` into Mazzaroth:
+
+```rust
+impl DatabaseSchema for ParacleaSchema {
+    fn categories(&self) -> Vec<Category> {
+        // BibleReader::list_languages() → Category
+    }
+    fn items_for_category(&self, cat_id: &str) -> Vec<Item> {
+        // BibleReader::list_translations_for_lang() → Item
+    }
+}
+```
+
+---
+
+## Cross-Platform Compatibility
+
+Paraclea runs on **Linux (x86_64/ARM64), macOS, and Windows**.
+
+### Platform Helpers (`paraclea-core/src/lib.rs`)
+
+```rust
+pub fn home_dir() -> PathBuf    // dirs::home_dir() fallback to "."
+pub fn temp_dir() -> PathBuf    // std::env::temp_dir()
+pub fn shell_command() -> Command  // "cmd" on Windows, "sh" on Unix
+pub fn shell_arg() -> &'static str // "/C" on Windows, "-c" on Unix
+```
+
+### What's Platform-Specific
+
+| Feature | Linux | macOS | Windows |
+|---------|-------|-------|---------|
+| Audio playback | `aplay`/`paplay`/`pw-play` | `afplay` | `PowerShell SoundPlayer` |
+| Shell commands | `sh -c` | `sh -c` | `cmd /C` |
+| Home directory | `$HOME` | `$HOME` | `USERPROFILE` |
+| USB backup paths | `/media/<user>`, `/run/media/<user>` | `/Volumes` | `D:\`..`Z:\` |
+| Temp directory | `/tmp` | `/private/var/folders/...` | `%TEMP%` |
+
+### What's Universal (No Changes Needed)
+
+- Pure Rust — no `unsafe`, no C dependencies, no SIMD
+- All data in JSON/YAML/SQLite — architecture-neutral formats
+- `ratatui` + `crossterm` — cross-platform terminal UI
+- `rusqlite` bundled — compiles SQLite from C source on all platforms
+- `aes-gcm`, `pbkdf2`, `sha2` — pure Rust crypto
+- `dirs` crate — cross-platform directory resolution
 
 ---
 

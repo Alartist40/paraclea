@@ -254,10 +254,11 @@ impl BibleReader {
 
     /// Automatically locate and load Bible dataset from standard global or repository paths.
     pub fn load_auto() -> Result<Self> {
+        let home = crate::home_dir();
         let mut candidates = vec![
-            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/bibles/eng/kjv.json")),
-            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/bibles/eng/web.json")),
-            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".paraclea/data/kjv.json")),
+            Some(home.join(".paraclea/bibles/eng/kjv.json")),
+            Some(home.join(".paraclea/bibles/eng/web.json")),
+            Some(home.join(".paraclea/data/kjv.json")),
             Some(PathBuf::from("data/kjv.json")),
             Some(PathBuf::from("bibles/eng/kjv.json")),
             Some(PathBuf::from("../data/kjv.json")),
@@ -266,17 +267,15 @@ impl BibleReader {
             Some(PathBuf::from("../../bibles/eng/kjv.json")),
         ];
 
-        if let Ok(home) = std::env::var("HOME") {
-            let bibles_dir = PathBuf::from(home).join(".paraclea/bibles");
-            if bibles_dir.exists() {
-                if let Ok(entries) = fs::read_dir(&bibles_dir) {
-                    for lang_entry in entries.flatten() {
-                        if lang_entry.path().is_dir() {
-                            if let Ok(files) = fs::read_dir(lang_entry.path()) {
-                                for f in files.flatten() {
-                                    if f.path().extension().and_then(|e| e.to_str()) == Some("json") {
-                                        candidates.push(Some(f.path()));
-                                    }
+        let bibles_dir = home.join(".paraclea/bibles");
+        if bibles_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&bibles_dir) {
+                for lang_entry in entries.flatten() {
+                    if lang_entry.path().is_dir() {
+                        if let Ok(files) = fs::read_dir(lang_entry.path()) {
+                            for f in files.flatten() {
+                                if f.path().extension().and_then(|e| e.to_str()) == Some("json") {
+                                    candidates.push(Some(f.path()));
                                 }
                             }
                         }
@@ -297,15 +296,13 @@ impl BibleReader {
     }
 
     pub fn get_bible_search_dirs() -> Vec<PathBuf> {
-        let mut dirs = Vec::new();
-        if let Ok(home) = std::env::var("HOME") {
-            dirs.push(PathBuf::from(home).join(".paraclea/bibles"));
-        }
-        dirs.push(PathBuf::from("bibles"));
-        dirs.push(PathBuf::from("../bibles"));
-        dirs.push(PathBuf::from("../../bibles"));
-        dirs.push(PathBuf::from("../../../bibles"));
-        dirs
+        vec![
+            crate::home_dir().join(".paraclea/bibles"),
+            PathBuf::from("bibles"),
+            PathBuf::from("../bibles"),
+            PathBuf::from("../../bibles"),
+            PathBuf::from("../../../bibles"),
+        ]
     }
 
     /// Dynamic listing of all supported Bible languages discovered in ~/.paraclea/bibles/ or local bibles/, sorted strictly alphabetically.
@@ -571,16 +568,15 @@ pub struct BibleSearchResult {
 }
 
 pub fn find_json_bible_file(translation_tag: &str) -> Option<PathBuf> {
-    let mut check_dirs = Vec::new();
-    if let Ok(home) = std::env::var("HOME") {
-        check_dirs.push(PathBuf::from(home).join(".paraclea/bibles"));
-    }
-    check_dirs.push(PathBuf::from("bibles"));
-    check_dirs.push(PathBuf::from("../bibles"));
-    check_dirs.push(PathBuf::from("../../bibles"));
-    check_dirs.push(PathBuf::from("data"));
-    check_dirs.push(PathBuf::from("../data"));
-    check_dirs.push(PathBuf::from("../../data"));
+    let check_dirs = vec![
+        crate::home_dir().join(".paraclea/bibles"),
+        PathBuf::from("bibles"),
+        PathBuf::from("../bibles"),
+        PathBuf::from("../../bibles"),
+        PathBuf::from("data"),
+        PathBuf::from("../data"),
+        PathBuf::from("../../data"),
+    ];
 
     for bibles_dir in check_dirs {
         if bibles_dir.exists() {
@@ -705,15 +701,14 @@ pub struct CsvBibleReader;
 impl CsvBibleReader {
     pub fn locate_csv(tag: &str) -> Option<PathBuf> {
         let filename = format!("{}.csv", tag);
-        let mut candidate_paths = vec![
+        let home = crate::home_dir();
+        let candidate_paths = vec![
             PathBuf::from(format!("data/{}", filename)),
             PathBuf::from(format!("bibles/csv/{}", filename)),
+            home.join(format!(".paraclea/data/{}", filename)),
+            home.join(format!(".paraclea/bibles/csv/{}", filename)),
+            home.join(format!("Documents/reference/bible_databases/formats/csv/{}", filename)),
         ];
-        if let Ok(home) = std::env::var("HOME") {
-            candidate_paths.push(PathBuf::from(home.clone()).join(format!(".paraclea/data/{}", filename)));
-            candidate_paths.push(PathBuf::from(home.clone()).join(format!(".paraclea/bibles/csv/{}", filename)));
-            candidate_paths.push(PathBuf::from(home).join(format!("Documents/reference/bible_databases/formats/csv/{}", filename)));
-        }
         candidate_paths.into_iter().find(|p| p.exists())
     }
 

@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
@@ -132,8 +131,8 @@ impl ToolExecutor {
                     }
                 }
 
-                let output = Command::new("sh")
-                    .arg("-c")
+                let output = crate::shell_command()
+                    .arg(crate::shell_arg())
                     .arg(&cmd)
                     .output()
                     .with_context(|| format!("Failed to execute command: {}", cmd))?;

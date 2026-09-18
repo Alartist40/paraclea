@@ -339,21 +339,22 @@ async fn run_doctor(
     println!("{}", print_purple("  🛠  Binary Installation & PATH Status:"));
     let exe_path = std::env::current_exe().unwrap_or_default();
     println!("     • Current Executable: {}", print_gold(&exe_path.display().to_string()));
-    let in_local_bin = exe_path.to_string_lossy().contains(".local/bin");
-    let paraclea_symlink_ok = if let Ok(home) = std::env::var("HOME") {
-        let symlink = std::path::PathBuf::from(home).join(".local/bin/paraclea");
-        symlink.exists()
-    } else {
-        false
-    };
+    let in_local_bin = exe_path.to_string_lossy().contains(".local/bin") || exe_path.to_string_lossy().contains("Paraclea/bin");
+    let home = paraclea_core::home_dir();
+
+    #[cfg(target_os = "windows")]
+    let install_bin = dirs::data_local_dir().unwrap_or_else(|| home.clone()).join("Paraclea/bin/paraclea.exe");
+
+    #[cfg(not(target_os = "windows"))]
+    let install_bin = home.join(".local/bin/paraclea");
+
+    let paraclea_symlink_ok = install_bin.exists();
 
     if !paraclea_symlink_ok {
-        if let Ok(home) = std::env::var("HOME") {
-            let bin_dir = std::path::PathBuf::from(&home).join(".local/bin");
-            let target = bin_dir.join("paraclea");
-            if std::fs::create_dir_all(&bin_dir).is_ok()
-                && std::fs::copy(&exe_path, &target).is_ok() {
-                resolved.push("Auto-installed 'paraclea' binary to ~/.local/bin/paraclea".to_string());
+        if let Some(bin_dir) = install_bin.parent() {
+            if std::fs::create_dir_all(bin_dir).is_ok()
+                && std::fs::copy(&exe_path, &install_bin).is_ok() {
+                resolved.push(format!("Auto-installed 'paraclea' binary to {}", install_bin.display()));
             }
         }
     }
@@ -365,10 +366,19 @@ async fn run_doctor(
     println!("{}", print_purple("  🤖 Ollama Server & Active Inference Test:"));
     let mut ollama_ok = ollama.health_check().await.unwrap_or(false);
     if !ollama_ok {
-        let _ = std::process::Command::new("sh")
-            .arg("-c")
-            .arg("nohup ollama serve > /tmp/ollama.log 2>&1 &")
-            .spawn();
+        let log_file = paraclea_core::temp_dir().join("ollama.log");
+        let log_path_str = log_file.to_string_lossy();
+        if cfg!(target_os = "windows") {
+            let _ = paraclea_core::shell_command()
+                .arg(paraclea_core::shell_arg())
+                .arg(format!("start /B ollama serve > \"{}\" 2>&1", log_path_str))
+                .spawn();
+        } else {
+            let _ = paraclea_core::shell_command()
+                .arg(paraclea_core::shell_arg())
+                .arg(format!("nohup ollama serve > \"{}\" 2>&1 &", log_path_str))
+                .spawn();
+        }
         tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
         ollama_ok = ollama.health_check().await.unwrap_or(false);
         if ollama_ok {
@@ -424,20 +434,28 @@ async fn run_doctor(
     println!("{}", print_purple("  ⚡ Qdrant Vector Database Status:"));
     let mut qdrant_ok = qdrant.health_check().await;
     if !qdrant_ok {
-        if let Ok(home) = std::env::var("HOME") {
-            let qdrant_bin = std::path::PathBuf::from(&home).join(".paraclea/bin/qdrant");
-            if qdrant_bin.exists() {
-                let qdrant_dir = std::path::PathBuf::from(&home).join(".paraclea/qdrant");
-                let _ = std::fs::create_dir_all(&qdrant_dir);
-                let _ = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(format!("cd {:?} && nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_dir, qdrant_bin))
+        let home = paraclea_core::home_dir();
+        let qdrant_bin = home.join(".paraclea/bin/qdrant");
+        if qdrant_bin.exists() {
+            let qdrant_dir = home.join(".paraclea/qdrant");
+            let _ = std::fs::create_dir_all(&qdrant_dir);
+            let log_file = paraclea_core::temp_dir().join("qdrant_daemon.log");
+            let log_path_str = log_file.to_string_lossy();
+            if cfg!(target_os = "windows") {
+                let _ = paraclea_core::shell_command()
+                    .arg(paraclea_core::shell_arg())
+                    .arg(format!("cd /D {:?} && start /B {:?} > \"{}\" 2>&1", qdrant_dir, qdrant_bin, log_path_str))
                     .spawn();
-                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                qdrant_ok = qdrant.health_check().await;
-                if qdrant_ok {
-                    resolved.push("Auto-spawned background Qdrant vector database daemon".to_string());
-                }
+            } else {
+                let _ = paraclea_core::shell_command()
+                    .arg(paraclea_core::shell_arg())
+                    .arg(format!("cd {:?} && nohup {:?} > \"{}\" 2>&1 &", qdrant_dir, qdrant_bin, log_path_str))
+                    .spawn();
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+            qdrant_ok = qdrant.health_check().await;
+            if qdrant_ok {
+                resolved.push("Auto-spawned background Qdrant vector database daemon".to_string());
             }
         }
     }
@@ -448,7 +466,7 @@ async fn run_doctor(
         let _ = qdrant.create_collection(&cfg.vector_db.collection_books, cfg.vector_db.vector_dim).await;
         println!("     • Vector Collections:   {}", "VERIFIED & INITIALIZED".green().bold());
     } else {
-        println!("     • Vector DB Service:    {}", "STANDBY (Optional RAG disabled)".yellow().bold());
+        issues.push("Qdrant vector database service offline".to_string());
     }
     println!();
 
@@ -467,18 +485,17 @@ async fn run_doctor(
 
     // 7. Dendrite v2 Knowledge Graph DB Integrity Check
     println!("{}", print_purple("  🧬 Dendrite v2 Knowledge Graph DB Integrity:"));
-    if let Ok(home) = std::env::var("HOME") {
-        let db_path = std::path::PathBuf::from(home).join(".paraclea/dendrite.db");
-        match DendriteStore::open(&db_path) {
-            Ok(store) => {
-                let count = store.node_count().unwrap_or(0);
-                println!("     • SQLite Database:      {}", "ONLINE & HEALTHY".green().bold());
-                println!("     • Stored Knowledge Nodes: {}", print_gold(&count.to_string()));
-            }
-            Err(e) => {
-                println!("     • SQLite Database:      {}", format!("ERROR ({})", e).red().bold());
-                issues.push(format!("Dendrite DB error: {}", e));
-            }
+    let home = paraclea_core::home_dir();
+    let db_path = home.join(".paraclea/dendrite.db");
+    match DendriteStore::open(&db_path) {
+        Ok(store) => {
+            let count = store.node_count().unwrap_or(0);
+            println!("     • SQLite Database:      {}", "ONLINE & HEALTHY".green().bold());
+            println!("     • Stored Knowledge Nodes: {}", print_gold(&count.to_string()));
+        }
+        Err(e) => {
+            println!("     • SQLite Database:      {}", format!("ERROR ({})", e).red().bold());
+            issues.push(format!("Dendrite DB error: {}", e));
         }
     }
     println!();
@@ -491,35 +508,32 @@ async fn run_doctor(
 
     // 9. Multi-Language Bible & Multi-Category Library Database Diagnostics
     println!("{}", print_purple("  📚 Mega Bible & Multi-Category Library Database:"));
-    if let Ok(home) = std::env::var("HOME") {
-        let bibles_dir = std::path::PathBuf::from(&home).join(".paraclea/bibles");
-        
-        let mut lang_count = 0;
-        let mut bible_version_count = 0;
-        if bibles_dir.exists() {
-            if let Ok(langs) = std::fs::read_dir(&bibles_dir) {
-                for l in langs.flatten() {
-                    if l.path().is_dir() {
-                        lang_count += 1;
-                        if let Ok(files) = std::fs::read_dir(l.path()) {
-                            bible_version_count += files.flatten().filter(|f| f.path().extension().and_then(|e| e.to_str()) == Some("json")).count();
-                        }
+    let bibles_dir = home.join(".paraclea/bibles");
+    let mut lang_count = 0;
+    let mut bible_version_count = 0;
+    if bibles_dir.exists() {
+        if let Ok(langs) = std::fs::read_dir(&bibles_dir) {
+            for l in langs.flatten() {
+                if l.path().is_dir() {
+                    lang_count += 1;
+                    if let Ok(files) = std::fs::read_dir(l.path()) {
+                        bible_version_count += files.flatten().filter(|f| f.path().extension().and_then(|e| e.to_str()) == Some("json")).count();
                     }
                 }
             }
         }
-
-        let lib = LibraryEngine::load_auto();
-        let category_count = lib.list_categories().len();
-        let book_count = lib.books.len();
-        let chapter_count: usize = lib.books.iter().map(|b| b.chapters.len()).sum();
-
-        println!("     • Bible Languages Covered: {} ", print_gold(&lang_count.to_string()));
-        println!("     • Formatted Bible Versions: {} ", print_gold(&bible_version_count.to_string()));
-        println!("     • Non-Scripture Categories: {} ", print_gold(&category_count.to_string()));
-        println!("     • Library Books Ingested:   {} ", print_gold(&book_count.to_string()));
-        println!("     • Total Library Chapters:   {} ", print_gold(&chapter_count.to_string()));
     }
+
+    let lib = LibraryEngine::load_auto();
+    let category_count = lib.list_categories().len();
+    let book_count = lib.books.len();
+    let chapter_count: usize = lib.books.iter().map(|b| b.chapters.len()).sum();
+
+    println!("     • Bible Languages Covered: {} ", print_gold(&lang_count.to_string()));
+    println!("     • Formatted Bible Versions: {} ", print_gold(&bible_version_count.to_string()));
+    println!("     • Non-Scripture Categories: {} ", print_gold(&category_count.to_string()));
+    println!("     • Library Books Ingested:   {} ", print_gold(&book_count.to_string()));
+    println!("     • Total Library Chapters:   {} ", print_gold(&chapter_count.to_string()));
     println!();
 
     // Summary Verdict & Resolution Report
@@ -1214,14 +1228,13 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     print_banner(&cfg);
 
     // 1. Initialize Persona Manager
+    let home = paraclea_core::home_dir();
     let persona_dir = if Path::new(&cfg.persona.dir).exists() {
         cfg.persona.dir.clone()
     } else if Path::new("persona").exists() {
         "persona".to_string()
-    } else if let Ok(home) = std::env::var("HOME") {
-        format!("{}/.paraclea/persona", home)
     } else {
-        "persona".to_string()
+        home.join(".paraclea/persona").to_string_lossy().to_string()
     };
     let persona = PersonaManager::new(&persona_dir)?;
 
@@ -1249,10 +1262,19 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     io::stdout().flush()?;
     let mut ollama_online = ollama.health_check().await.unwrap_or(false);
     if !ollama_online {
-        let _ = std::process::Command::new("sh")
-            .arg("-c")
-            .arg("nohup ollama serve > /tmp/ollama.log 2>&1 &")
-            .spawn();
+        let log_file = paraclea_core::temp_dir().join("ollama.log");
+        let log_path_str = log_file.to_string_lossy();
+        if cfg!(target_os = "windows") {
+            let _ = paraclea_core::shell_command()
+                .arg(paraclea_core::shell_arg())
+                .arg(format!("start /B ollama serve > \"{}\" 2>&1", log_path_str))
+                .spawn();
+        } else {
+            let _ = paraclea_core::shell_command()
+                .arg(paraclea_core::shell_arg())
+                .arg(format!("nohup ollama serve > \"{}\" 2>&1 &", log_path_str))
+                .spawn();
+        }
         tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
         ollama_online = ollama.health_check().await.unwrap_or(false);
     }
@@ -1268,18 +1290,25 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     io::stdout().flush()?;
     let mut qdrant_online = qdrant.health_check().await;
     if !qdrant_online {
-        if let Ok(home) = std::env::var("HOME") {
-            let qdrant_bin = std::path::PathBuf::from(&home).join(".paraclea/bin/qdrant");
-            if qdrant_bin.exists() {
-                let qdrant_dir = std::path::PathBuf::from(&home).join(".paraclea/qdrant");
-                let _ = std::fs::create_dir_all(&qdrant_dir);
-                let _ = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(format!("cd {:?} && nohup {:?} > /tmp/qdrant_daemon.log 2>&1 &", qdrant_dir, qdrant_bin))
+        let qdrant_bin = home.join(".paraclea/bin/qdrant");
+        if qdrant_bin.exists() {
+            let qdrant_dir = home.join(".paraclea/qdrant");
+            let _ = std::fs::create_dir_all(&qdrant_dir);
+            let log_file = paraclea_core::temp_dir().join("qdrant_daemon.log");
+            let log_path_str = log_file.to_string_lossy();
+            if cfg!(target_os = "windows") {
+                let _ = paraclea_core::shell_command()
+                    .arg(paraclea_core::shell_arg())
+                    .arg(format!("cd /D {:?} && start /B {:?} > \"{}\" 2>&1", qdrant_dir, qdrant_bin, log_path_str))
                     .spawn();
-                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                qdrant_online = qdrant.health_check().await;
+            } else {
+                let _ = paraclea_core::shell_command()
+                    .arg(paraclea_core::shell_arg())
+                    .arg(format!("cd {:?} && nohup {:?} > \"{}\" 2>&1 &", qdrant_dir, qdrant_bin, log_path_str))
+                    .spawn();
             }
+            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+            qdrant_online = qdrant.health_check().await;
         }
     }
     if qdrant_online {
@@ -1336,10 +1365,8 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
     // Initialize Dendrite v2 Graph Memory & Persistence
     let dendrite_graph = std::sync::Arc::new(Dendrite::new());
-    let dendrite_store = std::env::var("HOME").ok().and_then(|h| {
-        let db_path = PathBuf::from(h).join(".paraclea/dendrite.db");
-        DendriteStore::open(&db_path).ok().map(std::sync::Arc::new)
-    });
+    let db_path = home.join(".paraclea/dendrite.db");
+    let dendrite_store = DendriteStore::open(&db_path).ok().map(std::sync::Arc::new);
     if let Some(ref store) = dendrite_store {
         let _ = store.load_all(&dendrite_graph);
     }
@@ -1502,35 +1529,49 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             let passkey = &passkey_input;
             println!("{}", print_purple("🔒 Exporting 1-Click Encrypted USB Backup (AES-256 / SHA-256)..."));
             
-            if let Ok(home) = std::env::var("HOME") {
-                let db_path = std::path::PathBuf::from(&home).join(".paraclea/dendrite.db");
-                let mut target_dir = std::path::PathBuf::from(&home).join(".paraclea/backups");
-                
-                // Auto-detect mounted USB flash drive
-                let user_name = std::env::var("USER").unwrap_or_default();
-                let candidate_media_dirs = vec![
-                    format!("/media/{}", user_name),
-                    format!("/run/media/{}", user_name),
-                    "/media".to_string(),
-                ];
-                for m_dir_str in candidate_media_dirs {
-                    let media_dir = std::path::PathBuf::from(m_dir_str);
-                    if media_dir.exists() {
-                        if let Ok(entries) = std::fs::read_dir(&media_dir) {
-                            for e in entries.flatten() {
-                                if e.path().is_dir() {
-                                    target_dir = e.path();
-                                    println!("  ✓ Auto-detected mounted USB flash drive: {:?}", target_dir);
-                                    break;
-                                }
+            let home = paraclea_core::home_dir();
+            let db_path = home.join(".paraclea/dendrite.db");
+            let mut target_dir = home.join(".paraclea/backups");
+
+            // Auto-detect mounted USB flash drive across Linux, macOS, and Windows
+            let mut candidate_media_dirs = Vec::new();
+            let user_name = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_default();
+
+            #[cfg(target_os = "macos")]
+            candidate_media_dirs.push(PathBuf::from("/Volumes"));
+
+            #[cfg(target_os = "windows")]
+            for letter in 'D'..='Z' {
+                let drive = PathBuf::from(format!("{}:\\", letter));
+                if drive.exists() {
+                    candidate_media_dirs.push(drive);
+                }
+            }
+
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            {
+                candidate_media_dirs.push(PathBuf::from(format!("/media/{}", user_name)));
+                candidate_media_dirs.push(PathBuf::from(format!("/run/media/{}", user_name)));
+                candidate_media_dirs.push(PathBuf::from("/media"));
+            }
+
+            for media_dir in candidate_media_dirs {
+                if media_dir.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&media_dir) {
+                        for e in entries.flatten() {
+                            if e.path().is_dir() {
+                                target_dir = e.path();
+                                println!("  ✓ Auto-detected mounted USB flash drive: {:?}", target_dir);
+                                break;
                             }
                         }
                     }
                 }
-                
-                let _ = std::fs::create_dir_all(&target_dir);
-                let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", timestamp));
+            }
+
+            let _ = std::fs::create_dir_all(&target_dir);
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+            let backup_file = target_dir.join(format!("paraclea_backup_{}.enc", timestamp));
                 
                 if db_path.exists() {
                     match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, passkey) {
@@ -1544,7 +1585,6 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 } else {
                     println!("{}", "⚠️ No dendrite.db found to backup yet.".yellow());
                 }
-            }
             continue;
         }
 
