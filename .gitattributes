@@ -1,0 +1,17 @@
+# Mark Bible JSON data files as vendored (not source code)
+bibles/** linguist-vendored
+data/** linguist-vendored
+
+# Mark Python scripts as generated/tooling
+scripts/** linguist-generated
+
+# Mark install shell scripts as generated
+install.sh linguist-generated
+make_offline_bundle.sh linguist-generated
+
+# Mark build artifacts as generated
+Cargo.lock linguist-generated
+target/** linguist-generated
+
+# Mark agent config as generated
+.agents/** linguist-generated
