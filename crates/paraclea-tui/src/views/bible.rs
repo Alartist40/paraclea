@@ -2,9 +2,9 @@
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 
@@ -54,7 +54,7 @@ pub fn render_bible_view(
             if idx == state.selected_book_idx {
                 ListItem::new(format!(" ▶ {}", b)).style(theme.highlight_item())
             } else {
-                ListItem::new(format!("   {}", b)).style(Style::default().fg(Color::White))
+                ListItem::new(format!("   {}", b)).style(Style::default().fg(theme.text()))
             }
         })
         .collect();
@@ -63,10 +63,15 @@ pub fn render_bible_view(
         .title(" 📖 Scripture Books ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
 
     let books_list = List::new(book_items).block(books_block);
-    f.render_widget(books_list, chunks[0]);
+    let mut list_state = ListState::default();
+    if !books.is_empty() {
+        list_state.select(Some(state.selected_book_idx));
+    }
+    f.render_stateful_widget(books_list, chunks[0], &mut list_state);
 
     // Right Column: Scripture Text or Comparison Grid
     let current_book = books.get(state.selected_book_idx).cloned().unwrap_or_else(|| "Genesis".to_string());
@@ -94,7 +99,8 @@ pub fn render_bible_view(
                 .title(format!(" {} (Ch {}) — {} ", current_book, state.selected_chapter, trans_tag.to_uppercase()))
                 .borders(Borders::ALL)
                 .border_type(theme.border_type())
-                .border_style(theme.border_focused());
+                .border_style(theme.border_focused())
+                .style(Style::default().bg(theme.panel_bg()));
 
             let p = Paragraph::new(lines)
                 .block(col_block)
@@ -123,7 +129,8 @@ pub fn render_bible_view(
             .title(format!(" 📜 {} Chapter {} [Translation: {}] (Press 'c' for Compare View) ", current_book, state.selected_chapter, state.active_translation))
             .borders(Borders::ALL)
             .border_type(theme.border_type())
-            .border_style(theme.border_focused());
+            .border_style(theme.border_focused())
+            .style(Style::default().bg(theme.panel_bg()));
 
         let p = Paragraph::new(lines)
             .block(reader_block)

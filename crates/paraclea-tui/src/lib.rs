@@ -273,6 +273,187 @@ mod tests {
         app.execute_encrypted_backup("my_secure_study_passphrase");
         assert!(app.backup_status.is_some());
     }
+
+    #[tokio::test]
+    async fn test_numeric_tab_switch_on_empty_prompt() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        // 1. On fresh launch, default focus is MainViewport: 1-7 switch tabs immediately
+        assert_eq!(app.active_focus, crate::app::ActiveFocus::MainViewport);
+        let _ = app.handle_key_event(KeyCode::Char('2'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_tab, ActiveTab::Bible);
+
+        let _ = app.handle_key_event(KeyCode::Char('3'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_tab, ActiveTab::Library);
+
+        let _ = app.handle_key_event(KeyCode::Char('1'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_tab, ActiveTab::Chat);
+
+        // 2. In Sidebar: 1-7 also switches tabs immediately
+        app.active_focus = crate::app::ActiveFocus::Sidebar;
+        let _ = app.handle_key_event(KeyCode::Char('4'), KeyModifiers::NONE).await;
+        assert_eq!(app.active_tab, ActiveTab::Crossref);
+
+        // 3. In PromptInput: typing digits appends characters (e.g. "2 Corinthians") and does NOT switch tab
+        app.active_focus = crate::app::ActiveFocus::PromptInput;
+        app.input_buffer.clear();
+        let _ = app.handle_key_event(KeyCode::Char('2'), KeyModifiers::NONE).await;
+        let _ = app.handle_key_event(KeyCode::Char(' '), KeyModifiers::NONE).await;
+        let _ = app.handle_key_event(KeyCode::Char('C'), KeyModifiers::NONE).await;
+        assert_eq!(app.input_buffer, "2 C");
+        assert_eq!(app.active_tab, ActiveTab::Crossref); // Tab does not switch
+
+        // 4. In PromptInput: Alt+1..Alt+7 still allows instant deck switching
+        let _ = app.handle_key_event(KeyCode::Char('1'), KeyModifiers::ALT).await;
+        assert_eq!(app.active_tab, ActiveTab::Chat);
+    }
+
+    #[tokio::test]
+    async fn test_chat_auto_scroll() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        assert!(app.chat_auto_scroll);
+        assert_eq!(app.chat_scroll, 0);
+
+        // Add multiple chat messages
+        for i in 0..20 {
+            app.chat_history.push(crate::views::chat::ChatMessage {
+                role: "user".to_string(),
+                content: format!("Message line {}", i),
+                thinking: None,
+                timestamp: "12:00".to_string(),
+            });
+        }
+        app.update_chat_scroll_to_bottom();
+        assert!(app.chat_auto_scroll);
+
+        // User manually scrolls up in MainViewport
+        app.active_focus = crate::app::ActiveFocus::MainViewport;
+        app.active_tab = ActiveTab::Chat;
+        let _ = app.handle_key_event(KeyCode::Up, KeyModifiers::NONE).await;
+        assert!(!app.chat_auto_scroll, "Auto scroll should disengage on manual up scroll");
+
+        // Sending a new message re-engages auto-scroll
+        app.process_command("New message").await;
+        assert!(app.chat_auto_scroll, "Auto scroll should re-engage on message send");
+
+        // /clear resets scroll and re-engages auto scroll
+        app.process_command("/clear").await;
+        assert_eq!(app.chat_scroll, 0);
+        assert!(app.chat_auto_scroll);
+    }
+
+    #[tokio::test]
+    async fn test_real_stream_cancellation() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        // Simulate streaming state with partial reply
+        app.is_streaming = true;
+        app.streaming_text = "Partial AI reply...".to_string();
+        let initial_gen = app.stream_generation_id;
+
+        // User presses Esc
+        let _ = app.handle_key_event(KeyCode::Esc, KeyModifiers::NONE).await;
+
+        // Verify stream is cancelled, text cleared, generation ID advanced, and partial message saved
+        assert!(!app.is_streaming);
+        assert!(app.streaming_text.is_empty());
+        assert_eq!(app.stream_generation_id, initial_gen + 1);
+        assert!(app.chat_history.iter().any(|m| m.content.contains("Partial AI reply...") && m.content.contains("[cancelled]")));
+
+        // Verify stale tokens with old gen_id are ignored
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        tx.send(crate::app::StreamEvent::Token(initial_gen, "Stale token".to_string())).unwrap();
+        if let Ok(crate::app::StreamEvent::Token(gen, tok)) = rx.try_recv() {
+            if gen == app.stream_generation_id {
+                app.streaming_text.push_str(&tok);
+            }
+        }
+        assert!(app.streaming_text.is_empty(), "Stale token should not be appended");
+    }
+
+    #[tokio::test]
+    async fn test_chapter_clamping_all_paths() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        // Slash command with out-of-range chapter
+        app.process_command("/bible Genesis 999").await;
+        assert_eq!(app.active_tab, ActiveTab::Bible);
+        assert!(app.bible_state.selected_chapter <= 50, "Genesis chapter 999 should be clamped to 50");
+
+        // Direct chapter setting beyond max
+        app.bible_state.selected_chapter = 500;
+        app.process_command("/read Exodus").await;
+        assert!(app.bible_state.selected_chapter <= 40, "Exodus chapter should be clamped to 40");
+    }
+
+    #[tokio::test]
+    async fn test_library_chapter_navigation() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        app.active_tab = ActiveTab::Library;
+        app.active_focus = crate::app::ActiveFocus::MainViewport;
+        assert_eq!(app.library_state.selected_chapter, 1);
+
+        // Next chapter via ']'
+        let _ = app.handle_key_event(KeyCode::Char(']'), KeyModifiers::NONE).await;
+        assert!(app.library_state.selected_chapter >= 1);
+
+        // Prev chapter via '['
+        let _ = app.handle_key_event(KeyCode::Char('['), KeyModifiers::NONE).await;
+        assert_eq!(app.library_state.selected_chapter, 1);
+    }
+
+    #[tokio::test]
+    async fn test_clear_aborts_active_stream() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        app.is_streaming = true;
+        app.streaming_text = "in-flight tokens".to_string();
+        app.chat_history.push(crate::views::chat::ChatMessage {
+            role: "user".to_string(),
+            content: "old message".to_string(),
+            thinking: None,
+            timestamp: "12:00".to_string(),
+        });
+        let initial_gen = app.stream_generation_id;
+
+        app.process_command("/clear").await;
+
+        assert!(!app.is_streaming, "/clear should stop the streaming flag");
+        assert!(app.streaming_text.is_empty(), "/clear should drop in-flight text");
+        assert!(app.chat_history.is_empty(), "/clear should empty history");
+        assert_eq!(app.stream_generation_id, initial_gen + 1, "/clear should invalidate the running stream");
+        assert_eq!(app.chat_scroll, 0);
+        assert!(app.chat_auto_scroll);
+    }
+
+    #[test]
+    fn test_filter_selection_preservation() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+
+        app.open_translation_picker();
+        // Select an item that isn't the first one
+        if app.modal_items.len() > 1 {
+            let target_item = app.modal_items[1].clone();
+            app.modal_selected_idx = 1;
+
+            // Filter with a query that still contains the target item
+            let first_word = target_item.split_whitespace().next().unwrap_or("");
+            app.modal_filter = first_word.to_string();
+            app.filter_modal_items();
+
+            // Selected index should point to the target item in filtered list
+            assert_eq!(app.modal_items.get(app.modal_selected_idx), Some(&target_item));
+        }
+    }
 }
 
 

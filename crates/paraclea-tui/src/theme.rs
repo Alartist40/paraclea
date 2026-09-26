@@ -61,10 +61,40 @@ impl AppTheme {
     pub fn primary(&self) -> Color {
         match self {
             AppTheme::RoyalByzantium => Color::Rgb(255, 215, 0),     // Gold
-            AppTheme::CrimsonCodex => Color::Rgb(180, 30, 40),       // Crimson
+            AppTheme::CrimsonCodex => Color::Rgb(235, 75, 85),       // Vivid Crimson
             AppTheme::CyberScholar => Color::Rgb(0, 229, 255),       // Cyan
             AppTheme::EmeraldMatrix => Color::Rgb(0, 255, 127),      // Mint
             AppTheme::CelestialMidnight => Color::Rgb(100, 181, 246), // Starlight Cyan
+        }
+    }
+
+    pub fn bg(&self) -> Color {
+        match self {
+            AppTheme::RoyalByzantium => Color::Rgb(15, 12, 25),
+            AppTheme::CrimsonCodex => Color::Rgb(20, 10, 12),
+            AppTheme::CyberScholar => Color::Rgb(10, 15, 25),
+            AppTheme::EmeraldMatrix => Color::Rgb(8, 20, 12),
+            AppTheme::CelestialMidnight => Color::Rgb(10, 12, 28),
+        }
+    }
+
+    pub fn panel_bg(&self) -> Color {
+        match self {
+            AppTheme::RoyalByzantium => Color::Rgb(25, 20, 40),
+            AppTheme::CrimsonCodex => Color::Rgb(32, 18, 22),
+            AppTheme::CyberScholar => Color::Rgb(18, 28, 45),
+            AppTheme::EmeraldMatrix => Color::Rgb(15, 32, 20),
+            AppTheme::CelestialMidnight => Color::Rgb(20, 24, 48),
+        }
+    }
+
+    pub fn input_bg(&self) -> Color {
+        match self {
+            AppTheme::RoyalByzantium => Color::Rgb(30, 24, 48),
+            AppTheme::CrimsonCodex => Color::Rgb(38, 22, 26),
+            AppTheme::CyberScholar => Color::Rgb(22, 34, 55),
+            AppTheme::EmeraldMatrix => Color::Rgb(18, 38, 24),
+            AppTheme::CelestialMidnight => Color::Rgb(25, 30, 60),
         }
     }
 
@@ -73,7 +103,7 @@ impl AppTheme {
             AppTheme::RoyalByzantium => Color::Rgb(177, 74, 237),    // Purple
             AppTheme::CrimsonCodex => Color::Rgb(255, 240, 220),     // Cream
             AppTheme::CyberScholar => Color::Rgb(255, 0, 127),       // Magenta
-            AppTheme::EmeraldMatrix => Color::Rgb(0, 150, 70),       // Dark Green
+            AppTheme::EmeraldMatrix => Color::Rgb(40, 190, 110),     // Vivid Matrix Green (6.5:1 contrast)
             AppTheme::CelestialMidnight => Color::Rgb(192, 192, 192),// Silver
         }
     }
@@ -118,11 +148,11 @@ impl AppTheme {
     }
 
     pub fn tab_inactive(&self) -> Style {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(Color::Rgb(150, 150, 175))
     }
 
     pub fn border_normal(&self) -> Style {
-        Style::default().fg(Color::Rgb(60, 60, 80))
+        Style::default().fg(Color::Rgb(115, 120, 150))
     }
 
     pub fn border_focused(&self) -> Style {

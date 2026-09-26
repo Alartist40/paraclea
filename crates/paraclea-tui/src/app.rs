@@ -1,5 +1,6 @@
 //! Paraclea TUI Application State & Event Loop.
 
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,7 +33,7 @@ use crate::modals::{render_help_modal, render_input_modal, render_list_picker_mo
 use crate::theme::AppTheme;
 use crate::views::{
     bible::{render_bible_view, BibleViewState},
-    chat::{render_chat_view, ChatMessage},
+    chat::{chat_max_scroll, render_chat_view, ChatMessage},
     crossref::{render_crossref_view, CrossrefViewState},
     doctor::render_doctor_view,
     galaxy::{GalaxyState, GalaxyView},
@@ -43,7 +44,7 @@ use crate::views::{
 pub const COMMAND_PALETTE: &[(&str, &str)] = &[
     ("/help", "Show help and keyboard shortcuts"),
     ("/theme", "Cycle color themes (5 available)"),
-    ("/language", "Pick Bible language (66 languages)"),
+    ("/language", "Pick Scripture language"),
     ("/version", "Pick Bible translation version"),
     ("/bible", "Open Bible reader / interactive scripture"),
     ("/compare", "Compare translations side-by-side"),
@@ -88,9 +89,9 @@ pub enum ActiveModal {
 }
 
 pub enum StreamEvent {
-    Token(String),
-    Done,
-    Error(String),
+    Token(u64, String),
+    Done(u64),
+    Error(u64, String),
 }
 
 pub struct App {
@@ -127,6 +128,12 @@ pub struct App {
     pub is_streaming: bool,
     pub is_speaking: bool,
     pub chat_scroll: usize,
+    pub chat_auto_scroll: bool,
+    /// Last bottom-anchored max scroll computed by the renderer; key/mouse
+    /// handlers clamp against this so their math matches what is drawn.
+    pub chat_max_scroll: Cell<usize>,
+    pub current_stream_abort: Option<tokio::task::AbortHandle>,
+    pub stream_generation_id: u64,
 
     pub bible_state: BibleViewState,
     pub bible_books: Vec<String>,
@@ -149,12 +156,14 @@ pub struct App {
     pub history_idx: Option<usize>,
 
     pub modal_filter: String,
+    pub all_modal_items: Vec<String>,
     pub modal_items: Vec<String>,
     pub modal_selected_idx: usize,
     pub command_palette_items: Vec<(&'static str, &'static str)>,
     pub input_modal_buffer: String,
 
     pub backup_status: Option<String>,
+    pub toast_message: Option<(String, std::time::Instant)>,
     pub rx_stream: mpsc::UnboundedReceiver<StreamEvent>,
     pub tx_stream: mpsc::UnboundedSender<StreamEvent>,
 }
@@ -242,7 +251,7 @@ impl App {
             config_path,
             theme: initial_theme,
             active_tab: ActiveTab::Chat,
-            active_focus: ActiveFocus::PromptInput,
+            active_focus: ActiveFocus::MainViewport,
             is_sidebar_open: true,
             active_modal: ActiveModal::None,
 
@@ -268,6 +277,10 @@ impl App {
             is_streaming: false,
             is_speaking: false,
             chat_scroll: 0,
+            chat_auto_scroll: true,
+            chat_max_scroll: Cell::new(0),
+            current_stream_abort: None,
+            stream_generation_id: 0,
 
             bible_state: BibleViewState::default(),
             bible_books,
@@ -289,15 +302,46 @@ impl App {
             history_idx: None,
 
             modal_filter: String::new(),
+            all_modal_items: Vec::new(),
             modal_items: Vec::new(),
             modal_selected_idx: 0,
             command_palette_items: COMMAND_PALETTE.to_vec(),
             input_modal_buffer: String::new(),
 
             backup_status: None,
+            toast_message: None,
             rx_stream,
             tx_stream,
         }
+    }
+
+    pub fn set_toast(&mut self, msg: impl Into<String>) {
+        self.toast_message = Some((msg.into(), std::time::Instant::now()));
+    }
+
+    pub fn cancel_active_stream(&mut self) {
+        if let Some(handle) = self.current_stream_abort.take() {
+            handle.abort();
+        }
+        self.stream_generation_id = self.stream_generation_id.wrapping_add(1);
+        if self.is_streaming {
+            self.is_streaming = false;
+            let partial = self.streaming_text.trim();
+            if !partial.is_empty() {
+                let now_str = chrono::Local::now().format("%H:%M").to_string();
+                self.chat_history.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content: format!("{} [cancelled]", partial),
+                    thinking: None,
+                    timestamp: now_str,
+                });
+            }
+            self.streaming_text.clear();
+        }
+    }
+
+    pub fn update_chat_scroll_to_bottom(&mut self) {
+        self.chat_auto_scroll = true;
     }
 
     pub async fn run_loop<B: ratatui::backend::Backend>(
@@ -305,41 +349,57 @@ impl App {
         terminal: &mut Terminal<B>,
     ) -> Result<()> {
         loop {
+            // Clean up expired toast message
+            if let Some((_, instant)) = self.toast_message {
+                if instant.elapsed() >= Duration::from_secs(4) {
+                    self.toast_message = None;
+                }
+            }
+
             // Process streaming events non-blocking
             while let Ok(event) = self.rx_stream.try_recv() {
                 match event {
-                    StreamEvent::Token(tok) => {
-                        self.streaming_text.push_str(&tok);
+                    StreamEvent::Token(gen_id, tok) => {
+                        if gen_id == self.stream_generation_id {
+                            self.streaming_text.push_str(&tok);
+                        }
                     }
-                    StreamEvent::Done => {
-                        self.is_streaming = false;
-                        let now_str = chrono::Local::now().format("%H:%M").to_string();
-                        self.chat_history.push(ChatMessage {
-                            role: "assistant".to_string(),
-                            content: self.streaming_text.clone(),
-                            thinking: None,
-                            timestamp: now_str,
-                        });
-                        let spoken_text = self.streaming_text.clone();
-                        self.streaming_text.clear();
+                    StreamEvent::Done(gen_id) => {
+                        if gen_id == self.stream_generation_id {
+                            self.is_streaming = false;
+                            self.current_stream_abort = None;
+                            let now_str = chrono::Local::now().format("%H:%M").to_string();
+                            self.chat_history.push(ChatMessage {
+                                role: "assistant".to_string(),
+                                content: self.streaming_text.clone(),
+                                thinking: None,
+                                timestamp: now_str,
+                            });
+                            let spoken_text = self.streaming_text.clone();
+                            self.streaming_text.clear();
 
-                        // Async TTS Voice Playback
-                        let tts = self.pocket_tts.clone();
-                        tokio::spawn(async move {
-                            if let Ok(audio_bytes) = tts.synthesize(&spoken_text).await {
-                                let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
-                            }
-                        });
+                            // Async TTS Voice Playback
+                            let tts = self.pocket_tts.clone();
+                            tokio::spawn(async move {
+                                if let Ok(audio_bytes) = tts.synthesize(&spoken_text).await {
+                                    let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
+                                }
+                            });
+                        }
                     }
-                    StreamEvent::Error(err) => {
-                        self.is_streaming = false;
-                        self.streaming_text.clear();
-                        self.chat_history.push(ChatMessage {
-                            role: "assistant".to_string(),
-                            content: format!("⚠️ Ollama Error: {}", err),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M").to_string(),
-                        });
+                    StreamEvent::Error(gen_id, err) => {
+                        if gen_id == self.stream_generation_id {
+                            self.is_streaming = false;
+                            self.current_stream_abort = None;
+                            self.streaming_text.clear();
+                            self.set_toast(format!("Ollama Error: {}", err));
+                            self.chat_history.push(ChatMessage {
+                                role: "assistant".to_string(),
+                                content: format!("⚠️ Ollama Error: {}", err),
+                                thinking: None,
+                                timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                            });
+                        }
                     }
                 }
             }
@@ -364,23 +424,69 @@ impl App {
                             break;
                         }
                     }
-                    Event::Mouse(mouse) if self.active_tab == ActiveTab::Galaxy => {
+                    Event::Mouse(mouse) => {
                         use crossterm::event::{MouseButton, MouseEventKind};
                         match mouse.kind {
-                            MouseEventKind::Drag(MouseButton::Left) | MouseEventKind::Down(MouseButton::Left) => {
+                            MouseEventKind::ScrollUp => {
+                                match self.active_tab {
+                                    ActiveTab::Chat => {
+                                        if self.chat_auto_scroll {
+                                            self.chat_scroll = self.chat_max_scroll.get();
+                                        }
+                                        self.chat_auto_scroll = false;
+                                        self.chat_scroll = self.chat_scroll.saturating_sub(3);
+                                    }
+                                    ActiveTab::Bible => {
+                                        self.bible_state.scroll = self.bible_state.scroll.saturating_sub(3);
+                                    }
+                                    ActiveTab::Library => {
+                                        self.library_state.scroll = self.library_state.scroll.saturating_sub(3);
+                                    }
+                                    ActiveTab::Galaxy => {
+                                        self.galaxy_state.camera.zoom(-1.1);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            MouseEventKind::ScrollDown => {
+                                match self.active_tab {
+                                    ActiveTab::Chat => {
+                                        let max_scroll = self.chat_max_scroll.get();
+                                        self.chat_scroll = (self.chat_scroll + 3).min(max_scroll);
+                                        if self.chat_scroll >= max_scroll {
+                                            self.chat_auto_scroll = true;
+                                        }
+                                    }
+                                    ActiveTab::Bible => {
+                                        let max_scroll = self.bible_verses.len().saturating_sub(1);
+                                        self.bible_state.scroll = (self.bible_state.scroll + 3).min(max_scroll);
+                                    }
+                                    ActiveTab::Library => {
+                                        let max_scroll = self.library_chapter_content.lines().count().saturating_sub(1);
+                                        self.library_state.scroll = (self.library_state.scroll + 3).min(max_scroll);
+                                    }
+                                    ActiveTab::Galaxy => {
+                                        self.galaxy_state.camera.zoom(1.1);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            MouseEventKind::Drag(MouseButton::Left) | MouseEventKind::Down(MouseButton::Left) if self.active_tab == ActiveTab::Galaxy => {
                                 let dx = mouse.column as i32 - self.galaxy_state.last_mouse_x.map_or(mouse.column as i32, |x| x);
                                 let dy = mouse.row as i32 - self.galaxy_state.last_mouse_y.map_or(mouse.row as i32, |y| y);
                                 self.galaxy_state.camera.rotate_yaw(dx as f32 * 0.005);
                                 self.galaxy_state.camera.rotate_pitch(-dy as f32 * 0.003);
                             }
-                            MouseEventKind::Up(MouseButton::Left) => {
+                            MouseEventKind::Up(MouseButton::Left) if self.active_tab == ActiveTab::Galaxy => {
                                 self.galaxy_state.last_mouse_x = None;
                                 self.galaxy_state.last_mouse_y = None;
                             }
                             _ => {}
                         }
-                        self.galaxy_state.last_mouse_x = Some(mouse.column as i32);
-                        self.galaxy_state.last_mouse_y = Some(mouse.row as i32);
+                        if self.active_tab == ActiveTab::Galaxy {
+                            self.galaxy_state.last_mouse_x = Some(mouse.column as i32);
+                            self.galaxy_state.last_mouse_y = Some(mouse.row as i32);
+                        }
                     }
                     _ => {}
                 }
@@ -396,6 +502,7 @@ impl App {
                 KeyCode::Char('t') => {
                     self.theme = self.theme.next();
                     self.cfg.theme = self.theme.to_str().to_string();
+                    self.set_toast(format!("Theme: {}", self.theme.name()));
                     let _ = self.cfg.save(&self.config_path);
                     return Ok(false);
                 }
@@ -419,8 +526,43 @@ impl App {
             }
         }
 
+        // Global Alt+1-7 Deck Shortcuts (works from any focus including Prompt)
+        if mods.contains(KeyModifiers::ALT) {
+            if let KeyCode::Char(c @ '1'..='7') = code {
+                self.active_modal = ActiveModal::None;
+                match c {
+                    '1' => self.active_tab = ActiveTab::Chat,
+                    '2' => self.active_tab = ActiveTab::Bible,
+                    '3' => self.active_tab = ActiveTab::Library,
+                    '4' => self.active_tab = ActiveTab::Crossref,
+                    '5' => self.active_tab = ActiveTab::Galaxy,
+                    '6' => self.active_tab = ActiveTab::Mesh,
+                    '7' => {
+                        self.active_tab = ActiveTab::Doctor;
+                        self.refresh_doctor_status().await;
+                    }
+                    _ => {}
+                }
+                return Ok(false);
+            }
+        }
+
+        // Global Streaming Cancellation via Esc
+        if code == KeyCode::Esc && self.is_streaming {
+            self.cancel_active_stream();
+            self.set_toast("AI response generation cancelled");
+            return Ok(false);
+        }
+
         // Modal Active Handling
         if self.active_modal != ActiveModal::None {
+            if self.active_modal == ActiveModal::Help {
+                if code == KeyCode::Esc || code == KeyCode::Enter || code == KeyCode::Char('q') {
+                    self.active_modal = ActiveModal::None;
+                }
+                return Ok(false);
+            }
+
             if self.active_modal == ActiveModal::BackupPrompt {
                 match code {
                     KeyCode::Esc => {
@@ -524,7 +666,16 @@ impl App {
             return Ok(false);
         }
 
-        // Quick Numeric Tab Switching when not focused on prompt
+        if code == KeyCode::BackTab {
+            self.active_focus = match self.active_focus {
+                ActiveFocus::Sidebar => ActiveFocus::PromptInput,
+                ActiveFocus::MainViewport => ActiveFocus::Sidebar,
+                ActiveFocus::PromptInput => ActiveFocus::MainViewport,
+            };
+            return Ok(false);
+        }
+
+        // Quick Numeric Tab Switching when not typing in prompt
         if self.active_focus != ActiveFocus::PromptInput {
             match code {
                 KeyCode::Char('1') => { self.active_tab = ActiveTab::Chat; return Ok(false); }
@@ -554,8 +705,14 @@ impl App {
         // Focus Specific Navigation
         match self.active_focus {
             ActiveFocus::PromptInput => match code {
+                KeyCode::Esc => {
+                    self.active_focus = ActiveFocus::MainViewport;
+                }
                 KeyCode::Char('/') if self.input_buffer.is_empty() => {
                     self.open_command_palette();
+                }
+                KeyCode::Char('?') if self.input_buffer.is_empty() => {
+                    self.active_modal = ActiveModal::Help;
                 }
                 KeyCode::Enter => {
                     let input = self.input_buffer.trim().to_string();
@@ -598,28 +755,56 @@ impl App {
             },
             ActiveFocus::MainViewport => match self.active_tab {
                 ActiveTab::Chat => match code {
-                    KeyCode::Up => self.chat_scroll = self.chat_scroll.saturating_sub(1),
+                    KeyCode::Esc => {
+                        self.active_focus = ActiveFocus::PromptInput;
+                    }
+                    KeyCode::Char('i') | KeyCode::Enter => {
+                        self.active_focus = ActiveFocus::PromptInput;
+                    }
+                    KeyCode::Up => {
+                        if self.chat_auto_scroll {
+                            self.chat_scroll = self.chat_max_scroll.get();
+                        }
+                        self.chat_auto_scroll = false;
+                        self.chat_scroll = self.chat_scroll.saturating_sub(1);
+                    }
                     KeyCode::Down => {
-                        let total_lines: usize = self.chat_history.iter().map(|m| m.content.lines().count() + 3).sum();
-                        let max_scroll = total_lines.saturating_sub(10);
+                        let max_scroll = self.chat_max_scroll.get();
                         if self.chat_scroll < max_scroll {
                             self.chat_scroll += 1;
                         }
+                        if self.chat_scroll >= max_scroll {
+                            self.chat_auto_scroll = true;
+                        }
                     }
-                    KeyCode::PageUp => self.chat_scroll = self.chat_scroll.saturating_sub(5),
+                    KeyCode::PageUp => {
+                        if self.chat_auto_scroll {
+                            self.chat_scroll = self.chat_max_scroll.get();
+                        }
+                        self.chat_auto_scroll = false;
+                        self.chat_scroll = self.chat_scroll.saturating_sub(5);
+                    }
                     KeyCode::PageDown => {
-                        let total_lines: usize = self.chat_history.iter().map(|m| m.content.lines().count() + 3).sum();
-                        let max_scroll = total_lines.saturating_sub(10);
+                        let max_scroll = self.chat_max_scroll.get();
                         self.chat_scroll = (self.chat_scroll + 5).min(max_scroll);
+                        if self.chat_scroll >= max_scroll {
+                            self.chat_auto_scroll = true;
+                        }
                     }
-                    KeyCode::Home => self.chat_scroll = 0,
+                    KeyCode::Home => {
+                        self.chat_auto_scroll = false;
+                        self.chat_scroll = 0;
+                    }
                     KeyCode::End => {
-                        let total_lines: usize = self.chat_history.iter().map(|m| m.content.lines().count() + 3).sum();
-                        self.chat_scroll = total_lines.saturating_sub(10);
+                        self.chat_auto_scroll = true;
+                        self.update_chat_scroll_to_bottom();
                     }
                     _ => {}
                 },
                 ActiveTab::Bible => match code {
+                    KeyCode::Esc | KeyCode::Char('i') | KeyCode::Enter => {
+                        self.active_focus = ActiveFocus::PromptInput;
+                    }
                     KeyCode::PageUp => {
                         self.bible_state.scroll = self.bible_state.scroll.saturating_sub(5);
                     }
@@ -631,6 +816,11 @@ impl App {
                         if self.bible_state.selected_book_idx > 0 {
                             self.bible_state.selected_book_idx -= 1;
                             self.bible_state.scroll = 0;
+                            let max_chapters = self.bible_reader.as_ref().and_then(|r| {
+                                let bname = self.bible_books.get(self.bible_state.selected_book_idx)?;
+                                r.get_chapter_count(bname)
+                            }).unwrap_or(150);
+                            self.bible_state.selected_chapter = self.bible_state.selected_chapter.min(max_chapters).max(1);
                             self.load_active_bible_chapter();
                         }
                     }
@@ -638,6 +828,11 @@ impl App {
                         if self.bible_state.selected_book_idx + 1 < self.bible_books.len() {
                             self.bible_state.selected_book_idx += 1;
                             self.bible_state.scroll = 0;
+                            let max_chapters = self.bible_reader.as_ref().and_then(|r| {
+                                let bname = self.bible_books.get(self.bible_state.selected_book_idx)?;
+                                r.get_chapter_count(bname)
+                            }).unwrap_or(150);
+                            self.bible_state.selected_chapter = self.bible_state.selected_chapter.min(max_chapters).max(1);
                             self.load_active_bible_chapter();
                         }
                     }
@@ -671,15 +866,22 @@ impl App {
                     _ => {}
                 },
                 ActiveTab::Library => match code {
-                    KeyCode::Up => {
+                    KeyCode::Esc | KeyCode::Char('i') | KeyCode::Enter => {
+                        self.active_focus = ActiveFocus::PromptInput;
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
                         if self.library_state.selected_book_idx > 0 {
                             self.library_state.selected_book_idx -= 1;
+                            self.library_state.selected_chapter = 1;
+                            self.library_state.scroll = 0;
                             self.load_active_library_chapter();
                         }
                     }
-                    KeyCode::Down => {
+                    KeyCode::Down | KeyCode::Char('j') => {
                         if self.library_state.selected_book_idx + 1 < self.library_books.len() {
                             self.library_state.selected_book_idx += 1;
+                            self.library_state.selected_chapter = 1;
+                            self.library_state.scroll = 0;
                             self.load_active_library_chapter();
                         }
                     }
@@ -701,9 +903,30 @@ impl App {
                         self.library_state.selected_category_idx += 1;
                         self.refresh_library_category();
                     }
+                    KeyCode::Char('[') | KeyCode::Char('p') | KeyCode::Char('h') => {
+                        if self.library_state.selected_chapter > 1 {
+                            self.library_state.selected_chapter -= 1;
+                            self.library_state.scroll = 0;
+                            self.load_active_library_chapter();
+                        }
+                    }
+                    KeyCode::Char(']') | KeyCode::Char('n') | KeyCode::Char('l') => {
+                        let max_ch = self.library_books.get(self.library_state.selected_book_idx)
+                            .and_then(|b| self.library_engine.get_chapter_count(b))
+                            .unwrap_or(1);
+                        if self.library_state.selected_chapter < max_ch {
+                            self.library_state.selected_chapter += 1;
+                            self.library_state.scroll = 0;
+                            self.load_active_library_chapter();
+                        }
+                    }
                     _ => {}
                 },
                 ActiveTab::Galaxy => {
+                    if code == KeyCode::Esc || code == KeyCode::Char('i') {
+                        self.active_focus = ActiveFocus::PromptInput;
+                        return Ok(false);
+                    }
                     match self.galaxy_state.handle_key(code, mods) {
                         crate::views::galaxy::GalaxyAction::Handled => return Ok(false),
                         crate::views::galaxy::GalaxyAction::Inspect(node) => {
@@ -740,7 +963,13 @@ impl App {
                         crate::views::galaxy::GalaxyAction::None => {}
                     }
                 }
-                _ => {}
+                ActiveTab::Crossref | ActiveTab::Mesh | ActiveTab::Doctor => match code {
+                    KeyCode::Esc | KeyCode::Char('i') | KeyCode::Enter => {
+                        self.active_focus = ActiveFocus::PromptInput;
+                    }
+                    _ => {}
+                },
+
             },
             ActiveFocus::Sidebar => match code {
                 KeyCode::Up | KeyCode::Char('k') => {
@@ -782,6 +1011,10 @@ impl App {
     fn render(&self, f: &mut Frame) {
         let size = f.area();
 
+        // 0. Base frame background fill
+        let bg_block = Block::default().style(Style::default().bg(self.theme.bg()));
+        f.render_widget(bg_block, size);
+
         // 1. Top Status Header
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -819,7 +1052,7 @@ impl App {
                 );
             }
             ActiveModal::LanguagePicker => render_list_picker_modal(
-                f, size, "🌐 Select Scripture Language (66 Available)",
+                f, size, "🌐 Select Scripture Language",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
             ),
             ActiveModal::TranslationPicker => render_list_picker_modal(
@@ -860,6 +1093,16 @@ impl App {
             spans.push(Span::raw(" "));
         }
 
+        let title = if let Some((ref toast, ref instant)) = self.toast_message {
+            if instant.elapsed() < std::time::Duration::from_secs(4) {
+                format!(" 🕊️ PARACLEA SCHOLAR │ 🔔 {} ", toast)
+            } else {
+                " 🕊️ PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ".to_string()
+            }
+        } else {
+            " 🕊️ PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ".to_string()
+        };
+
         let model_label = format!(" Model: {} ", self.cfg.model.ollama.model);
         let trans_label = format!(" Trans: {} ", self.bible_state.active_translation);
         let theme_label = format!(" Theme: {} ", self.theme.name());
@@ -869,13 +1112,17 @@ impl App {
         spans.push(Span::raw("•"));
         spans.push(Span::styled(trans_label, self.theme.header_title()));
         spans.push(Span::raw("•"));
-        spans.push(Span::styled(theme_label, Style::default().fg(Color::DarkGray)));
+        spans.push(Span::styled(theme_label, Style::default().fg(Color::Rgb(160, 160, 180))));
+
+        let is_toast_active = self.toast_message.as_ref().is_some_and(|(_, inst)| inst.elapsed() < std::time::Duration::from_secs(4));
+        let border_style = if is_toast_active { self.theme.highlight_item() } else { self.theme.border_focused() };
 
         let block = Block::default()
-            .title(" 🕊️ PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ")
+            .title(title)
             .borders(Borders::ALL)
             .border_type(self.theme.border_type())
-            .border_style(self.theme.border_focused());
+            .border_style(border_style)
+            .style(Style::default().bg(self.theme.panel_bg()));
 
         let p_left = Paragraph::new(Line::from(spans)).block(block);
         f.render_widget(p_left, area);
@@ -887,28 +1134,28 @@ impl App {
         items.push(ListItem::new(Line::from(vec![
             Span::styled("📖 Scripture Engine", self.theme.header_title()),
         ])));
-        items.push(ListItem::new(format!("  • Active: {}", self.bible_state.active_translation)));
-        items.push(ListItem::new("  • Available: 160 across 66 langs".to_string()));
+        items.push(ListItem::new(format!("  • Active: {}", self.bible_state.active_translation)).style(Style::default().fg(self.theme.text())));
+        items.push(ListItem::new(format!("  • Available: {} across {} langs", self.bible_version_count, self.bible_lang_count)).style(Style::default().fg(self.theme.text())));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
             Span::styled("🌌 Paraclea Galaxy", self.theme.header_title()),
         ])));
-        items.push(ListItem::new(format!("  • Celestial Nodes: {}", self.galaxy_state.system.nodes.len())).style(Style::default().fg(Color::Rgb(255, 215, 0))));
+        items.push(ListItem::new(format!("  • Celestial Nodes: {}", self.galaxy_state.system.nodes.len())).style(Style::default().fg(self.theme.primary())));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
             Span::styled("📚 Multi-Category Library", self.theme.header_title()),
         ])));
         for cat in &self.library_categories {
-            items.push(ListItem::new(format!("  • [{}]", cat.to_uppercase())).style(Style::default().fg(Color::Cyan)));
+            items.push(ListItem::new(format!("  • [{}]", cat.to_uppercase())).style(Style::default().fg(self.theme.secondary())));
         }
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
             Span::styled("🧬 Knowledge Graph", self.theme.header_title()),
         ])));
-        items.push(ListItem::new(format!("  • Dendrite Nodes: {}", self.dendrite_graph.len())));
+        items.push(ListItem::new(format!("  • Dendrite Nodes: {}", self.dendrite_graph.len())).style(Style::default().fg(self.theme.text())));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
@@ -921,7 +1168,8 @@ impl App {
             .title(" 🧭 Navigation & Decks ")
             .borders(Borders::ALL)
             .border_type(self.theme.border_type())
-            .border_style(if self.active_focus == ActiveFocus::Sidebar { self.theme.border_focused() } else { self.theme.border_normal() });
+            .border_style(if self.active_focus == ActiveFocus::Sidebar { self.theme.border_focused() } else { self.theme.border_normal() })
+            .style(Style::default().bg(self.theme.panel_bg()));
 
         let list = List::new(items).block(block);
         f.render_widget(list, area);
@@ -929,10 +1177,17 @@ impl App {
 
     fn render_main_viewport(&self, f: &mut Frame, area: Rect) {
         match self.active_tab {
-            ActiveTab::Chat => render_chat_view(
-                f, area, &self.chat_history, &self.streaming_text,
-                self.is_streaming, self.is_speaking, self.chat_scroll, &self.theme,
-            ),
+            ActiveTab::Chat => {
+                let max_scroll = chat_max_scroll(
+                    &self.chat_history, &self.streaming_text, self.is_streaming,
+                    area.width, area.height, &self.theme,
+                );
+                self.chat_max_scroll.set(max_scroll);
+                render_chat_view(
+                    f, area, &self.chat_history, &self.streaming_text,
+                    self.is_streaming, self.is_speaking, self.chat_scroll, self.chat_auto_scroll, &self.theme,
+                );
+            }
             ActiveTab::Bible => {
                 let comp_refs: Vec<(&str, Vec<(usize, String)>)> = self.bible_comparison.iter()
                     .map(|(tag, v)| (tag.as_str(), v.clone()))
@@ -964,7 +1219,8 @@ impl App {
             }
             ActiveTab::Doctor => render_doctor_view(
                 f, area, self.ollama_online, &self.cfg.model.ollama.model, self.qdrant_online,
-                self.dendrite_graph.len(), self.bible_lang_count, self.bible_version_count, self.backup_status.as_deref(), &self.theme,
+                self.dendrite_graph.len(), self.bible_lang_count, self.bible_version_count,
+                self.library_categories.len(), self.backup_status.as_deref(), &self.theme,
             ),
         }
     }
@@ -974,12 +1230,19 @@ impl App {
             .title(" ⌨️ Command & Study Prompt (Type '/' for commands, '?' for Help) ")
             .borders(Borders::ALL)
             .border_type(self.theme.border_type())
-            .border_style(if self.active_focus == ActiveFocus::PromptInput { self.theme.border_focused() } else { self.theme.border_normal() });
+            .border_style(if self.active_focus == ActiveFocus::PromptInput { self.theme.border_focused() } else { self.theme.border_normal() })
+            .style(Style::default().bg(self.theme.input_bg()));
+
+        let cursor_span = if self.active_focus == ActiveFocus::PromptInput {
+            Span::styled("█", self.theme.header_title())
+        } else {
+            Span::raw("")
+        };
 
         let prompt_line = Line::from(vec![
             Span::styled(" Paraclea > ", self.theme.user_prompt()),
-            Span::styled(&self.input_buffer, Style::default().fg(Color::White)),
-            Span::styled("█", self.theme.header_title()),
+            Span::styled(&self.input_buffer, Style::default().fg(self.theme.text())),
+            cursor_span,
         ]);
 
         let p = Paragraph::new(prompt_line).block(block);
@@ -994,6 +1257,8 @@ impl App {
             thinking: None,
             timestamp: now_str,
         });
+        self.chat_auto_scroll = true;
+        self.update_chat_scroll_to_bottom();
 
         let (cmd, args) = match input.split_once(char::is_whitespace) {
             Some((c, a)) => (c.to_lowercase(), a.trim()),
@@ -1007,6 +1272,7 @@ impl App {
             "/theme" => {
                 self.theme = self.theme.next();
                 self.cfg.theme = self.theme.to_str().to_string();
+                self.set_toast(format!("Theme: {}", self.theme.name()));
                 let _ = self.cfg.save(&self.config_path);
             }
             "/language" | "/lang" => {
@@ -1068,33 +1334,41 @@ impl App {
                 self.active_tab = ActiveTab::Crossref;
             }
             "/clear" => {
+                self.cancel_active_stream();
+                self.streaming_text.clear();
+                self.is_streaming = false;
                 self.chat_history.clear();
+                self.chat_scroll = 0;
+                self.chat_auto_scroll = true;
             }
             _ => {
                 // Dispatch AI Streaming Prompt to Ollama
+                self.cancel_active_stream();
                 self.active_tab = ActiveTab::Chat;
                 self.is_streaming = true;
+                let gen_id = self.stream_generation_id;
                 let tx = self.tx_stream.clone();
                 let model = self.cfg.model.ollama.model.clone();
                 let ollama = self.ollama.clone();
                 let persona_prompt = self.persona.build_system_prompt();
                 let query = input.to_string();
 
-                tokio::spawn(async move {
+                let handle = tokio::spawn(async move {
                     let msgs = vec![
                         OllamaChatMessage { role: "system".to_string(), content: persona_prompt },
                         OllamaChatMessage { role: "user".to_string(), content: query },
                     ];
                     let tx_token = tx.clone();
                     let res = ollama.chat_with_model_stream(&model, msgs, move |tok| {
-                        let _ = tx_token.send(StreamEvent::Token(tok.to_string()));
+                        let _ = tx_token.send(StreamEvent::Token(gen_id, tok.to_string()));
                     }).await;
 
                     match res {
-                        Ok(_) => { let _ = tx.send(StreamEvent::Done); }
-                        Err(e) => { let _ = tx.send(StreamEvent::Error(e.to_string())); }
+                        Ok(_) => { let _ = tx.send(StreamEvent::Done(gen_id)); }
+                        Err(e) => { let _ = tx.send(StreamEvent::Error(gen_id, e.to_string())); }
                     }
                 });
+                self.current_stream_abort = Some(handle.abort_handle());
             }
         }
     }
@@ -1113,6 +1387,8 @@ impl App {
 
         if let Some(ref reader) = self.bible_reader {
             let book_name = self.bible_books.get(self.bible_state.selected_book_idx).cloned().unwrap_or_else(|| "Genesis".to_string());
+            let max_chapters = reader.get_chapter_count(&book_name).unwrap_or(150);
+            self.bible_state.selected_chapter = self.bible_state.selected_chapter.clamp(1, max_chapters);
             let ch = self.bible_state.selected_chapter;
             let verses = reader.read_translation_chapter(&active_tag, &book_name, ch).unwrap_or_default();
             self.bible_verses = verses.clone();
@@ -1141,12 +1417,16 @@ impl App {
             let books = self.library_engine.list_books(Some(cat));
             self.library_books = books.iter().map(|b| b.title.clone()).collect();
             self.library_state.selected_book_idx = 0;
+            self.library_state.selected_chapter = 1;
+            self.library_state.scroll = 0;
             self.load_active_library_chapter();
         }
     }
 
     fn load_active_library_chapter(&mut self) {
         if let Some(b_title) = self.library_books.get(self.library_state.selected_book_idx) {
+            let max_ch = self.library_engine.get_chapter_count(b_title).unwrap_or(1);
+            self.library_state.selected_chapter = self.library_state.selected_chapter.clamp(1, max_ch);
             if let Some((_, ch)) = self.library_engine.read_chapter(b_title, self.library_state.selected_chapter) {
                 self.library_chapter_title = ch.title.clone();
                 self.library_chapter_content = ch.content.clone();
@@ -1200,10 +1480,12 @@ impl App {
 
     pub fn open_language_picker(&mut self) {
         let languages = BibleReader::list_languages();
-        self.modal_items = languages
+        let items: Vec<String> = languages
             .iter()
             .map(|lang| format!("{} ({})", lang.name, lang.code))
             .collect();
+        self.all_modal_items = items.clone();
+        self.modal_items = items;
         self.modal_selected_idx = 0;
         self.modal_filter.clear();
         self.active_modal = ActiveModal::LanguagePicker;
@@ -1232,6 +1514,7 @@ impl App {
                 "WEB - World English Bible (English)".to_string(),
             ];
         }
+        self.all_modal_items = items.clone();
         self.modal_items = items;
         self.modal_selected_idx = 0;
         self.modal_filter.clear();
@@ -1240,36 +1523,53 @@ impl App {
 
     pub async fn open_model_picker(&mut self) {
         let models = self.ollama.fetch_available_models().await;
-        if models.is_empty() {
-            self.modal_items = vec!["ministral-3:3b".to_string(), "ornith-1.5:9b".to_string()];
+        let items: Vec<String> = if models.is_empty() {
+            vec!["ministral-3:3b".to_string(), "ornith-1.5:9b".to_string()]
         } else {
-            self.modal_items = models.into_iter().map(|m| m.name).collect();
-        }
+            models.into_iter().map(|m| m.name).collect()
+        };
+        self.all_modal_items = items.clone();
+        self.modal_items = items;
         self.modal_selected_idx = 0;
         self.modal_filter.clear();
         self.active_modal = ActiveModal::ModelPicker;
     }
 
     pub fn filter_modal_items(&mut self) {
+        let prev_selected = self.modal_items.get(self.modal_selected_idx).cloned();
         let q = self.modal_filter.trim().to_lowercase();
-        if q.is_empty() { return; }
-        // 1. Exact tag match
-        if let Some(pos) = self.modal_items.iter().position(|i| {
-            let first_token = i.split_whitespace().next().unwrap_or("").to_lowercase();
-            first_token == q
-        }) {
-            self.modal_selected_idx = pos;
-            return;
+        if q.is_empty() {
+            self.modal_items = self.all_modal_items.clone();
+        } else {
+            let mut exact_matches = Vec::new();
+            let mut prefix_matches = Vec::new();
+            let mut contains_matches = Vec::new();
+
+            for item in &self.all_modal_items {
+                let lower = item.to_lowercase();
+                let first_token = lower.split_whitespace().next().unwrap_or("");
+                if first_token == q {
+                    exact_matches.push(item.clone());
+                } else if first_token.starts_with(&q) || lower.starts_with(&q) {
+                    prefix_matches.push(item.clone());
+                } else if lower.contains(&q) {
+                    contains_matches.push(item.clone());
+                }
+            }
+
+            let mut combined = exact_matches;
+            combined.extend(prefix_matches);
+            combined.extend(contains_matches);
+            self.modal_items = combined;
         }
-        // 2. Prefix match
-        if let Some(pos) = self.modal_items.iter().position(|i| i.to_lowercase().starts_with(&q)) {
-            self.modal_selected_idx = pos;
-            return;
+
+        if let Some(prev) = prev_selected {
+            if let Some(pos) = self.modal_items.iter().position(|item| item == &prev) {
+                self.modal_selected_idx = pos;
+                return;
+            }
         }
-        // 3. Substring match
-        if let Some(pos) = self.modal_items.iter().position(|i| i.to_lowercase().contains(&q)) {
-            self.modal_selected_idx = pos;
-        }
+        self.modal_selected_idx = 0;
     }
 
     pub fn apply_modal_selection(&mut self) {
@@ -1281,7 +1581,8 @@ impl App {
                             let code = sel[start + 1..end].trim().to_string();
                             let name = sel[..start].trim().to_string();
                             self.selected_language_code = Some(code);
-                            self.selected_language_name = Some(name);
+                            self.selected_language_name = Some(name.clone());
+                            self.set_toast(format!("Selected Language: {}", name));
                         }
                     }
                     self.open_translation_picker();
@@ -1291,13 +1592,15 @@ impl App {
             ActiveModal::TranslationPicker => {
                 if let Some(sel) = self.modal_items.get(self.modal_selected_idx) {
                     let tag = sel.split_whitespace().next().unwrap_or("KJV").to_uppercase();
-                    self.bible_state.active_translation = tag;
+                    self.bible_state.active_translation = tag.clone();
+                    self.set_toast(format!("Switched to Translation: {}", tag));
                     self.load_active_bible_chapter();
                 }
             }
             ActiveModal::ModelPicker => {
                 if let Some(sel) = self.modal_items.get(self.modal_selected_idx) {
                     self.cfg.model.ollama.model = sel.clone();
+                    self.set_toast(format!("Active AI Model: {}", sel));
                     let _ = self.cfg.save(&self.config_path);
                 }
             }
@@ -1315,6 +1618,7 @@ impl App {
         let trimmed_key = passkey.trim();
         if trimmed_key.is_empty() {
             self.backup_status = Some("⚠️ Backup cancelled: Passphrase is required for encryption.".to_string());
+            self.set_toast("Backup cancelled: Passphrase required");
             return;
         }
 
@@ -1365,14 +1669,17 @@ impl App {
             match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, trimmed_key) {
                 Ok(bytes) => {
                     self.backup_status = Some(format!("✓ AES-256-GCM Backup Saved: {:?} ({} bytes)", backup_file, bytes));
+                    self.set_toast("✓ 1-Click Encrypted Backup Complete");
                     return;
                 }
                 Err(e) => {
                     self.backup_status = Some(format!("⚠️ Backup failed: {}", e));
+                    self.set_toast("⚠️ Backup Failed");
                     return;
                 }
             }
         }
         self.backup_status = Some("⚠️ No dendrite.db found to backup yet.".to_string());
+        self.set_toast("⚠️ No dendrite.db found to backup");
     }
 }

@@ -20,6 +20,7 @@ pub fn render_doctor_view(
     dendrite_count: usize,
     bible_langs: usize,
     bible_versions: usize,
+    library_cats: usize,
     backup_status: Option<&str>,
     theme: &AppTheme,
 ) {
@@ -108,7 +109,7 @@ pub fn render_doctor_view(
     ]));
     lines.push(Line::from(vec![
         Span::raw("      • Non-Scripture Categories: "),
-        Span::styled("5 Active (Psychology, Survival, Medical, EGW, Educational)", Style::default().fg(Color::Cyan)),
+        Span::styled(format!("Active Domains ({})", library_cats), Style::default().fg(Color::Cyan)),
     ]));
     lines.push(Line::from(""));
 
@@ -121,14 +122,15 @@ pub fn render_doctor_view(
     }
 
     lines.push(Line::from(vec![
-        Span::styled("   [Press Ctrl+U to trigger 1-Click Encrypted USB Backup]", Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)),
+        Span::styled("   [Press Ctrl+U to trigger 1-Click Encrypted USB Backup]", Style::default().fg(Color::Rgb(160, 160, 180)).add_modifier(Modifier::ITALIC)),
     ]));
 
     let block = Block::default()
         .title(" 🩺 System Diagnostic & Self-Healing Telemetry ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
 
     let p = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
     f.render_widget(p, area);

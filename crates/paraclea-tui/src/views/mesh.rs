@@ -47,7 +47,8 @@ pub fn render_mesh_view(
     let header_block = Block::default()
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
     let p_header = Paragraph::new(header_lines).block(header_block);
     f.render_widget(p_header, chunks[0]);
 
@@ -70,12 +71,12 @@ pub fn render_mesh_view(
     ]));
     if peers.is_empty() {
         status_lines.push(Line::from(vec![
-            Span::styled("     No active peer nodes detected in broadcast range.", Style::default().fg(Color::DarkGray)),
+            Span::styled("     No active peer nodes detected in broadcast range.", Style::default().fg(Color::Rgb(160, 160, 180))),
         ]));
     } else {
         for p in peers {
             status_lines.push(Line::from(vec![
-                Span::styled(format!("     • {}", p), Style::default().fg(Color::Cyan)),
+                Span::styled(format!("     • {}", p), Style::default().fg(theme.secondary())),
             ]));
         }
     }
@@ -84,14 +85,15 @@ pub fn render_mesh_view(
         .title(" 📡 Link Interface & Propagation Status ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
     let p_status = Paragraph::new(status_lines).block(left_block).wrap(Wrap { trim: true });
     f.render_widget(p_status, bottom_chunks[0]);
 
     // Right: Off-Grid Mailbox Inbox
     let mut mail_items = Vec::new();
     if messages.is_empty() {
-        mail_items.push(ListItem::new("   No stored packets in local mailbox.").style(Style::default().fg(Color::DarkGray)));
+        mail_items.push(ListItem::new("   No stored packets in local mailbox.").style(Style::default().fg(Color::Rgb(160, 160, 180))));
     } else {
         for (ts, sender, recip, content) in messages {
             mail_items.push(ListItem::new(vec![
@@ -99,7 +101,7 @@ pub fn render_mesh_view(
                     Span::styled(format!(" [{}] From: <{}> -> To: <{}>", ts, sender, recip), theme.header_badge()),
                 ]),
                 Line::from(vec![
-                    Span::styled(format!("   {}", content), Style::default().fg(Color::White)),
+                    Span::styled(format!("   {}", content), Style::default().fg(theme.text())),
                 ]),
                 Line::from(""),
             ]));
@@ -110,7 +112,8 @@ pub fn render_mesh_view(
         .title(" 📬 Store-and-Forward Encrypted Mailbox ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
     let mail_list = List::new(mail_items).block(mail_block);
     f.render_widget(mail_list, bottom_chunks[1]);
 }

@@ -158,6 +158,7 @@ impl<'a> Widget for GalaxyView<'a> {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(self.theme.border_focused())
+            .style(Style::default().bg(self.theme.panel_bg()))
             .title(Span::styled(
                 if self.state.system.sim_paused {
                     " 🌌 PARACLEA GALAXY ATLAS — PAUSED "
@@ -213,7 +214,7 @@ impl<'a> Widget for GalaxyView<'a> {
             Line::from(vec![
                 Span::styled(" [🎮 CONTROLS] ", Style::default().fg(self.theme.secondary()).add_modifier(Modifier::BOLD)),
                 Span::raw("←/→/↑/↓: Orbit | +/-: Zoom | Space: ["),
-                Span::styled(spin_status, Style::default().fg(if self.state.system.sim_paused { Color::Yellow } else if self.state.camera.auto_spin { Color::Green } else { Color::DarkGray })),
+                Span::styled(spin_status, Style::default().fg(if self.state.system.sim_paused { Color::Yellow } else if self.state.camera.auto_spin { Color::Green } else { Color::Rgb(160, 160, 180) })),
                 Span::raw("] | Tab/[: Cycle | Enter: Inspect | Mouse: Drag"),
             ]),
         ];
@@ -223,7 +224,8 @@ impl<'a> Widget for GalaxyView<'a> {
                 Block::default()
                     .borders(Borders::TOP)
                     .border_type(BorderType::Rounded)
-                    .border_style(self.theme.border_normal()),
+                    .border_style(self.theme.border_normal())
+                    .style(Style::default().bg(self.theme.panel_bg())),
             );
         hud_widget.render(hud_area, buf);
     }

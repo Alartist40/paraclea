@@ -2,9 +2,9 @@
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 
@@ -58,39 +58,53 @@ pub fn render_library_view(
             if idx == state.selected_category_idx {
                 ListItem::new(format!(" ▶ [{}]", cat.to_uppercase())).style(theme.highlight_item())
             } else {
-                ListItem::new(format!("   [{}]", cat.to_uppercase())).style(Style::default().fg(Color::Cyan))
+                ListItem::new(format!("   [{}]", cat.to_uppercase())).style(Style::default().fg(theme.secondary()))
             }
         })
         .collect();
 
     let cat_block = Block::default()
-        .title(" 📚 5 Domain Categories ")
+        .title(" 📚 Domain Categories ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
     let cat_list = List::new(cat_items).block(cat_block);
-    f.render_widget(cat_list, left_chunks[0]);
+    let mut cat_state = ListState::default();
+    if !categories.is_empty() {
+        cat_state.select(Some(state.selected_category_idx));
+    }
+    f.render_stateful_widget(cat_list, left_chunks[0], &mut cat_state);
 
     // Books in Category
-    let book_items: Vec<ListItem> = books
-        .iter()
-        .enumerate()
-        .map(|(idx, b)| {
-            if idx == state.selected_book_idx {
-                ListItem::new(format!(" ▶ {}", b)).style(theme.highlight_item())
-            } else {
-                ListItem::new(format!("   {}", b)).style(Style::default().fg(Color::White))
-            }
-        })
-        .collect();
+    let book_items: Vec<ListItem> = if books.is_empty() {
+        vec![ListItem::new("   No volumes in category").style(Style::default().fg(theme.text()))]
+    } else {
+        books
+            .iter()
+            .enumerate()
+            .map(|(idx, b)| {
+                if idx == state.selected_book_idx {
+                    ListItem::new(format!(" ▶ {}", b)).style(theme.highlight_item())
+                } else {
+                    ListItem::new(format!("   {}", b)).style(Style::default().fg(theme.text()))
+                }
+            })
+            .collect()
+    };
 
     let books_block = Block::default()
         .title(" 📖 Ingested Volumes ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
     let books_list = List::new(book_items).block(books_block);
-    f.render_widget(books_list, left_chunks[1]);
+    let mut book_state = ListState::default();
+    if !books.is_empty() {
+        book_state.select(Some(state.selected_book_idx));
+    }
+    f.render_stateful_widget(books_list, left_chunks[1], &mut book_state);
 
     // Right Column: Chapter Reader View
     let mut lines = Vec::new();
@@ -110,7 +124,8 @@ pub fn render_library_view(
         .title(format!(" 📑 Volume Reader — {} (Press 's' for AI Study Commentary) ", chapter_title))
         .borders(Borders::ALL)
         .border_type(theme.border_type())
-        .border_style(theme.border_focused());
+        .border_style(theme.border_focused())
+        .style(Style::default().bg(theme.panel_bg()));
 
     let p = Paragraph::new(lines)
         .block(reader_block)

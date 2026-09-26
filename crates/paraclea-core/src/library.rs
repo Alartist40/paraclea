@@ -283,6 +283,11 @@ impl LibraryEngine {
         let chapter = book.chapters.iter().find(|c| c.chapter_number == chapter_num)?;
         Some((book, chapter))
     }
+
+    pub fn get_chapter_count(&self, book_query: &str) -> Option<usize> {
+        let book = self.find_book(book_query)?;
+        Some(book.chapters.len())
+    }
 }
 
 #[cfg(test)]
@@ -293,7 +298,7 @@ mod tests {
     #[test]
     fn test_library_engine_initializes_samples() {
         let dir = tempdir().expect("Failed to create tempdir");
-        let engine = LibraryEngine::new(dir.path().to_path_buf());
+        let engine = LibraryEngine::new(dir.path());
 
         let categories = engine.list_categories();
         assert_eq!(categories.len(), 5);
