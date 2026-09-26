@@ -6,7 +6,7 @@
 
 ## Overview & Purpose
 
-**Paraclea (Παράκλησις)** is an independent local AI assistant and offline library engine designed to run 100% locally on CPU without cloud APIs or internet connectivity. It provides deep Bible study, multi-translation comparison, structured reading across spiritual, survival, medical, and educational literature, off-grid peer-to-peer mesh messaging, and personalized adaptive memory — accessible both via terminal REPL (`paraclea`) and desktop browser interface (`paraclea-gui`).
+**Paraclea (Παράκλησις)** is an independent local AI assistant and offline library engine designed to run 100% locally on CPU without cloud APIs or internet connectivity. It provides deep Bible study, multi-translation comparison, structured reading across spiritual, survival, medical, and educational literature, off-grid peer-to-peer mesh messaging, and personalized adaptive memory — accessible via terminal TUI (`paraclea`), the classic line REPL (`paraclea --repl`), and the desktop browser interface (`paraclea-gui`).
 
 ### Cross-Platform
 
@@ -104,9 +104,9 @@ paraclea/
 ├── Cargo.toml                          # Workspace root — 5 crates
 ├── crates/
 │   ├── paraclea-core/                  # Library crate — all domain logic
-│   ├── paraclea-cli/                   # CLI binary — Gold/Purple styled terminal interface
+│   ├── paraclea-cli/                   # CLI binary — launches the TUI (default) or REPL (`--repl`)
 │   ├── paraclea-gui/                   # GUI binary — Axum web server + Askama templates
-│   ├── paraclea-tui/                   # TUI binary — ratatui terminal UI with 7 tabs
+│   ├── paraclea-tui/                   # TUI library — ratatui interface with 7 decks (bin: paraclea)
 │   └── mazzaroth/                      # Standalone galaxy renderer (generic, reusable)
 ├── persona/                            # Persona files (SOUL, IDENTITY, USER, MEMORY, TOOLS, HEARTBEAT)
 └── data/                               # Bible & library data files
@@ -137,8 +137,9 @@ cd paraclea
 # 2. Build release workspace binaries
 cargo build --release --workspace
 
-# 3. Install binaries to system PATH
+# 3. Install binaries to system PATH (install to both — PATH order varies by shell)
 install -m 755 target/release/paraclea ~/.local/bin/paraclea
+install -m 755 target/release/paraclea ~/.cargo/bin/paraclea
 install -m 755 target/release/paraclea-gui ~/.local/bin/paraclea-gui
 
 # 4. Run diagnostic health doctor
@@ -149,11 +150,19 @@ paraclea doctor
 
 ## Running Paraclea
 
-### 1. Terminal Companion REPL Shell (`paraclea`)
-Run `paraclea` to launch the interactive terminal shell:
+### 1. Terminal Companion TUI (`paraclea`)
+Run `paraclea` to launch the interactive ratatui terminal interface (7 decks: Chat, Bible, Library, Crossref, Galaxy, Mesh, Doctor):
 ```bash
-paraclea
+paraclea            # TUI (default)
+paraclea --repl     # classic line REPL
 ```
+
+**Keyboard model** — boots into the viewport so deck shortcuts work immediately:
+- `1`–`7` switch decks on launch; in the prompt, digits just type (`2 Corinthians`, `3 John`)
+- `Alt+1`–`Alt+7` switch decks from anywhere; `Tab` cycles focus (Sidebar → Viewport → Prompt)
+- `/` command palette, `?` help, `Esc` cancels AI generation (partial reply preserved), `Ctrl+T` cycles 5 themes (persisted)
+- Chat auto-scrolls to the newest message; manual scrolling disengages, scrolling to the bottom re-engages
+- Mouse wheel scrolls Chat/Bible/Library and zooms the Galaxy; all lists scroll (stateful selection)
 
 #### Terminal Interactive Commands:
 - `/bible` — Open the 100% alphabetical Bible language and translation selector.
@@ -164,6 +173,7 @@ paraclea
 - `/mesh` — View Reticulum off-grid network status, cryptographic identity, active peers, or broadcast messages.
 - `/galaxy` — Open the 3D Galaxy Atlas (Mazzaroth engine).
 - `/doctor` — Run full system diagnostic checks.
+- `/clear` — Clear the conversation (aborts any in-flight generation).
 - `/help` — Display command overview and usage instructions.
 
 ### 2. Desktop Application Web GUI (`paraclea-gui`)
@@ -190,8 +200,8 @@ paraclea-gui
 | **Mesh Protocol** | Reticulum Network Stack (RNS 512-bit Crypto Identity) |
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
-| **Tests** | 28/28 passing |
-| **Clippy** | 0 warnings |
+| **Tests** | 35/35 passing |
+| **Clippy** | 0 warnings (`--all-targets`) |
 
 ---
 

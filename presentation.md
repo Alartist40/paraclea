@@ -152,11 +152,11 @@ paraclea/
 │   │       ├── ollama.rs               # Ollama API integration
 │   │       ├── qdrant.rs               # Qdrant vector DB client
 │   │       └── heartbeat.rs            # Periodic heartbeat with reflection
-│   ├── paraclea-cli/                   # CLI binary — Gold/Purple styled terminal interface
-│   │   └── src/main.rs                 # Clap subcommands: chat, bible, library, crossref, mesh, doctor, persona
+│   ├── paraclea-cli/                   # CLI binary — launches the TUI by default
+│   │   └── src/main.rs                 # Clap subcommands: list, run, doctor, ingest, ocr, query + --repl
 │   ├── paraclea-gui/                   # GUI binary — Axum web server + Askama templates
 │   │   └── src/main.rs                 # Live chat, Bible viewer, Library viewer, Mesh console
-│   ├── paraclea-tui/                   # TUI binary — ratatui terminal UI with 7 tabs
+│   ├── paraclea-tui/                   # TUI library — ratatui 7-deck interface (run via `paraclea`)
 │   │   └── src/app.rs                  # Interactive terminal interface
 │   └── mazzaroth/                      # Standalone galaxy renderer (generic, reusable)
 └── data/
@@ -773,35 +773,42 @@ paraclea persona update --key "name" --value "Xander"
 
 ### TUI Interface
 
-The TUI (`paraclea-tui/src/app.rs`) provides a **7-tab interactive terminal interface** with Tab-tile focus cycling:
+The TUI (`paraclea-tui/src/app.rs`) provides a **7-deck interactive terminal interface** with Tab-tile focus cycling, high-contrast theming, and stream-aware chat:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Paraclea TUI — Tab: Chat                               │
+│  Paraclea TUI — [Chat] [Bible] [Library] …   toast here │
 ├─────────────────────────────────────────────────────────┤
-│  [Chat] [Bible] [Library] [Crossref] [Mesh] [Doctor]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  User: What does the Bible say about fear?              │
-│                                                         │
-│  Paraclea: "Fear not, for I am with you; be not        │
-│  dismayed, for I am your God; I will strengthen you,   │
-│  I will help you, I will uphold you with my righteous  │
-│  right hand." — Isaiah 41:10 (ESV)                     │
-│                                                         │
-│  [Type your message...]                                │
-│                                                         │
+│  [1] Chat  [2] Bible  [3] Library  [4] Crossref         │
+│      [5] Galaxy  [6] Mesh  [7] Doctor                   │
+├────────────┬────────────────────────────────────────────┤
+│ Sidebar    │  👤 You [14:02]                            │
+│ (stats &   │    What does the Bible say about fear?     │
+│  deck      │                                            │
+│  status)   │  🕊️ Paraclea [14:02]                       │
+│            │    "Fear not, for I am with you…" —         │
+│            │    Isaiah 41:10 (ESV)                      │
+│            │                                            │
+│            │  …newest message auto-scrolled into view   │
+├────────────┴────────────────────────────────────────────┤
+│  > Type your message…                              █    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Tab navigation** (cycle with `Tab` key):
-- **Chat** — Interactive conversation with Paraclea
-- **Bible** — Bible reader with version/book/chapter/verse navigation
-- **Library** — Multi-category library browser
+**Deck navigation**:
+- `1`–`7` switch decks instantly (works on launch; digits still type in the prompt)
+- `Alt+1`–`Alt+7` work from anywhere; `Tab` cycles tile focus (Sidebar → Viewport → Prompt)
+
+**Decks**:
+- **Chat** — Streamed AI conversation with auto-scroll, page navigation, and `Esc` cancellation (partial replies preserved)
+- **Bible** — Bible reader with version/book/chapter/verse navigation, scrolling 66-book and 160-translation pickers, side-by-side compare
+- **Library** — Multi-category library browser with chapter navigation (`[`/`]`)
 - **Crossref** — Cross-reference lookup and exploration
-- **Galaxy** — 3D Galaxy Atlas (Mazzaroth engine) with mouse drag rotation
+- **Galaxy** — 3D Galaxy Atlas (Mazzaroth engine) with mouse drag rotation and wheel zoom
 - **Mesh** — Reticulum mesh network console
-- **Doctor** — System diagnostics and health checks
+- **Doctor** — System diagnostics with live catalog counts
+
+**UI/UX foundation**: every panel renders on an explicit `theme.bg()`/`panel_bg()` background (no terminal bleed-through), all long lists use stateful scrolling, header toasts report theme/translation/backup/error events for 4 seconds, and 5 persistent themes clear WCAG AA contrast.
 
 ### GUI Interface
 
@@ -909,8 +916,11 @@ cargo install --path crates/paraclea-cli
 # Run CLI
 paraclea chat --message "Hello, Paraclea"
 
-# Run TUI
-paraclea-tui
+# Run TUI (default interface)
+paraclea
+
+# Run classic line REPL
+paraclea --repl
 
 # Run GUI server
 paraclea-gui --port 8080
@@ -958,13 +968,19 @@ curl -sSL https://raw.githubusercontent.com/xander/paraclea/main/install.sh | ba
 7. **Ollama for embeddings** — Local embedding generation, no cloud API calls, works offline
 8. **Qdrant for vectors** — Fast vector similarity search with metadata filtering
 9. **Axum for GUI** — Lightweight, async web framework, no heavy JavaScript dependencies
-10. **Ratatui for TUI** — Fast, responsive terminal UI with 6-tab navigation
+10. **Ratatui for TUI** — Fast, responsive terminal UI with 7-deck navigation and focus-cycled tiles
+
+### Key Engineering Decisions (UI/UX)
+
+11. **Explicit backgrounds everywhere** — `theme.bg()` root fill + `panel_bg()` on every block, so contrast never depends on the user's terminal colorscheme
+12. **Renderer-computed scroll bounds** — the chat view publishes its unicode-width-aware bottom anchor each frame; keyboard and mouse handlers clamp against the same value, so they can never disagree with what is drawn
+13. **Generation-id stream guard** — every stream is tagged; cancelling bumps the id so stale tokens are dropped, tasks are aborted via `AbortHandle`, and two prompts can never interleave into one channel
 
 ### Future Roadmap
 
-- **v0.8.0** — Whisper STT integration, audio Bible playback, advanced cross-reference visualization
-- **v0.9.0** — Plugin system for community extensions, multi-user collaboration, advanced analytics
-- **v1.0.0** — Production-ready release with comprehensive documentation, performance optimization, and enterprise features
+- **v0.8.0** ✅ — Mazzaroth galaxy crate, cross-platform portability, theme persistence
+- **v0.9.0** ✅ — Full TUI UI/UX overhaul: contrast system, stateful lists, toasts, stream cancellation, auto-scroll
+- **v1.0.0** — Plugin system for community extensions, Whisper STT integration, audio Bible playback, production-ready release with comprehensive documentation
 
 ---
 

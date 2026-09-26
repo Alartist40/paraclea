@@ -1,10 +1,11 @@
 # Paraclea TUI Walkthrough
 
 ## Current State
-- **Tests**: 28/28 passed (4 mazzaroth + 1 cli + 10 core + 13 tui)
-- **Clippy**: 0 warnings
-- **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea`
+- **Tests**: 35/35 passed (4 mazzaroth + 1 cli + 10 core + 20 tui)
+- **Clippy**: 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`)
+- **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea` (install both — PATH order varies by shell)
 - **Crates**: paraclea-core, paraclea-cli, paraclea-gui, paraclea-tui, mazzaroth
+- **Launch**: bare `paraclea` starts the TUI; `paraclea --repl` starts the line REPL
 
 ---
 
@@ -109,11 +110,11 @@ When focus is on the Sidebar:
 
 ### Numeric Shortcuts
 
-Pressing `1`-`7` (when focus is not on PromptInput) directly switches `ActiveTab` without cycling through the sidebar.
+The app boots with `active_focus = MainViewport`, so pressing `1`-`7` switches decks **immediately on launch**. While typing in the prompt, digits are just text — `2 Corinthians`, `3 John`, and `1689 London Baptist` all type normally. `Alt+1`-`Alt+7` switches decks from anywhere, including from prompt focus and with a modal open (the modal closes on switch).
 
-### Command Palette
+### Command Palette & Help
 
-Pressing `/` (when input is empty) or `?` opens a modal command palette that intercepts all input until dismissed with Esc.
+Pressing `/` with an empty prompt (or from any non-prompt focus) opens the modal command palette; `?` opens the help modal. Both intercept input until dismissed with Esc/Enter/`q`.
 
 ---
 
@@ -189,7 +190,7 @@ impl App {
         let left_border = if self.focus == Focus::Left {
             Style::default().fg(Color::Yellow)  // focused
         } else {
-            Style::default().fg(Color::DarkGray) // unfocused
+            Style::default().fg(Color::Rgb(115, 120, 150)) // unfocused (WCAG AA)
         };
         // ... render each tile with its border style
     }
@@ -238,8 +239,9 @@ The galaxy visualization is powered by **Mazzaroth** — a standalone, database-
 ### Controls
 - `WASD` or arrow keys: rotate camera (yaw/pitch)
 - `+`/`-`: zoom in/out
+- Mouse wheel: zoom in (up) / out (down)
 - `Space`: toggle pause (freezes both camera spin AND orbital simulation)
-- `Tab`/`[`: cycle through celestial nodes
+- `]` / `[`: cycle through celestial nodes (Tab/Shift+Tab are consumed by the global focus cycle)
 - `Enter`: inspect selected node (jumps to relevant view)
 - `R`: reset camera
 - `Mouse drag`: rotate camera
@@ -330,31 +332,82 @@ pub fn shell_arg() -> &'static str // "/C" on Windows, "-c" on Unix
 
 ---
 
+## UI/UX Overhaul (v0.9.0)
+
+### Contrast System
+
+Three theme hooks guarantee visibility regardless of terminal background:
+
+```rust
+theme.bg()        // root frame fill (app.rs render — drawn first, full area)
+theme.panel_bg()  // every Block in the crate (26/26) — header, sidebar, views, modals
+theme.input_bg()  // prompt input bar
+```
+
+No element relies on the terminal's default background anymore. `Color::DarkGray` was eliminated entirely; unfocused borders use `rgb(115,120,150)` and inactive tabs use `rgb(150,150,175)` so everything clears WCAG AA.
+
+### Scroll Architecture
+
+The renderer computes the bottom anchor once per frame and publishes it to input handlers:
+
+```rust
+// chat.rs
+pub fn chat_max_scroll(history, streaming_text, is_streaming, w, h, theme) -> usize
+
+// app.rs
+chat_max_scroll: Cell<usize>,          // set in render_main_viewport
+Up/PageUp/ScrollUp   → sync to bottom first (if auto), then decrement
+Down/PageDown/ScrollDown → clamp to cell value, re-engage at bottom
+```
+
+Because the bound comes from the same `build_chat_lines` + unicode-width math the renderer uses, keyboard, mouse, and render always agree — no more hardcoded `total_lines - 10` heuristics.
+
+### Stream Lifecycle
+
+```
+prompt → cancel_active_stream() → gen_id++ → tokio::spawn(AbortHandle stored)
+                                              │
+Esc anywhere → abort() + gen_id++ ────────────┤ (stale Token/Done/Error dropped)
+second prompt → cancel first ─────────────────┤ (no channel interleave)
+/clear → cancel + clear streaming_text ───────┘ (no ghost resurrection)
+Done (current gen) → push to chat_history; partial on cancel tagged [cancelled]
+```
+
+---
+
 ## Keyboard Reference
 
 | Key | Context | Action |
 |-----|---------|--------|
-| `Tab` | Any | Cycle focus between tiles |
-| `1`-`7` | Non-input | Jump directly to tab |
-| `Ctrl+T` | Global | Cycle theme |
+| `Tab` / `Shift+Tab` | No modal open | Cycle focus: Sidebar → MainViewport → PromptInput |
+| `1`-`7` | MainViewport / Sidebar | Jump directly to deck (works on launch) |
+| `Alt+1`-`Alt+7` | Global | Jump to deck from anywhere (closes open modal) |
+| `Ctrl+T` | Global | Cycle theme (persists to config) |
 | `Ctrl+B` | Global | Toggle sidebar |
 | `Ctrl+P` | Global | Open translation picker |
 | `Ctrl+M` | Global | Open model picker |
-| `Ctrl+U` | Global | Trigger encrypted backup |
-| `/` | Empty input | Open command palette |
-| `?` | Non-input | Open help |
-| `Esc` | Modal | Close modal |
-| `Up`/`Down` | Chat | Scroll conversation |
-| `PageUp`/`PageDown` | Chat/Bible/Library | Scroll by page |
-| `Home`/`End` | Chat/Bible/Library | Jump to top/bottom |
-| `j`/`k` | Bible/Library | Navigate books |
-| `h`/`l` | Bible | Navigate chapters |
+| `Ctrl+U` | Global | Trigger encrypted backup (status via toast) |
+| `/` | Empty prompt / non-prompt focus | Open command palette |
+| `?` | Empty prompt / non-prompt focus | Open help modal |
+| `i` / `Enter` | MainViewport | Focus prompt input |
+| `Esc` | While streaming | Cancel generation (keeps partial reply) |
+| `Esc` | MainViewport (not streaming) | Focus prompt input |
+| `Esc` | Modal open | Close modal |
+| `Up`/`Down`/`PageUp`/`PageDown` | Chat | Scroll (disengages auto-scroll) |
+| `Home`/`End` | Chat | Top / bottom (End re-engages auto-scroll) |
+| `j`/`k`, `↑`/`↓` | Bible / Library | Navigate books |
+| `h`/`l`, `←`/`→` | Bible | Navigate chapters |
 | `c` | Bible | Toggle compare mode |
-| `Space` | Galaxy | Pause/resume simulation |
+| `[`/`]`, `p`/`n` | Library | Previous / next chapter |
+| `Enter` | Galaxy | Inspect selected node |
+| `Space` | Galaxy | Pause/resume spin + simulation |
+| Mouse wheel | Chat / Bible / Library | Scroll (clamped; bottom re-engages auto-scroll) |
+| Mouse wheel | Galaxy | Zoom in / out |
+| Left-drag | Galaxy | Rotate camera |
 
 ---
 
 ## Verification
 ```bash
-cargo test --workspace && cargo clippy --workspace -- -D warnings
+cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
 ```

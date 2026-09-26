@@ -2,6 +2,32 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.9.0] - 2026-09-26
+
+### Added
+- **Toast Notifications**: Header toast system for theme changes, language/translation/model selection, backup status, stream errors, and cancellation — rendered on its own header row with a gold highlight for 4 seconds, never obscuring status badges.
+- **Chat Auto-Scroll**: Conversation pins to the newest message during streaming and on send. Manual scrolling (Up/PageUp/wheel) disengages; scrolling back to the bottom or sending re-engages. Row math is unicode-width aware (`unicode-width`) so wrapped CJK/fullwidth text anchors correctly.
+- **Stream Cancellation**: `Esc` anywhere aborts the running Ollama task via `AbortHandle`, bumps the stream generation id so stale tokens are dropped, and preserves the partial reply in history tagged `[cancelled]`.
+- **Library Chapter Navigation**: `[`/`]` (or `p`/`n`, `h`/`l`) move between chapters with clamping against real volume chapter counts via `LibraryEngine::get_chapter_count`.
+- **Mouse Wheel Scrolling**: Wheel scrolls Chat, Bible, and Library views (clamped, chat re-engages auto-scroll at bottom) and zooms the 3D Galaxy camera.
+- **Alt+1–Alt+7**: Global deck switching from any focus, including while a modal is open (the modal closes on switch).
+- **Stateful Modal Lists**: Language/translation pickers, Bible book list, Library lists, and the command palette all render via `ListState` + `render_stateful_widget`, so 66-language and 160-translation menus actually scroll.
+- **Real Modal Filtering**: Picker search ranks exact tag → prefix → substring matches, preserves selection by item identity while typing, and shows an empty-state row when nothing matches.
+
+### Changed
+- **High-Contrast Foundations**: Explicit `theme.bg()` root frame fill plus `panel_bg()` on every block (26/26) and `input_bg()` on the prompt — no more terminal-background bleed-through. `tab_inactive`, `border_normal`, CrimsonCodex primary, and EmeraldMatrix secondary all rebalanced for AA/AAA contrast; zero `Color::DarkGray` remaining.
+- **Keyboard Model Standardized**: The app boots into `MainViewport` focus so `1`–`7` switch decks immediately on launch; digits type freely in the prompt (`2 Corinthians`, `3 John`); `/` opens the command palette and `?` opens help from an empty prompt. All F1–F7 bindings and references removed.
+- **Dynamic Status Counts**: Sidebar and Doctor show live Bible language/translation counts and library category counts instead of hardcoded values.
+- **Chapter Clamping**: Book switching, `/bible Genesis 999`, and translation reloads all clamp to valid chapter ranges.
+- **Toast Expiry**: Toasts clear from state after 4s (previously retained forever); stream failures now raise an error toast.
+
+### Fixed
+- `/clear` now aborts any in-flight stream and drops its tokens, so a cleared chat can no longer be repopulated by a finishing response.
+- Galaxy mouse wheel zoom sign corrected — wheel-up zooms in (was: both directions zoomed out and could saturate at max distance).
+- First scroll-up from auto-scroll no longer jumps to the top of the conversation (scroll syncs to the rendered bottom anchor before decrementing).
+- Removed stale `total_lines - 10` scroll heuristics; keyboard and mouse handlers now clamp against the renderer-computed `chat_max_scroll`.
+- Modal picker highlight no longer disappears past the visible rows of long lists.
+
 ## [0.8.0] - 2026-09-18
 
 ### Added
