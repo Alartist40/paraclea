@@ -7,10 +7,19 @@
 __pycache__/
 *.pyc
 
-# Local audio cache & test media
+# Local audio cache & test media (voices, training audio, testing)
 *.wav
 *.mp3
+*.ogg
+*.flac
+*.m4a
 !aliceinwonderland_01_gerstenberg_64kb.mp3
+
+# Trained voice models & weights
+*.safetensors
+*.pt
+*.bin
+/voices/
 
 # Models cache
 /models/*.gguf

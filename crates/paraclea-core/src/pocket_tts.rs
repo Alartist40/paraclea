@@ -69,13 +69,40 @@ impl PocketTtsEngine {
         // 2. Fallback to CLI execution if available
         if let Some(ref cli) = self.cli_path {
             let unique_out = crate::temp_dir().join(format!("paraclea_tts_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4()));
-            let output = Command::new(cli)
+            let resolved_voice = if self.voice.ends_with(".safetensors") || self.voice.ends_with(".wav") {
+                let p = std::path::Path::new(&self.voice);
+                if p.exists() {
+                    self.voice.clone()
+                } else {
+                    let global_path = crate::home_dir().join(".paraclea/voices").join(&self.voice);
+                    if global_path.exists() {
+                        global_path.to_string_lossy().to_string()
+                    } else {
+                        self.voice.clone()
+                    }
+                }
+            } else {
+                self.voice.clone()
+            };
+
+            let cli_cmd = if Command::new(cli).arg("--help").output().is_ok() {
+                cli.to_string()
+            } else {
+                let local_bin = crate::home_dir().join(".local/bin").join(cli);
+                if local_bin.exists() {
+                    local_bin.to_string_lossy().to_string()
+                } else {
+                    cli.to_string()
+                }
+            };
+
+            let output = Command::new(&cli_cmd)
                 .arg("generate")
                 .arg("--text")
                 .arg(text)
                 .arg("--voice")
-                .arg(&self.voice)
-                .arg("--output")
+                .arg(&resolved_voice)
+                .arg("--output-path")
                 .arg(&unique_out)
                 .arg("-q")
                 .output();
@@ -93,7 +120,13 @@ impl PocketTtsEngine {
                         return Ok(bytes);
                     }
                 }
-                _ => {}
+                Ok(out) => {
+                    let err = String::from_utf8_lossy(&out.stderr);
+                    anyhow::bail!("Pocket TTS CLI error: {}", err);
+                }
+                Err(e) => {
+                    anyhow::bail!("Failed to execute '{}': {}", cli_cmd, e);
+                }
             }
         }
 

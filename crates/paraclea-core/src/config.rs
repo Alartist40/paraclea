@@ -154,7 +154,7 @@ impl Default for Config {
             vector_db: VectorDbConfig::default(),
             voice: VoiceConfig {
                 pocket_tts_url: "http://localhost:8000".to_string(),
-                pocket_tts_voice: "alba".to_string(),
+                pocket_tts_voice: "diana.safetensors".to_string(),
                 pocket_tts_cli: "pocket-tts".to_string(),
             },
             persona: PersonaConfig {

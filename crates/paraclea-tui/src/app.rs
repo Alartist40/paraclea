@@ -92,6 +92,9 @@ pub enum StreamEvent {
     Token(u64, String),
     Done(u64),
     Error(u64, String),
+    TtsStart,
+    TtsDone,
+    TtsError(String),
 }
 
 pub struct App {
@@ -380,9 +383,17 @@ impl App {
 
                             // Async TTS Voice Playback
                             let tts = self.pocket_tts.clone();
+                            let tx_tts = self.tx_stream.clone();
                             tokio::spawn(async move {
-                                if let Ok(audio_bytes) = tts.synthesize(&spoken_text).await {
-                                    let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
+                                let _ = tx_tts.send(StreamEvent::TtsStart);
+                                match tts.synthesize(&spoken_text).await {
+                                    Ok(audio_bytes) => {
+                                        let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
+                                        let _ = tx_tts.send(StreamEvent::TtsDone);
+                                    }
+                                    Err(e) => {
+                                        let _ = tx_tts.send(StreamEvent::TtsError(e.to_string()));
+                                    }
                                 }
                             });
                         }
@@ -400,6 +411,16 @@ impl App {
                                 timestamp: chrono::Local::now().format("%H:%M").to_string(),
                             });
                         }
+                    }
+                    StreamEvent::TtsStart => {
+                        self.is_speaking = true;
+                    }
+                    StreamEvent::TtsDone => {
+                        self.is_speaking = false;
+                    }
+                    StreamEvent::TtsError(err) => {
+                        self.is_speaking = false;
+                        self.set_toast(format!("Voice TTS: {}", err));
                     }
                 }
             }
