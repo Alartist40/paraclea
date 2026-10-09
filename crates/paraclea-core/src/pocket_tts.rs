@@ -41,13 +41,94 @@ impl PocketTtsEngine {
         }
     }
 
-    /// Synthesize text into WAV audio bytes.
-    pub async fn synthesize(&self, text: &str) -> Result<Vec<u8>> {
-        if text.trim().is_empty() {
-            return Ok(Vec::new());
+    /// Resolve voice file path if local or in ~/.paraclea/voices.
+    pub fn resolve_voice_path(&self) -> String {
+        if self.voice.ends_with(".safetensors") || self.voice.ends_with(".wav") {
+            let p = std::path::Path::new(&self.voice);
+            if p.exists() {
+                self.voice.clone()
+            } else {
+                let global_path = crate::home_dir().join(".paraclea/voices").join(&self.voice);
+                if global_path.exists() {
+                    global_path.to_string_lossy().to_string()
+                } else {
+                    self.voice.clone()
+                }
+            }
+        } else {
+            self.voice.clone()
+        }
+    }
+
+    /// Clean markdown formatting and special characters before speech synthesis.
+    pub fn clean_for_speech(text: &str) -> String {
+        let mut clean = String::with_capacity(text.len());
+        let mut in_parenthesis_link = false;
+
+        for ch in text.chars() {
+            match ch {
+                '*' | '#' | '_' | '`' | '~' | '>' | '[' | ']' | '{' | '}' | '|' => continue,
+                '(' if in_parenthesis_link => continue,
+                ')' if in_parenthesis_link => {
+                    in_parenthesis_link = false;
+                    continue;
+                }
+                c if c.is_control() && c != '\n' && c != ' ' => continue,
+                c => clean.push(c),
+            }
+        }
+        clean.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// Ensure the Pocket TTS HTTP daemon is running in background for fast sentence generation.
+    pub async fn ensure_server_running(&self) {
+        if self.health_check().await {
+            return;
         }
 
-        // 1. Attempt Pocket TTS HTTP server request
+        if let Some(ref cli) = self.cli_path {
+            let cli_cmd = if Command::new(cli).arg("--help").output().is_ok() {
+                cli.to_string()
+            } else {
+                let local_bin = crate::home_dir().join(".local/bin").join(cli);
+                if local_bin.exists() {
+                    local_bin.to_string_lossy().to_string()
+                } else {
+                    cli.to_string()
+                }
+            };
+
+            let resolved_voice = self.resolve_voice_path();
+            let _ = Command::new(&cli_cmd)
+                .arg("serve")
+                .arg("--port")
+                .arg("8000")
+                .arg("--default-voice")
+                .arg(&resolved_voice)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+
+            // Wait briefly for server ready
+            for _ in 0..15 {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                if self.health_check().await {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Synthesize text into WAV audio bytes.
+    pub async fn synthesize(&self, text: &str) -> Result<Vec<u8>> {
+        let cleaned = Self::clean_for_speech(text);
+        if cleaned.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let text = &cleaned;
+
+        // 1. Attempt Pocket TTS HTTP server request (auto-spawning daemon if needed)
+        self.ensure_server_running().await;
         if self.health_check().await {
             let url = format!("{}/tts", self.server_url);
             let params = [("text", text), ("voice_url", &self.voice)];
@@ -58,6 +139,7 @@ impl PocketTtsEngine {
                 .form(&params)
                 .send()
                 .await
+
                 .with_context(|| format!("Pocket TTS HTTP request failed to {}", url))?;
 
             if resp.status().is_success() {
@@ -69,21 +151,7 @@ impl PocketTtsEngine {
         // 2. Fallback to CLI execution if available
         if let Some(ref cli) = self.cli_path {
             let unique_out = crate::temp_dir().join(format!("paraclea_tts_{}_{}.wav", std::process::id(), uuid::Uuid::new_v4()));
-            let resolved_voice = if self.voice.ends_with(".safetensors") || self.voice.ends_with(".wav") {
-                let p = std::path::Path::new(&self.voice);
-                if p.exists() {
-                    self.voice.clone()
-                } else {
-                    let global_path = crate::home_dir().join(".paraclea/voices").join(&self.voice);
-                    if global_path.exists() {
-                        global_path.to_string_lossy().to_string()
-                    } else {
-                        self.voice.clone()
-                    }
-                }
-            } else {
-                self.voice.clone()
-            };
+            let resolved_voice = self.resolve_voice_path();
 
             let cli_cmd = if Command::new(cli).arg("--help").output().is_ok() {
                 cli.to_string()
