@@ -136,8 +136,6 @@ pub struct App {
     /// handlers clamp against this so their math matches what is drawn.
     pub chat_max_scroll: Cell<usize>,
     pub current_stream_abort: Option<tokio::task::AbortHandle>,
-    pub current_tts_abort: Option<tokio::task::AbortHandle>,
-    pub tx_tts_sentence: mpsc::UnboundedSender<(u64, String)>,
     pub stream_generation_id: u64,
 
     pub bible_state: BibleViewState,
@@ -251,30 +249,6 @@ impl App {
 
         let initial_theme = AppTheme::from_name(&cfg.theme).unwrap_or(AppTheme::RoyalByzantium);
 
-        let (tx_tts_sentence, mut rx_tts_sentence) = mpsc::unbounded_channel::<(u64, String)>();
-        let tts_engine = pocket_tts.clone();
-        let tx_events = tx_stream.clone();
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                tts_engine.ensure_server_running().await;
-                while let Some((_gen_id, sentence)) = rx_tts_sentence.recv().await {
-                    if sentence.trim().is_empty() {
-                        continue;
-                    }
-                    let _ = tx_events.send(StreamEvent::TtsStart);
-                    match tts_engine.synthesize(&sentence).await {
-                        Ok(wav_bytes) => {
-                            let _ = AudioPlayer::play_wav_bytes(&wav_bytes);
-                        }
-                        Err(e) => {
-                            let _ = tx_events.send(StreamEvent::TtsError(e.to_string()));
-                        }
-                    }
-                    let _ = tx_events.send(StreamEvent::TtsDone);
-                }
-            });
-        }
-
         Self {
             cfg,
             config_path,
@@ -309,8 +283,6 @@ impl App {
             chat_auto_scroll: true,
             chat_max_scroll: Cell::new(0),
             current_stream_abort: None,
-            current_tts_abort: None,
-            tx_tts_sentence,
             stream_generation_id: 0,
 
             bible_state: BibleViewState::default(),
@@ -406,10 +378,26 @@ impl App {
                                 thinking: None,
                                 timestamp: now_str,
                             });
+                            let spoken_text = self.streaming_text.clone();
                             self.streaming_text.clear();
+
+                            // Async TTS Voice Playback
+                            let tts = self.pocket_tts.clone();
+                            let tx_tts = self.tx_stream.clone();
+                            tokio::spawn(async move {
+                                let _ = tx_tts.send(StreamEvent::TtsStart);
+                                match tts.synthesize(&spoken_text).await {
+                                    Ok(audio_bytes) => {
+                                        let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
+                                        let _ = tx_tts.send(StreamEvent::TtsDone);
+                                    }
+                                    Err(e) => {
+                                        let _ = tx_tts.send(StreamEvent::TtsError(e.to_string()));
+                                    }
+                                }
+                            });
                         }
                     }
-
                     StreamEvent::Error(gen_id, err) => {
                         if gen_id == self.stream_generation_id {
                             self.is_streaming = false;
@@ -1381,7 +1369,6 @@ impl App {
                 self.is_streaming = true;
                 let gen_id = self.stream_generation_id;
                 let tx = self.tx_stream.clone();
-                let tx_tts = self.tx_tts_sentence.clone();
                 let model = self.cfg.model.ollama.model.clone();
                 let ollama = self.ollama.clone();
                 let persona_prompt = self.persona.build_system_prompt();
@@ -1393,33 +1380,9 @@ impl App {
                         OllamaChatMessage { role: "user".to_string(), content: query },
                     ];
                     let tx_token = tx.clone();
-                    let tx_sentence = tx_tts.clone();
-                    let sentence_buf = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-                    let sentence_buf_clone = std::sync::Arc::clone(&sentence_buf);
-
                     let res = ollama.chat_with_model_stream(&model, msgs, move |tok| {
                         let _ = tx_token.send(StreamEvent::Token(gen_id, tok.to_string()));
-                        let mut buf = sentence_buf_clone.lock().unwrap();
-                        buf.push_str(tok);
-                        if let Some(pos) = buf.find(|c| c == '.' || c == '!' || c == '?' || c == '\n') {
-                            let sentence = buf[..=pos].to_string();
-                            *buf = buf[pos + 1..].to_string();
-                            let trimmed = sentence.trim();
-                            if !trimmed.is_empty() {
-                                let _ = tx_sentence.send((gen_id, trimmed.to_string()));
-                            }
-                        }
                     }).await;
-
-                    // Flush any remaining text in buffer after stream completes
-                    {
-                        let mut buf = sentence_buf.lock().unwrap();
-                        let leftover = buf.trim().to_string();
-                        if !leftover.is_empty() {
-                            let _ = tx_tts.send((gen_id, leftover));
-                        }
-                        buf.clear();
-                    }
 
                     match res {
                         Ok(_) => { let _ = tx.send(StreamEvent::Done(gen_id)); }
