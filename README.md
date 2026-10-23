@@ -166,15 +166,17 @@ paraclea --repl     # classic line REPL
 - Mouse wheel scrolls Chat/Bible/Library and zooms the Galaxy; all lists scroll (stateful selection)
 
 #### Terminal Interactive Commands:
-- `/bible` — Open the 100% alphabetical Bible language and translation selector (supports dual synchronized parallel reading via `c`).
+- `/bible` — Open the 100% alphabetical Bible language and translation selector (supports dual synchronized parallel reading via `c`, interlinear mode via `x`).
 - `/read` — Open the Unified Reader to browse Spiritual, Survival, Medical, and Educational books.
 - `/compare` — Compare a Scripture verse side-by-side across multiple translations with AI study commentary.
+- `/interlinear` — Toggle Greek & Hebrew interlinear mode with Strong's tags and root lemmas.
 - `/strongs` — Inspect Greek and Hebrew lexemes, transliterations, and biblical roots via Strong's Concordance.
 - `/chains` — Explore prophetic synthesis chains linking Old Testament, New Testament, and Ellen G. White writings.
 - `/dashboard` (or `/daily`) — View the field devotional briefing, daily scripture, active track, and mesh status.
 - `/study` — Deep Scripture study with 340,000 Treasury of Scripture Knowledge cross-reference links.
 - `/memory` — Inspect and search stored Dendrite v2 knowledge graph nodes.
 - `/mesh` — View Reticulum off-grid network status, cryptographic identity, active peers, or broadcast messages.
+- `/packets` — Real-time LoRa RNode RF signal oscilloscope (RSSI/SNR) and raw encrypted packet telemetry.
 - `/galaxy` — Open the 3D Galaxy Atlas with hierarchical ASCII topology (`@` Nexus, `o` Book, `*` Chapter, `.` Verse).
 - `/doctor` — Run full system diagnostic checks.
 - `/clear` — Clear the conversation (aborts any in-flight generation).
@@ -201,12 +203,13 @@ paraclea-gui
 | **Bible Database** | 160 Formatted JSON Files (30 Languages, 66 Books) |
 | **Non-Scripture Library** | 7 Books across 4 Categories (211 Total Chapters) |
 | **Lexicon Engine** | Strong's Greek & Hebrew Lexicon with tolerant lookup |
+| **Vector Engine** | In-Process Embedded Vector Store (Zero-Daemon Pure Rust) |
 | **Graph Database** | SQLite WAL Mode + FTS5 Full-Text Search |
 | **Mesh Protocol** | Reticulum Network Stack (RNS 512-bit Crypto Identity) |
 | **Audio Engine** | Asynchronous double-buffered jitter ring (<100ms TTFS) |
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
-| **Tests** | 40/40 passing |
+| **Tests** | 44/44 passing |
 | **Clippy** | 0 warnings (`--all-targets`) |
 
 ---

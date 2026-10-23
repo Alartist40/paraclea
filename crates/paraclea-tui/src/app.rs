@@ -51,10 +51,12 @@ pub const COMMAND_PALETTE: &[(&str, &str)] = &[
     ("/version", "Pick Bible translation version"),
     ("/bible", "Open Bible reader / interactive scripture"),
     ("/compare", "Compare translations side-by-side"),
+    ("/interlinear", "Toggle Greek & Hebrew interlinear mode"),
     ("/library", "Browse offline book library"),
     ("/galaxy", "Open 3D celestial knowledge galaxy"),
     ("/memory", "Inspect Dendrite knowledge graph"),
     ("/mesh", "Reticulum mesh network status"),
+    ("/packets", "LoRa RNode packet monitor & RF oscilloscope"),
     ("/model", "Switch active Ollama AI model"),
     ("/doctor", "System health diagnostics & doctor"),
     ("/backup", "1-Click AES-256-GCM encrypted USB backup"),
@@ -882,6 +884,9 @@ impl App {
                         self.bible_state.compare_mode = !self.bible_state.compare_mode;
                         self.load_active_bible_chapter();
                     }
+                    KeyCode::Char('x') => {
+                        self.bible_state.interlinear_mode = !self.bible_state.interlinear_mode;
+                    }
                     KeyCode::Home => self.bible_state.scroll = 0,
                     KeyCode::End => {
                         let max_scroll = self.bible_verses.len().saturating_sub(1);
@@ -987,7 +992,16 @@ impl App {
                         crate::views::galaxy::GalaxyAction::None => {}
                     }
                 }
-                ActiveTab::Crossref | ActiveTab::Mesh | ActiveTab::Doctor => match code {
+                ActiveTab::Mesh => match code {
+                    KeyCode::Char('p') => {
+                        self.mesh_state.show_packets = !self.mesh_state.show_packets;
+                    }
+                    KeyCode::Esc | KeyCode::Char('i') | KeyCode::Enter => {
+                        self.active_focus = ActiveFocus::PromptInput;
+                    }
+                    _ => {}
+                },
+                ActiveTab::Crossref | ActiveTab::Doctor => match code {
                     KeyCode::Esc | KeyCode::Char('i') | KeyCode::Enter => {
                         self.active_focus = ActiveFocus::PromptInput;
                     }
@@ -1234,12 +1248,23 @@ impl App {
                 f.render_widget(GalaxyView::new(&self.galaxy_state, self.theme), area);
             }
             ActiveTab::Mesh => {
-                let status = self.mesh_engine.as_ref().map(|m| m.status()).unwrap_or_else(|| "Reticulum Mesh Standby".to_string());
-                let id_hash = self.mesh_engine.as_ref().and_then(|m| m.identity_hash.as_deref());
-                let mailbox: Vec<(String, String, String, String)> = self.mesh_engine.as_ref().map(|m| {
-                    m.read_mailbox().into_iter().map(|msg| (msg.timestamp, msg.sender, msg.recipient, msg.content)).collect()
-                }).unwrap_or_default();
-                render_mesh_view(f, area, &self.mesh_state, &status, id_hash, &[], &mailbox, &self.theme);
+                if self.mesh_state.show_packets {
+                    let sample_packets = vec![
+                        crate::views::packets::PacketTelemetry::new("14:22:01", "ANNOUNCE", -82, 6.5, 1, "4a7bc9e120f3a5b2", 144),
+                        crate::views::packets::PacketTelemetry::new("14:22:15", "DATA", -78, 8.2, 2, "9f1d0a8b77c34e01", 256),
+                        crate::views::packets::PacketTelemetry::new("14:22:30", "LINK", -85, 4.8, 1, "3b5e8c11aa290744", 64),
+                        crate::views::packets::PacketTelemetry::new("14:22:45", "PROOF", -74, 9.5, 1, "9f1d0a8b77c34e01", 32),
+                    ];
+                    let iface = if self.mesh_engine.is_some() { "SX1262 LoRa 915MHz" } else { "Virtual RNode Loopback" };
+                    crate::views::packets::render_packets_view(f, area, &sample_packets, iface, &self.theme);
+                } else {
+                    let status = self.mesh_engine.as_ref().map(|m| m.status()).unwrap_or_else(|| "Reticulum Mesh Standby".to_string());
+                    let id_hash = self.mesh_engine.as_ref().and_then(|m| m.identity_hash.as_deref());
+                    let mailbox: Vec<(String, String, String, String)> = self.mesh_engine.as_ref().map(|m| {
+                        m.read_mailbox().into_iter().map(|msg| (msg.timestamp, msg.sender, msg.recipient, msg.content)).collect()
+                    }).unwrap_or_default();
+                    render_mesh_view(f, area, &self.mesh_state, &status, id_hash, &[], &mailbox, &self.theme);
+                }
             }
             ActiveTab::Doctor => render_doctor_view(
                 f, area, self.ollama_online, &self.cfg.model.ollama.model, self.qdrant_online,
@@ -1326,6 +1351,10 @@ impl App {
                 self.bible_state.compare_mode = !self.bible_state.compare_mode;
                 self.load_active_bible_chapter();
             }
+            "/interlinear" => {
+                self.active_tab = ActiveTab::Bible;
+                self.bible_state.interlinear_mode = !self.bible_state.interlinear_mode;
+            }
             "/library" | "/books" => {
                 self.active_tab = ActiveTab::Library;
                 if !args.is_empty() {
@@ -1343,6 +1372,11 @@ impl App {
             }
             "/mesh" => {
                 self.active_tab = ActiveTab::Mesh;
+                self.mesh_state.show_packets = false;
+            }
+            "/packets" => {
+                self.active_tab = ActiveTab::Mesh;
+                self.mesh_state.show_packets = true;
             }
             "/model" => {
                 self.open_model_picker().await;

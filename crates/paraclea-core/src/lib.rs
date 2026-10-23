@@ -15,8 +15,10 @@ pub mod persona;
 pub mod pocket_tts;
 pub mod qdrant;
 pub mod rag;
+pub mod sneakernet;
 pub mod strongs;
 pub mod tools;
+pub mod vector;
 
 use std::path::PathBuf;
 

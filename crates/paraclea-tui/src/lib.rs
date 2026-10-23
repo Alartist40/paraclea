@@ -14,6 +14,7 @@ pub mod views {
     pub mod galaxy;
     pub mod library;
     pub mod mesh;
+    pub mod packets;
 }
 
 use anyhow::Result;

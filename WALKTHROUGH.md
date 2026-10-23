@@ -1,7 +1,7 @@
 # Paraclea TUI Walkthrough
 
 ## Current State
-- **Tests**: 40/40 passed (5 mazzaroth + 1 cli + 12 core + 22 tui)
+- **Tests**: 44/44 passed (5 mazzaroth + 1 cli + 14 core + 24 tui)
 - **Clippy**: 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`)
 - **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea` (install both — PATH order varies by shell)
 - **Crates**: paraclea-core, paraclea-cli, paraclea-gui, paraclea-tui, mazzaroth
@@ -459,7 +459,34 @@ Done (current gen) → push to chat_history; partial on cancel tagged [cancelled
 - `docs/AUDIO_STREAMING_OPTIMIZATION.md`: Technical breakdown of circular audio jitter rings and buffer management.
 - `docs/APPIMAGE_UPDATES_GUIDE.md`: Single-binary portable packaging, permission models, and zsync differential block updating.
 - `docs/RETICULUM_OFFGRID_GUIDE.md`: LoRa hardware setup, cryptographic destination hashing, and delay-tolerant mesh store-and-forward routing.
+- `docs/USB_SNEAKERNET_SYNC_GUIDE.md`: Air-gapped removable media discovery, AES-256-GCM envelope layout, and safe kernel writeback unmounting.
 - `scripts/build_appimage.sh`: Automated release packaging script with embedded delta update headers.
+
+### 9. In-Process Embedded Vector Store (`crates/paraclea-core/src/vector.rs`)
+- Zero-daemon vector indexing using pure Rust cosine similarity:
+  - Vector normalization caching (`norm = sqrt(sum(v^2))`).
+  - Top-k nearest neighbor retrieval with arbitrary JSON metadata payloads.
+  - Multi-collection partition support (`verses`, `library`, `notes`).
+  - Serializes to/from disk with zero background services or external container daemons.
+
+### 10. USB Sneakernet Synchronization Appliance (`crates/paraclea-core/src/sneakernet.rs`)
+- Off-grid synchronization across air-gapped field nodes:
+  - Removable media auto-discovery across Linux (`/media/$USER`, `/run/media/$USER`, `/mnt`), macOS (`/Volumes`), and Windows drive letters (`D:\`..`Z:\`).
+  - Identifies `.paraclea_vault/` directories.
+  - Authenticated encryption with PBKDF2 (100,000 rounds) + AES-256-GCM with random 16-byte salt and 12-byte nonce.
+  - Safe kernel page cache flushing (`sync`) to protect FAT32/exFAT partitions from removal corruption.
+
+### 11. Cross-Lingual Greek & Hebrew Interlinear Reader
+- Word-level lemma glossing and Strong's concordance identifiers in the Bible view:
+  - Activated via `x` key or `/interlinear` command.
+  - Renders inline gloss lines with original Hebrew (e.g. `H7225 רֵאשִׁית`, `H1254 בָּרָא`) and Greek (e.g. `G3056 λόγος`, `G3875 παράκλητος`).
+
+### 12. LoRa RNode Packet Monitor & RF Oscilloscope
+- Live RF carrier wave telemetry and packet inspection deck:
+  - Activated via `p` key in Mesh view or `/packets` command.
+  - Real-time ASCII signal bars for RSSI (-120 dBm to -40 dBm) and SNR (-10 dB to +15 dB).
+  - Braille waveform carrier visualizer.
+  - Live reverse-chronological packet table detailing timestamp, packet type (`ANNOUNCE`, `LINK`, `DATA`, `PROOF`), signal metrics, hop count, sender hash, and payload byte size.
 
 ---
 
@@ -467,4 +494,5 @@ Done (current gen) → push to chat_history; partial on cancel tagged [cancelled
 ```bash
 cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
 ```
+
 

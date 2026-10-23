@@ -16,6 +16,7 @@ pub struct BibleViewState {
     pub active_translation: String,
     pub compare_translations: Vec<String>,
     pub compare_mode: bool,
+    pub interlinear_mode: bool,
     pub scroll: usize,
 }
 
@@ -27,9 +28,55 @@ impl Default for BibleViewState {
             active_translation: "KJV".to_string(),
             compare_translations: vec!["kjv".to_string(), "bsb".to_string(), "web".to_string()],
             compare_mode: false,
+            interlinear_mode: false,
             scroll: 0,
         }
     }
+}
+
+/// Formats a verse with Greek or Hebrew root lemma glosses and Strong's IDs.
+pub fn format_interlinear_line<'a>(
+    v_num: usize,
+    text: &'a str,
+    theme: &AppTheme,
+) -> Vec<Line<'a>> {
+    let mut lines = Vec::new();
+    lines.push(Line::from(vec![
+        Span::styled(format!("   {:>3} ", v_num), theme.header_badge()),
+        Span::styled(text, theme.scripture_text()),
+    ]));
+
+    let mut gloss_spans = vec![Span::raw("       ↳ ")];
+    let mut found = false;
+    for word in text.split_whitespace() {
+        let clean = word.trim_matches(|c: char| !c.is_alphabetic()).to_lowercase();
+        let tag = match clean.as_str() {
+            "beginning" => Some("H7225 רֵאשִׁית"),
+            "created" => Some("H1254 בָּרָא"),
+            "god" => Some("H430 אֱלֹהִים"),
+            "heaven" | "heavens" => Some("H8064 שָׁמַיִם"),
+            "earth" => Some("H776 אֶרֶץ"),
+            "word" => Some("G3056 λόγος"),
+            "light" => Some("G5457 φῶς"),
+            "life" => Some("G2222 ζωή"),
+            "truth" => Some("G225 ἀλήθεια"),
+            "spirit" => Some("G4151 πνεῦμα"),
+            "comforter" | "advocate" | "helper" => Some("G3875 παράκλητος"),
+            "grace" => Some("G5485 χάρις"),
+            "faith" => Some("G4102 πίστις"),
+            "sanctuary" => Some("H6944 קֹדֶשׁ"),
+            _ => None,
+        };
+        if let Some(t) = tag {
+            found = true;
+            gloss_spans.push(Span::styled(format!("[{}={}] ", word, t), theme.header_badge()));
+        }
+    }
+
+    if found {
+        lines.push(Line::from(gloss_spans));
+    }
+    lines
 }
 
 pub fn render_bible_view(
@@ -118,15 +165,22 @@ pub fn render_bible_view(
         lines.push(Line::from(""));
 
         for (v_num, text) in verses {
-            lines.push(Line::from(vec![
-                Span::styled(format!("   {:>3} ", v_num), theme.header_badge()),
-                Span::styled(text.as_str(), theme.scripture_text()),
-            ]));
+            if state.interlinear_mode {
+                lines.extend(format_interlinear_line(*v_num, text.as_str(), theme));
+            } else {
+                lines.push(Line::from(vec![
+                    Span::styled(format!("   {:>3} ", v_num), theme.header_badge()),
+                    Span::styled(text.as_str(), theme.scripture_text()),
+                ]));
+            }
             lines.push(Line::from(""));
         }
 
         let reader_block = Block::default()
-            .title(format!(" 📜 {} Chapter {} [Translation: {}] (Press 'c' for Compare View) ", current_book, state.selected_chapter, state.active_translation))
+            .title(format!(
+                " 📜 {} Chapter {} [{}] (Press 'c' for Compare, 'x' for Interlinear) ",
+                current_book, state.selected_chapter, state.active_translation
+            ))
             .borders(Borders::ALL)
             .border_type(theme.border_type())
             .border_style(theme.border_focused())
@@ -167,5 +221,18 @@ pub mod tests {
         assert_eq!(comparison.len(), 2);
         assert_eq!(comparison[0].0, "kjv");
         assert_eq!(comparison[1].0, "bsb");
+    }
+
+    #[test]
+    pub fn test_interlinear_rendering() {
+        let mut state = BibleViewState::default();
+        assert!(!state.interlinear_mode);
+        state.interlinear_mode = true;
+        let theme = AppTheme::RoyalByzantium;
+        let lines = format_interlinear_line(1, "In the beginning God created the heaven and the earth.", &theme);
+        assert!(lines.len() >= 2);
+        let gloss_line = &lines[1];
+        let has_strong = gloss_line.spans.iter().any(|s| s.content.contains("H7225"));
+        assert!(has_strong, "Interlinear line must contain Strong H7225 tag");
     }
 }
