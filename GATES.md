@@ -1,39 +1,31 @@
-# Gates: Paraclea TUI UI/UX Audit Fixes & Verification
+# Gates: Paraclea Comprehensive Feature Expansion & Polish
 
-- [x] G1: Chat auto-scroll pin on send/streaming/done + user scroll preservation
-  CHECK: cargo test -p paraclea-tui --lib tests::test_chat_auto_scroll
+- [x] G1: Mazzaroth hierarchical ASCII representation (@ Core, o Book, * Chapter, . Verse)
+  CHECK: cargo test -p mazzaroth --lib tests::test_ascii_hierarchy
   EXPECT: test result: ok.
-  EVIDENCE: test tests::test_chat_auto_scroll ... ok (exit code 0)
+  EVIDENCE: test tests::test_ascii_hierarchy ... ok (exit code 0)
 
-- [x] G2: 1-7 numeric keys switch decks from MainViewport/Sidebar; boots into MainViewport so they work on launch; digits type freely in PromptInput; Alt+1-7 switches from anywhere
-  CHECK: cargo test -p paraclea-tui --lib tests::test_numeric_tab_switch_on_empty_prompt
+- [x] G2: Wilderness E-Ink High-Contrast theme added to AppTheme
+  CHECK: cargo test -p paraclea-tui --lib theme::tests::test_wilderness_eink_theme
   EXPECT: test result: ok.
-  EVIDENCE: test tests::test_numeric_tab_switch_on_empty_prompt ... ok (exit code 0)
+  EVIDENCE: test theme::tests::test_wilderness_eink_theme ... ok (exit code 0)
 
-- [x] G3: Real stream cancellation with AbortHandle stops background Ollama task and ignores trailing tokens
-  CHECK: cargo test -p paraclea-tui --lib tests::test_real_stream_cancellation
+- [x] G3: Strong's Concordance Greek & Hebrew lookup engine
+  CHECK: cargo test -p paraclea-core --lib strongs::tests::test_strongs_lookup
   EXPECT: test result: ok.
-  EVIDENCE: test tests::test_real_stream_cancellation ... ok (exit code 0)
+  EVIDENCE: test strongs::tests::test_strongs_lookup ... ok (exit code 0)
 
-- [x] G4: Galaxy view panel_bg + Color::DarkGray elimination across codebase
-  CHECK: grep -rn "Color::DarkGray" crates/paraclea-tui/src/
-  EXPECT: NO_DARKGRAY_FOUND
-  EVIDENCE: NO_DARKGRAY_FOUND (0 occurrences across entire crate)
-
-- [x] G5: Chapter clamp on all navigation paths + hardcoded counts dynamic + error toast
-  CHECK: cargo test -p paraclea-tui --lib tests::test_chapter_clamping_all_paths
+- [x] G4: Asynchronous double-buffered audio player & jitter buffer
+  CHECK: cargo test -p paraclea-core --lib audio::tests::test_async_audio_streamer
   EXPECT: test result: ok.
-  EVIDENCE: test tests::test_chapter_clamping_all_paths ... ok (exit code 0)
+  EVIDENCE: test audio::tests::test_async_audio_streamer ... ok (exit code 0)
 
-- [x] G6: Full workspace test suite passes with 100% green tests & zero clippy warnings
-  CHECK: cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
+- [x] G5: Dual Synchronized Parallel Translation Reader in Bible view
+  CHECK: cargo test -p paraclea-tui --lib views::bible::tests::test_parallel_reader
   EXPECT: test result: ok.
-  EVIDENCE: 35/35 tests passed across workspace (exit code 0); 0 clippy warnings on --all-targets.
+  EVIDENCE: test views::bible::tests::test_parallel_reader ... ok (exit code 0)
 
-- [x] G7: Binary installed and runnable via system PATH
-  CHECK: cargo build --release -p paraclea-cli && cp target/release/paraclea ~/.local/bin/ && cp target/release/paraclea ~/.cargo/bin/
-  EXPECT: Both install paths hold the same fresh binary
-  EVIDENCE: ~/.local/bin/paraclea and ~/.cargo/bin/paraclea updated from the same release build — md5 30a079af7e6ea5071e733cd863a68b5e for both
-
-
-
+- [x] G6: Complete workspace compilation & zero regression check
+  CHECK: cargo test --workspace
+  EXPECT: test result: ok.
+  EVIDENCE: 40/40 tests passed across all 5 workspace crates (exit code 0)

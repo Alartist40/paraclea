@@ -75,6 +75,40 @@ impl CrossReferenceLinker {
             .filter(|node| node.tags.contains(&"#cross_reference".to_string()) || node.content.contains("[["))
             .collect()
     }
+
+    /// Pre-seed curated Topical Synthesis Chains bridging Scripture, Prophecy, and Historical manuals.
+    pub fn seed_prophetic_synthesis_chains(&self) -> Result<usize> {
+        let chains = [
+            (
+                "Exodus 25:8",
+                "The Great Controversy Ch 23",
+                "Sanctuary Doctrine: Heavenly Sanctuary pattern and Christ's high-priestly ministry."
+            ),
+            (
+                "Daniel 8:14",
+                "The Great Controversy Ch 18",
+                "2300-Day Prophetic Timeline: The cleansing of the Sanctuary and historic Advent movement."
+            ),
+            (
+                "Genesis 2:1-3",
+                "The Desire of Ages Ch 29",
+                "The Sabbath Institution: Seventh-day rest from Creation through the Redemptive ministry of Christ."
+            ),
+            (
+                "Leviticus 11:1-47",
+                "Libre Survival Manual Ch 8",
+                "Wilderness Health & Nutrition: Clean dietary principles and primitive survival foraging safety."
+            ),
+        ];
+
+        let mut count = 0;
+        for (source, target, notes) in chains {
+            if self.create_cross_reference(source, target, notes).is_ok() {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
 }
 
 #[cfg(test)]

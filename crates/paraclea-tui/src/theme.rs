@@ -10,6 +10,7 @@ pub enum AppTheme {
     CyberScholar,      // Neon Cyan & Electric Magenta
     EmeraldMatrix,     // Mint green & Obsidian
     CelestialMidnight, // Deep Starlight Indigo & Silver
+    WildernessEInk,    // High-Contrast Pure Paper White & Obsidian Ink
 }
 
 impl AppTheme {
@@ -20,6 +21,7 @@ impl AppTheme {
             "CyberScholar" => Some(Self::CyberScholar),
             "EmeraldMatrix" => Some(Self::EmeraldMatrix),
             "CelestialMidnight" => Some(Self::CelestialMidnight),
+            "WildernessEInk" => Some(Self::WildernessEInk),
             _ => None,
         }
     }
@@ -31,6 +33,7 @@ impl AppTheme {
             AppTheme::CyberScholar => "CyberScholar",
             AppTheme::EmeraldMatrix => "EmeraldMatrix",
             AppTheme::CelestialMidnight => "CelestialMidnight",
+            AppTheme::WildernessEInk => "WildernessEInk",
         }
     }
 
@@ -41,6 +44,7 @@ impl AppTheme {
             AppTheme::CyberScholar => "Cyber Scholar (Cyan & Magenta)",
             AppTheme::EmeraldMatrix => "Emerald Matrix (Green)",
             AppTheme::CelestialMidnight => "Celestial Midnight (Indigo & Silver)",
+            AppTheme::WildernessEInk => "Wilderness E-Ink (Sunlight & High Contrast)",
         }
     }
 
@@ -50,12 +54,16 @@ impl AppTheme {
             AppTheme::CrimsonCodex => AppTheme::CyberScholar,
             AppTheme::CyberScholar => AppTheme::EmeraldMatrix,
             AppTheme::EmeraldMatrix => AppTheme::CelestialMidnight,
-            AppTheme::CelestialMidnight => AppTheme::RoyalByzantium,
+            AppTheme::CelestialMidnight => AppTheme::WildernessEInk,
+            AppTheme::WildernessEInk => AppTheme::RoyalByzantium,
         }
     }
 
     pub fn border_type(&self) -> BorderType {
-        BorderType::Rounded
+        match self {
+            AppTheme::WildernessEInk => BorderType::Plain,
+            _ => BorderType::Rounded,
+        }
     }
 
     pub fn primary(&self) -> Color {
@@ -65,6 +73,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(0, 229, 255),       // Cyan
             AppTheme::EmeraldMatrix => Color::Rgb(0, 255, 127),      // Mint
             AppTheme::CelestialMidnight => Color::Rgb(100, 181, 246), // Starlight Cyan
+            AppTheme::WildernessEInk => Color::Rgb(10, 10, 10),      // Solid Ink Black
         }
     }
 
@@ -75,6 +84,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(10, 15, 25),
             AppTheme::EmeraldMatrix => Color::Rgb(8, 20, 12),
             AppTheme::CelestialMidnight => Color::Rgb(10, 12, 28),
+            AppTheme::WildernessEInk => Color::Rgb(250, 250, 250),   // High-Contrast Paper White
         }
     }
 
@@ -85,6 +95,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(18, 28, 45),
             AppTheme::EmeraldMatrix => Color::Rgb(15, 32, 20),
             AppTheme::CelestialMidnight => Color::Rgb(20, 24, 48),
+            AppTheme::WildernessEInk => Color::Rgb(240, 240, 240),
         }
     }
 
@@ -95,6 +106,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(22, 34, 55),
             AppTheme::EmeraldMatrix => Color::Rgb(18, 38, 24),
             AppTheme::CelestialMidnight => Color::Rgb(25, 30, 60),
+            AppTheme::WildernessEInk => Color::Rgb(255, 255, 255),
         }
     }
 
@@ -105,6 +117,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(255, 0, 127),       // Magenta
             AppTheme::EmeraldMatrix => Color::Rgb(40, 190, 110),     // Vivid Matrix Green (6.5:1 contrast)
             AppTheme::CelestialMidnight => Color::Rgb(192, 192, 192),// Silver
+            AppTheme::WildernessEInk => Color::Rgb(40, 40, 40),      // Charcoal Dark Grey
         }
     }
 
@@ -115,6 +128,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(180, 0, 255),       // Electric Violet
             AppTheme::EmeraldMatrix => Color::Rgb(0, 210, 230),      // Matrix Teal
             AppTheme::CelestialMidnight => Color::Rgb(186, 104, 200),// Nebula Orchid
+            AppTheme::WildernessEInk => Color::Rgb(60, 60, 60),
         }
     }
 
@@ -125,6 +139,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Color::Rgb(220, 245, 255),
             AppTheme::EmeraldMatrix => Color::Rgb(220, 255, 220),
             AppTheme::CelestialMidnight => Color::Rgb(230, 240, 255),
+            AppTheme::WildernessEInk => Color::Rgb(10, 10, 10),      // Crisp Ink Black
         }
     }
 
@@ -141,18 +156,30 @@ impl AppTheme {
     }
 
     pub fn tab_active(&self) -> Style {
-        Style::default()
-            .fg(Color::Black)
-            .bg(self.primary())
-            .add_modifier(Modifier::BOLD)
+        match self {
+            AppTheme::WildernessEInk => Style::default()
+                .fg(Color::Rgb(250, 250, 250))
+                .bg(Color::Rgb(10, 10, 10))
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default()
+                .fg(Color::Black)
+                .bg(self.primary())
+                .add_modifier(Modifier::BOLD),
+        }
     }
 
     pub fn tab_inactive(&self) -> Style {
-        Style::default().fg(Color::Rgb(150, 150, 175))
+        match self {
+            AppTheme::WildernessEInk => Style::default().fg(Color::Rgb(100, 100, 100)),
+            _ => Style::default().fg(Color::Rgb(150, 150, 175)),
+        }
     }
 
     pub fn border_normal(&self) -> Style {
-        Style::default().fg(Color::Rgb(115, 120, 150))
+        match self {
+            AppTheme::WildernessEInk => Style::default().fg(Color::Rgb(70, 70, 70)),
+            _ => Style::default().fg(Color::Rgb(115, 120, 150)),
+        }
     }
 
     pub fn border_focused(&self) -> Style {
@@ -170,6 +197,7 @@ impl AppTheme {
             AppTheme::CyberScholar => Style::default().fg(Color::Rgb(220, 245, 255)),
             AppTheme::EmeraldMatrix => Style::default().fg(Color::Rgb(220, 255, 220)),
             AppTheme::CelestialMidnight => Style::default().fg(Color::Rgb(230, 240, 255)),
+            AppTheme::WildernessEInk => Style::default().fg(Color::Rgb(10, 10, 10)),
         }
     }
 
@@ -192,14 +220,21 @@ impl AppTheme {
             AppTheme::CyberScholar => Style::default().fg(Color::Rgb(220, 100, 180)).add_modifier(Modifier::ITALIC),
             AppTheme::EmeraldMatrix => Style::default().fg(Color::Rgb(100, 180, 100)).add_modifier(Modifier::ITALIC),
             AppTheme::CelestialMidnight => Style::default().fg(Color::Rgb(130, 170, 230)).add_modifier(Modifier::ITALIC),
+            AppTheme::WildernessEInk => Style::default().fg(Color::Rgb(90, 90, 90)).add_modifier(Modifier::ITALIC),
         }
     }
 
     pub fn highlight_item(&self) -> Style {
-        Style::default()
-            .fg(Color::Black)
-            .bg(self.primary())
-            .add_modifier(Modifier::BOLD)
+        match self {
+            AppTheme::WildernessEInk => Style::default()
+                .fg(Color::Rgb(250, 250, 250))
+                .bg(Color::Rgb(10, 10, 10))
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default()
+                .fg(Color::Black)
+                .bg(self.primary())
+                .add_modifier(Modifier::BOLD),
+        }
     }
 
     pub fn ascii_char_style(&self, ch: char) -> Style {
@@ -214,6 +249,7 @@ impl AppTheme {
                 AppTheme::CyberScholar => Style::default().fg(Color::Rgb(30, 50, 70)),
                 AppTheme::EmeraldMatrix => Style::default().fg(Color::Rgb(25, 55, 35)),
                 AppTheme::CelestialMidnight => Style::default().fg(Color::Rgb(35, 45, 70)),
+                AppTheme::WildernessEInk => Style::default().fg(Color::Rgb(180, 180, 180)),
             },
             _ => Style::default().fg(self.text()),
         }
@@ -251,5 +287,20 @@ impl mazzaroth::theme::GalaxyTheme for AppTheme {
 
     fn header_badge(&self) -> Style {
         AppTheme::header_badge(self)
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_wilderness_eink_theme() {
+        let theme = AppTheme::from_name("WildernessEInk").expect("WildernessEInk should be recognized");
+        assert_eq!(theme, AppTheme::WildernessEInk);
+        assert_eq!(theme.name(), "Wilderness E-Ink (Sunlight & High Contrast)");
+        assert_eq!(theme.border_type(), BorderType::Plain);
+        assert_eq!(theme.bg(), Color::Rgb(250, 250, 250));
+        assert_eq!(theme.text(), Color::Rgb(10, 10, 10));
     }
 }

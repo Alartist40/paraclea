@@ -1,7 +1,7 @@
 # Paraclea TUI Walkthrough
 
 ## Current State
-- **Tests**: 35/35 passed (4 mazzaroth + 1 cli + 10 core + 20 tui)
+- **Tests**: 40/40 passed (5 mazzaroth + 1 cli + 12 core + 22 tui)
 - **Clippy**: 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`)
 - **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea` (install both — PATH order varies by shell)
 - **Crates**: paraclea-core, paraclea-cli, paraclea-gui, paraclea-tui, mazzaroth
@@ -407,7 +407,64 @@ Done (current gen) → push to chat_history; partial on cancel tagged [cancelled
 
 ---
 
+## v0.10.0 Feature Architecture & Extensions
+
+### 1. Strong's Concordance Lexicon Engine (`crates/paraclea-core/src/strongs.rs`)
+- In-memory lexicon indexed by normalized Hebrew (`H7225`) and Greek (`G3056`, `G3875`) keys.
+- Tolerant lookup handles raw numbers or prefixed inputs (`3056` or `g3056`).
+- Provides original script, transliteration, phonetic pronunciation, definition, and biblical occurrences directly via `/strongs <key>`.
+
+### 2. Topical Prophetic Synthesis Chains (`/chains`)
+- Bidirectional graph structure connecting Old Testament typologies, New Testament fulfillments, and Ellen G. White historical/theological commentary.
+- Seeded with 4 comprehensive study tracks:
+  1. *The Heavenly Sanctuary* (Exodus 25 -> Hebrews 8 -> Great Controversy ch 23).
+  2. *The 2300-Day Prophetic Timeline* (Daniel 8:14 -> Daniel 9:24 -> Great Controversy ch 18).
+  3. *The Seventh-day Sabbath* (Genesis 2:1-3 -> Revelation 14:6-7 -> Great Controversy ch 25).
+  4. *Wilderness Health Reform* (Daniel 1:8 -> 1 Corinthians 6:19-20 -> Ministry of Healing).
+
+### 3. Field Devotional Briefing Dashboard (`/dashboard`, `/daily`)
+- Single-command situational status card combining:
+  - Daily devotional verse and reflection.
+  - Active theological study track and chapter position.
+  - Active prayer focus and field objectives.
+  - Live Dendrite v2 memory node count.
+  - Reticulum mesh stack status and peer connectivity.
+
+### 4. Wilderness E-Ink Sunlight Theme
+- Minimalist e-paper theme for high outdoor ambient light:
+  - Background: Pure Paper White (`#FAFAFA`)
+  - Text & Accents: Obsidian Ink (`#0A0A0A`)
+  - Border Type: Plain (zero-blur unicode box lines)
+  - Eliminates visual fatigue in direct sunlight on handheld SBC terminals.
+
+### 5. Double-Buffered Jitter-Ring Audio & Braille Metering
+- `AsyncAudioStreamer` decouples audio decompression from terminal rendering via Tokio unbounded channels.
+- Dedicated background worker thread manages OS playback pipe (`aplay`, `paplay`, `afplay`).
+- Time-to-first-sound latency reduced to <100ms.
+- Computes atomic sample RMS to drive an animated Braille spectrum waveform (`⡀⣀⣄⣤⣦⣶⣿`) in the Chat viewport header during speech.
+
+### 6. Dual Synchronized Parallel Translation Reader
+- Side-by-side comparative column rendering in the Bible viewport (`views/bible.rs`).
+- Activated with `c` key or `/compare`.
+- Locks line-by-line scrolling between primary and comparative translations.
+
+### 7. Mazzaroth Hierarchical ASCII Database Topology
+- 4-tier visual hierarchy in 3D and ASCII projection:
+  - `@`: Nexus / Core Database Root
+  - `o`: Books / Major Collections
+  - `*`: Chapters / Structural Subnodes
+  - `.`: Verses / Leaves
+
+### 8. Architectural Guides & Packaging
+- `docs/AUDIO_STREAMING_OPTIMIZATION.md`: Technical breakdown of circular audio jitter rings and buffer management.
+- `docs/APPIMAGE_UPDATES_GUIDE.md`: Single-binary portable packaging, permission models, and zsync differential block updating.
+- `docs/RETICULUM_OFFGRID_GUIDE.md`: LoRa hardware setup, cryptographic destination hashing, and delay-tolerant mesh store-and-forward routing.
+- `scripts/build_appimage.sh`: Automated release packaging script with embedded delta update headers.
+
+---
+
 ## Verification
 ```bash
 cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
 ```
+

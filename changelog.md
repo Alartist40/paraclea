@@ -2,6 +2,21 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.10.0] - 2026-10-23
+
+### Added
+- **Strong's Greek & Hebrew Lexicon Engine (`crates/paraclea-core/src/strongs.rs`, `/strongs`)**: Instant offline Strong's Concordance lookup with prefix-tolerant normalization (`H7225`, `G3056`, `G3875`), providing original Hebrew/Greek text, transliteration, phonetic pronunciation, definition, and biblical occurrences.
+- **Prophetic Synthesis Chains (`crates/paraclea-core/src/crossref.rs`, `/chains`)**: Deep thematic graph linker synthesizing Old Testament foundations, New Testament fulfillment, and Ellen G. White commentary across 4 prophetic pillars: The Heavenly Sanctuary, The 2300-Day Timeline, The Seventh-day Sabbath, and Wilderness Health Reform.
+- **Field Devotional Dashboard (`crates/paraclea-tui/src/app.rs`, `/dashboard`, `/daily`)**: Consolidated morning briefing card featuring verse-of-the-day, active study track, prayer focus, Dendrite v2 memory node tally, and Reticulum off-grid mesh status.
+- **Wilderness E-Ink Sunlight Theme (`crates/paraclea-tui/src/theme.rs`)**: High-contrast, pure paper-white (`#FAFAFA`) background with obsidian ink (`#0A0A0A`) text, plain borders, and zero color bleed designed specifically for e-paper and bright outdoor sunlight.
+- **Asynchronous Double-Buffered Audio Player (`crates/paraclea-core/src/audio.rs`)**: Jitter buffer architecture using Tokio unbounded channels and a dedicated background audio playback thread; includes atomic sample RMS computation for time-to-first-sound latency under 100ms.
+- **Live Braille Waveform Spectrum (`crates/paraclea-tui/src/views/chat.rs`)**: Dynamic multi-tier Braille metering (`⡀⣀⣄⣤⣦⣶⣿`) integrated into the chat viewport header that pulses in real time to audio amplitude while Diana speaks.
+- **Dual Synchronized Parallel Translation Reader (`crates/paraclea-tui/src/views/bible.rs`)**: Side-by-side comparative Bible view toggled via `c` or `/compare` with lockstep synchronized verse scrolling across both translations.
+- **Mazzaroth Hierarchical ASCII Database Topology (`crates/mazzaroth/src/`)**: 4-tier visual astronomical node hierarchy representing `@` (Database Core/Nexus), `o` (Books/Major Volumes), `*` (Chapters), and `.` (Verses/Leaves) across 3D and ASCII projection.
+- **AppImage Packaging & Delta Updates (`scripts/build_appimage.sh`, `docs/APPIMAGE_UPDATES_GUIDE.md`)**: Single-file portable Linux packaging script with embedded zsync URL headers for differential, block-level delta updates without redownloading entire bundles.
+- **Reticulum Off-Grid Mesh Networking Guide (`docs/RETICULUM_OFFGRID_GUIDE.md`)**: Complete hardware and protocol guide for deploying Paraclea nodes over LoRa, packet radio, and WiFi with RNS cryptographic identity routing.
+- **Audio Streaming Optimization Guide (`docs/AUDIO_STREAMING_OPTIMIZATION.md`)**: Complete technical reference on ring-buffer streaming, double buffering, and audio jitter elimination.
+
 ## [0.9.0] - 2026-09-26
 
 ### Added

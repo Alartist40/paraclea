@@ -210,6 +210,8 @@ impl<'a> Widget for GalaxyView<'a> {
             Line::from(vec![
                 Span::styled(" [🔭 TARGET] ", Style::default().fg(self.theme.primary()).add_modifier(Modifier::BOLD)),
                 Span::styled(node_info, Style::default().fg(Color::Rgb(220, 230, 255))),
+                Span::raw(" | "),
+                Span::styled("[@ Core > o Book > * Chapter > . Verse]", Style::default().fg(self.theme.secondary())),
             ]),
             Line::from(vec![
                 Span::styled(" [🎮 CONTROLS] ", Style::default().fg(self.theme.secondary()).add_modifier(Modifier::BOLD)),

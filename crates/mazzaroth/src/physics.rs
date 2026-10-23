@@ -58,7 +58,7 @@ impl GalaxyNode {
             inclination: 0.0,
             pos: [0.0, 0.0, 0.0],
             brightness: 1.0,
-            glyph: '✸',
+            glyph: '@',
             is_flagship: true,
         }
     }
@@ -87,7 +87,7 @@ impl GalaxyNode {
             inclination,
             pos: [0.0, 0.0, 0.0],
             brightness: brightness.clamp(0.1, 1.0),
-            glyph: '●',
+            glyph: 'o',
             is_flagship: true,
         }
     }
@@ -121,7 +121,7 @@ impl GalaxyNode {
             inclination: 0.18,
             pos: [0.0, 0.0, 0.0],
             brightness: brightness.clamp(0.1, 1.0),
-            glyph: if is_flagship { '✦' } else { '+' },
+            glyph: '*',
             is_flagship,
         }
     }
@@ -151,10 +151,8 @@ impl GalaxyNode {
             pos: [0.0, 0.0, 0.0],
             brightness: brightness.clamp(0.1, 1.0),
             glyph: match sub_type {
-                NodeSubtype::CategoryDeck => '▪',
-                NodeSubtype::CategoryRingDust => '+',
-                NodeSubtype::CoreDust => '+',
-                _ => '·',
+                NodeSubtype::CategoryDeck => 'o',
+                _ => '.',
             },
             is_flagship: false,
         }

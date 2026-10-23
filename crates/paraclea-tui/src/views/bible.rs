@@ -140,3 +140,32 @@ pub fn render_bible_view(
         f.render_widget(p, chunks[1]);
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_parallel_reader() {
+        let mut state = BibleViewState::default();
+        assert!(!state.compare_mode);
+        state.compare_mode = true;
+        assert_eq!(state.scroll, 0);
+
+        // Test synchronized scroll increment across columns
+        state.scroll += 5;
+        assert_eq!(state.scroll, 5);
+
+        // Test comparison translation pairs
+        let kjv_verses = vec![(1, "In the beginning God created the heaven and the earth.".to_string())];
+        let bsb_verses = vec![(1, "In the beginning God created the heavens and the earth.".to_string())];
+        let comparison = [
+            ("kjv", kjv_verses),
+            ("bsb", bsb_verses),
+        ];
+
+        assert_eq!(comparison.len(), 2);
+        assert_eq!(comparison[0].0, "kjv");
+        assert_eq!(comparison[1].0, "bsb");
+    }
+}

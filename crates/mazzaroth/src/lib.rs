@@ -121,4 +121,17 @@ mod tests {
             let _ = theme.border_focused();
         }
     }
+
+    #[test]
+    fn test_ascii_hierarchy() {
+        let sun = GalaxyNode::new_sun("sun", "The Word");
+        let planet = GalaxyNode::new_planet("book", "Genesis", "GEN", 10.0, 1.0, 0.0, 0.0, 0.85);
+        let moon = GalaxyNode::new_moon("chap", "Chapter 1", "CH1", "book", 2.0, 2.0, 0.0, 0.5, true);
+        let verse = GalaxyNode::new_asteroid("verse", "Verse 1", NodeSubtype::CategoryRingDust, Some("chap"), 1.0, 1.0, 0.0, 0.4);
+
+        assert_eq!(sun.glyph, '@');
+        assert_eq!(planet.glyph, 'o');
+        assert_eq!(moon.glyph, '*');
+        assert_eq!(verse.glyph, '.');
+    }
 }

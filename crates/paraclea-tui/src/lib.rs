@@ -49,7 +49,9 @@ mod tests {
         let t5 = t4.next();
         assert_eq!(t5, AppTheme::CelestialMidnight);
         let t6 = t5.next();
-        assert_eq!(t6, AppTheme::RoyalByzantium);
+        assert_eq!(t6, AppTheme::WildernessEInk);
+        let t7 = t6.next();
+        assert_eq!(t7, AppTheme::RoyalByzantium);
 
         // Verify color definitions for all themes
         for theme in [
@@ -58,6 +60,7 @@ mod tests {
             AppTheme::CyberScholar,
             AppTheme::EmeraldMatrix,
             AppTheme::CelestialMidnight,
+            AppTheme::WildernessEInk,
         ] {
             assert!(!theme.name().is_empty());
             let _ = theme.primary();

@@ -175,7 +175,25 @@ pub fn render_chat_view(
         scroll.min(max_scroll)
     };
 
-    let status_str = if is_speaking { " 🔊 Speaking Voice Output... " } else { "" };
+    let status_str = if is_speaking {
+        let t = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+            / 120)
+            % 6;
+        let waves = [
+            "⡀⣀⣄⣤⣦⣶",
+            "⣀⣄⣤⣦⣶⣿",
+            "⣄⣤⣦⣶⣿⣶",
+            "⣤⣦⣶⣿⣶⣤",
+            "⣦⣶⣿⣶⣤⣄",
+            "⣶⣿⣶⣤⣄⣀",
+        ];
+        format!(" 🔊 [{}] Diana Voice Active... ", waves[t as usize])
+    } else {
+        String::new()
+    };
     let block = Block::default()
         .title(format!(" 💬 Conversation & AI Study Commentary{} ", status_str))
         .borders(Borders::ALL)

@@ -298,23 +298,23 @@ impl GalaxyRenderer {
                 style = style.add_modifier(Modifier::BOLD);
             }
 
-            // Tri-glyph Core for Central Sun
+            // Tri-glyph Core for Central Sun (@ at center)
             if rn.node.entity_type == EntityType::Sun {
                 if gx > area.left() {
                     if let Some(left_cell) = buf.cell_mut((gx - 1, gy)) {
-                        left_cell.set_char('✦').set_style(
+                        left_cell.set_char('[').set_style(
                             Style::default().fg(theme.primary()).add_modifier(Modifier::BOLD),
                         );
                     }
                 }
                 if let Some(cell) = buf.cell_mut((gx, gy)) {
-                    cell.set_char('✸').set_style(
+                    cell.set_char('@').set_style(
                         Style::default().fg(Color::Rgb(255, 255, 255)).add_modifier(Modifier::BOLD),
                     );
                 }
                 if gx + 1 < area.right() {
                     if let Some(right_cell) = buf.cell_mut((gx + 1, gy)) {
-                        right_cell.set_char('✦').set_style(
+                        right_cell.set_char(']').set_style(
                             Style::default().fg(theme.primary()).add_modifier(Modifier::BOLD),
                         );
                     }

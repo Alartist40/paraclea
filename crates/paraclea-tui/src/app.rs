@@ -43,7 +43,10 @@ use crate::views::{
 
 pub const COMMAND_PALETTE: &[(&str, &str)] = &[
     ("/help", "Show help and keyboard shortcuts"),
-    ("/theme", "Cycle color themes (5 available)"),
+    ("/theme", "Cycle color themes (6 presets incl. Wilderness E-Ink)"),
+    ("/strongs", "Strong's Greek & Hebrew Lexicon inspector"),
+    ("/chains", "Topical prophetic synthesis chains"),
+    ("/dashboard", "Daily Devotional & Field Briefing"),
     ("/language", "Pick Scripture language"),
     ("/version", "Pick Bible translation version"),
     ("/bible", "Open Bible reader / interactive scripture"),
@@ -1353,6 +1356,87 @@ impl App {
             }
             "/crossref" => {
                 self.active_tab = ActiveTab::Crossref;
+            }
+            "/strongs" => {
+                self.active_tab = ActiveTab::Chat;
+                if args.is_empty() {
+                    let text = "📖 **Strong's Hebrew & Greek Lexicon Inspector**\n\nUsage: `/strongs <code or word>` (e.g. `/strongs H7225`, `/strongs G3056`, `/strongs Sabbath`)\n\nFoundational Keys:\n- `H7225` (reshith — Beginning / Firstfruits)\n- `H1254` (bara — Created / Divine formation)\n- `H430`  (Elohim — God of Majesty)\n- `H7676` (shabbath — Sabbath Holy Rest)\n- `G3056` (logos — Word, Divine Expression)\n- `G3875` (parakletos — Paraclete / Comforter / Advocate)\n- `G4102` (pistis — Faith)\n- `G5485` (charis — Grace)\n- `G26`   (agape — Divine Love)";
+                    self.chat_history.push(ChatMessage {
+                        role: "assistant".to_string(),
+                        content: text.to_string(),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                    });
+                } else if let Some(entry) = paraclea_core::strongs::lookup(args) {
+                    let formatted = format!(
+                        "🏛️ **Strong's {} ({})**\n\n• **Lemma**: {}\n• **Transliteration**: {}\n• **Pronunciation**: {}\n• **Definition**: {}\n• **KJV Translation**: {}",
+                        entry.number, entry.language, entry.lemma, entry.transliteration, entry.pronunciation, entry.definition, entry.kjv_translation
+                    );
+                    self.chat_history.push(ChatMessage {
+                        role: "assistant".to_string(),
+                        content: formatted,
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                    });
+                } else {
+                    let results = paraclea_core::strongs::search(args);
+                    if results.is_empty() {
+                        self.set_toast(format!("No Strong's entry found for '{}'", args));
+                    } else {
+                        let mut list_str = format!("🔍 **Strong's search results for '{}':**\n\n", args);
+                        for r in results.iter().take(5) {
+                            list_str.push_str(&format!("- `{}` ({}): {} — *{}*\n", r.number, r.lemma, r.transliteration, r.definition));
+                        }
+                        self.chat_history.push(ChatMessage {
+                            role: "assistant".to_string(),
+                            content: list_str,
+                            thinking: None,
+                            timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                        });
+                    }
+                }
+            }
+            "/chains" => {
+                self.active_tab = ActiveTab::Chat;
+                let count = self.crossref_linker.seed_prophetic_synthesis_chains().unwrap_or(0);
+                let content = format!(
+                    "⛓️ **Topical Prophetic Synthesis Chains Active ({} Links Synced):**\n\n\
+                    1. 🕊️ **Sanctuary Doctrine**: Exodus 25:8 ↔ Hebrews 8:1-2 ↔ *The Great Controversy Ch 23*\n\
+                    2. ⏳ **2300-Day Prophetic Timeline**: Daniel 8:14 ↔ Daniel 9:24-27 ↔ *The Great Controversy Ch 18*\n\
+                    3. 🌿 **The Sabbath Institution**: Genesis 2:1-3 ↔ Mark 2:27-28 ↔ *The Desire of Ages Ch 29*\n\
+                    4. 🏕️ **Wilderness Health & Triage**: Leviticus 11 ↔ *Libre Survival & Bushcraft Manual Ch 8*\n\n\
+                    *These themes are indexed in Dendrite graph memory for immediate cross-theological inquiry.*",
+                    count
+                );
+                self.chat_history.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content,
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                });
+                self.set_toast("Topical chains active in memory");
+            }
+            "/dashboard" | "/daily" => {
+                self.active_tab = ActiveTab::Chat;
+                let graph_nodes = self.dendrite_graph.len();
+                let mesh_status = self.mesh_engine.as_ref().map(|m| m.status()).unwrap_or_else(|| "Reticulum Mesh Standby".to_string());
+                let content = format!(
+                    "🌅 **PARACLEA SOVEREIGN MORNING & FIELD BRIEFING**\n\n\
+                    📖 **Verse of the Day**:\n\
+                    *\"Thy word is a lamp unto my feet, and a light unto my path.\"* — Psalm 119:105\n\n\
+                    🏕️ **Wilderness & Medical Field Tip**:\n\
+                    *Prioritize the Rule of Threes in remote terrain: 3 minutes without air, 3 hours without shelter in harsh weather, 3 days without water, 3 weeks without food. Always purify collected water with rolling boil or solar disinfection.* — FM 21-76\n\n\
+                    🧠 **Dendrite Memory Graph**: {} nodes indexed in SQLite WAL.\n\
+                    📡 **Off-Grid Mesh**: {}.\n\
+                    🌌 **Mazzaroth Atlas**: Golden Ratio 3D celestial orbit initialized.",
+                    graph_nodes, mesh_status
+                );
+                self.chat_history.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content,
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                });
             }
             "/clear" => {
                 self.cancel_active_stream();

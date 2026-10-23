@@ -160,18 +160,22 @@ paraclea --repl     # classic line REPL
 **Keyboard model** — boots into the viewport so deck shortcuts work immediately:
 - `1`–`7` switch decks on launch; in the prompt, digits just type (`2 Corinthians`, `3 John`)
 - `Alt+1`–`Alt+7` switch decks from anywhere; `Tab` cycles focus (Sidebar → Viewport → Prompt)
-- `/` command palette, `?` help, `Esc` cancels AI generation (partial reply preserved), `Ctrl+T` cycles 5 themes (persisted)
+- `/` command palette, `?` help, `Esc` cancels AI generation (partial reply preserved), `Ctrl+T` cycles 6 themes (persisted)
 - Chat auto-scrolls to the newest message; manual scrolling disengages, scrolling to the bottom re-engages
+- Live Braille waveform audio spectrum (`⡀⣀⣄⣤⣦⣶⣿`) animates while speech audio is active
 - Mouse wheel scrolls Chat/Bible/Library and zooms the Galaxy; all lists scroll (stateful selection)
 
 #### Terminal Interactive Commands:
-- `/bible` — Open the 100% alphabetical Bible language and translation selector.
+- `/bible` — Open the 100% alphabetical Bible language and translation selector (supports dual synchronized parallel reading via `c`).
 - `/read` — Open the Unified Reader to browse Spiritual, Survival, Medical, and Educational books.
 - `/compare` — Compare a Scripture verse side-by-side across multiple translations with AI study commentary.
+- `/strongs` — Inspect Greek and Hebrew lexemes, transliterations, and biblical roots via Strong's Concordance.
+- `/chains` — Explore prophetic synthesis chains linking Old Testament, New Testament, and Ellen G. White writings.
+- `/dashboard` (or `/daily`) — View the field devotional briefing, daily scripture, active track, and mesh status.
 - `/study` — Deep Scripture study with 340,000 Treasury of Scripture Knowledge cross-reference links.
 - `/memory` — Inspect and search stored Dendrite v2 knowledge graph nodes.
 - `/mesh` — View Reticulum off-grid network status, cryptographic identity, active peers, or broadcast messages.
-- `/galaxy` — Open the 3D Galaxy Atlas (Mazzaroth engine).
+- `/galaxy` — Open the 3D Galaxy Atlas with hierarchical ASCII topology (`@` Nexus, `o` Book, `*` Chapter, `.` Verse).
 - `/doctor` — Run full system diagnostic checks.
 - `/clear` — Clear the conversation (aborts any in-flight generation).
 - `/help` — Display command overview and usage instructions.
@@ -196,22 +200,26 @@ paraclea-gui
 | **RAM Footprint** | ~25 MB base memory |
 | **Bible Database** | 160 Formatted JSON Files (30 Languages, 66 Books) |
 | **Non-Scripture Library** | 7 Books across 4 Categories (211 Total Chapters) |
+| **Lexicon Engine** | Strong's Greek & Hebrew Lexicon with tolerant lookup |
 | **Graph Database** | SQLite WAL Mode + FTS5 Full-Text Search |
 | **Mesh Protocol** | Reticulum Network Stack (RNS 512-bit Crypto Identity) |
+| **Audio Engine** | Asynchronous double-buffered jitter ring (<100ms TTFS) |
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
-| **Tests** | 35/35 passing |
+| **Tests** | 40/40 passing |
 | **Clippy** | 0 warnings (`--all-targets`) |
 
 ---
 
 ## Terminal Palette & Styling
 
-Paraclea uses an elegant **Gold & Purple** terminal color palette:
-- **Gold (`#FFD700`)**: Prompts, status indicators, banner headers, system doctor output.
-- **Purple (`#B14AED`)**: Paraclea AI responses, section borders, chapter headings.
-
-5 switchable themes: RoyalByzantium (Gold & Purple), CrimsonCodex (Red & Cream), CyberScholar (Cyan & Magenta), EmeraldMatrix (Mint & Green), CelestialMidnight (Indigo & Silver).
+Paraclea includes **6 switchable themes** (`Ctrl+T` or `/theme`):
+- **RoyalByzantium**: Gold & Imperial Purple (Default)
+- **CrimsonCodex**: Deep Red & Cream
+- **CyberScholar**: High-Tech Cyan & Magenta
+- **EmeraldMatrix**: Mint & Deep Matrix Green
+- **CelestialMidnight**: Indigo & Stellar Silver
+- **WildernessEInk**: Ultra-high-contrast paper white & obsidian ink (Zero-glare for outdoor sunlight & e-paper)
 
 ---
 
