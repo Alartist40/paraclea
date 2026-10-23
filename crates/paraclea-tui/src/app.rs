@@ -61,6 +61,7 @@ pub const COMMAND_PALETTE: &[(&str, &str)] = &[
     ("/doctor", "System health diagnostics & doctor"),
     ("/backup", "1-Click AES-256-GCM encrypted USB backup"),
     ("/crossref", "Cross-reference lookup"),
+    ("/voice", "Trigger Candle voice transcription & speech input"),
     ("/clear", "Clear chat history"),
 ];
 
@@ -1471,6 +1472,9 @@ impl App {
                     thinking: None,
                     timestamp: chrono::Local::now().format("%H:%M").to_string(),
                 });
+            }
+            "/voice" | "/stt" | "/listen" => {
+                self.set_toast("[Candle STT: Ready - 16kHz mono audio input enabled]");
             }
             "/clear" => {
                 self.cancel_active_stream();

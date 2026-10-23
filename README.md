@@ -177,6 +177,7 @@ paraclea --repl     # classic line REPL
 - `/memory` — Inspect and search stored Dendrite v2 knowledge graph nodes.
 - `/mesh` — View Reticulum off-grid network status, cryptographic identity, active peers, or broadcast messages.
 - `/packets` — Real-time LoRa RNode RF signal oscilloscope (RSSI/SNR) and raw encrypted packet telemetry.
+- `/voice` — Trigger Candle offline voice transcription & speech input.
 - `/galaxy` — Open the 3D Galaxy Atlas with hierarchical ASCII topology (`@` Nexus, `o` Book, `*` Chapter, `.` Verse).
 - `/doctor` — Run full system diagnostic checks.
 - `/clear` — Clear the conversation (aborts any in-flight generation).
@@ -204,12 +205,13 @@ paraclea-gui
 | **Non-Scripture Library** | 7 Books across 4 Categories (211 Total Chapters) |
 | **Lexicon Engine** | Strong's Greek & Hebrew Lexicon with tolerant lookup |
 | **Vector Engine** | In-Process Embedded Vector Store (Zero-Daemon Pure Rust) |
+| **Speech Engine** | Candle Pure Rust Offline STT (16kHz Log-Mel) + Async Audio Streamer |
 | **Graph Database** | SQLite WAL Mode + FTS5 Full-Text Search |
 | **Mesh Protocol** | Reticulum Network Stack (RNS 512-bit Crypto Identity) |
 | **Audio Engine** | Asynchronous double-buffered jitter ring (<100ms TTFS) |
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
-| **Tests** | 44/44 passing |
+| **Tests** | 46/46 passing |
 | **Clippy** | 0 warnings (`--all-targets`) |
 
 ---

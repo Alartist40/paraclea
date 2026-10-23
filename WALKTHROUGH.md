@@ -1,7 +1,7 @@
 # Paraclea TUI Walkthrough
 
 ## Current State
-- **Tests**: 44/44 passed (5 mazzaroth + 1 cli + 14 core + 24 tui)
+- **Tests**: 46/46 passed (5 mazzaroth + 1 cli + 16 core + 24 tui)
 - **Clippy**: 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`)
 - **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea` (install both — PATH order varies by shell)
 - **Crates**: paraclea-core, paraclea-cli, paraclea-gui, paraclea-tui, mazzaroth
@@ -487,6 +487,13 @@ Done (current gen) → push to chat_history; partial on cancel tagged [cancelled
   - Real-time ASCII signal bars for RSSI (-120 dBm to -40 dBm) and SNR (-10 dB to +15 dB).
   - Braille waveform carrier visualizer.
   - Live reverse-chronological packet table detailing timestamp, packet type (`ANNOUNCE`, `LINK`, `DATA`, `PROOF`), signal metrics, hop count, sender hash, and payload byte size.
+
+### 13. Candle Offline Speech-to-Text (STT) Engine (`crates/paraclea-core/src/candle_stt.rs`, `/voice`)
+- 100% Pure Rust audio feature extraction and Whisper inference pipeline:
+  - 80-bin log-Mel filterbank extraction with Hanning windowing and power spectrum generation.
+  - Native 16kHz 16-bit signed PCM and 32-bit float WAV audio decoding.
+  - Triggered via `/voice`, `/listen`, or `/stt` in prompt.
+  - Zero C/C++ compiler or CMake build requirements, ensuring effortless cross-compilation on ARM64 and seamless single-binary AppImage packaging.
 
 ---
 

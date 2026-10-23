@@ -18,6 +18,7 @@ All notable changes to the **Paraclea** project will be documented in this file.
 - **USB Sneakernet Synchronization Appliance (`crates/paraclea-core/src/sneakernet.rs`, `docs/USB_SNEAKERNET_SYNC_GUIDE.md`)**: Offline air-gapped sync engine using removable USB/SD drives with AES-256-GCM authenticated encryption, auto-discovery across Linux/macOS/Windows, and safe kernel writeback cache flushing.
 - **Cross-Lingual Greek/Hebrew Interlinear Mode (`crates/paraclea-tui/src/views/bible.rs`, `/interlinear`)**: Word-by-word original language glosses and Strong's concordance tags displayed alongside/beneath verses in the Bible reader (toggled via `x` or `/interlinear`).
 - **LoRa RNode Packet Monitor & RF Oscilloscope (`crates/paraclea-tui/src/views/packets.rs`, `/packets`)**: Live RF carrier signal oscilloscope, real-time RSSI/SNR signal meters, and raw encrypted packet traces from Reticulum LoRa RNodes (toggled via `p` in Mesh view or `/packets`).
+- **Candle Offline Speech-to-Text Engine (`crates/paraclea-core/src/candle_stt.rs`, `/voice`)**: Pure Rust offline audio preprocessing, 80-bin log-Mel filterbank extraction, 16kHz linear PCM decoding, and Whisper inference pipeline with zero C/C++ or external runtime dependencies.
 - **Audio Streaming Optimization Guide (`docs/AUDIO_STREAMING_OPTIMIZATION.md`)**: Complete technical reference on ring-buffer streaming, double buffering, and audio jitter elimination.
 
 ## [0.9.0] - 2026-09-26

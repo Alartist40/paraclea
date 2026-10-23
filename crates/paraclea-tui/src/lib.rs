@@ -160,6 +160,10 @@ mod tests {
         app.process_command("/help").await;
         assert_eq!(app.active_modal, ActiveModal::Help);
 
+        // /voice command
+        app.process_command("/voice").await;
+        assert!(app.toast_message.is_some());
+
         // /clear
         app.chat_history.push(crate::views::chat::ChatMessage {
             role: "user".to_string(),
