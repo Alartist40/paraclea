@@ -29,3 +29,8 @@
   CHECK: cargo test -p paraclea-core --lib needle::tests
   EXPECT: test result: ok. 3 passed
   EVIDENCE: test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured (exit code 0)
+
+- [x] G7: Dendrite AutoHarness & Scripture Context Compression
+  CHECK: cargo test -p paraclea-core --lib dendrite::autoharness::tests dendrite::receipts::tests
+  EXPECT: test result: ok. 6 passed
+  EVIDENCE: test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured (exit code 0)

@@ -1,7 +1,7 @@
 # Paraclea TUI Walkthrough
 
 ## Current State
-- **Tests**: 46/46 passed (5 mazzaroth + 1 cli + 16 core + 24 tui)
+- **Tests**: 55/55 passed (5 mazzaroth + 1 cli + 25 core + 24 tui)
 - **Clippy**: 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`)
 - **Binary**: `~/.local/bin/paraclea` and `~/.cargo/bin/paraclea` (install both — PATH order varies by shell)
 - **Crates**: paraclea-core, paraclea-cli, paraclea-gui, paraclea-tui, mazzaroth
@@ -505,7 +505,12 @@ Done (current gen) → push to chat_history; partial on cancel tagged [cancelled
   - **100% Deterministic Tool Calling**: Replaces fragile regex extraction with byte-level JSON grammar validation, eliminating malformed bracket and unclosed quote parsing failures (0.0% schema syntax error).
   - **In-Process Semantic Embeddings**: Generates 512-dimensional semantic vectors in sub-4ms per text chunk directly inside `VectorCollection`, enabling offline RAG across 160 Bibles and 211 library chapters without requiring an external Qdrant container or Ollama embedding service.
   - **Speculative Decoding Draft Engine**: Generates L3-cache resident draft tokens, achieving a 1.8x–2.5x throughput acceleration for primary companion dialogue on ARM64 and low-power SBC hardware (Orange Pi 5, Raspberry Pi 5).
-  - **TUI Integration**: Added `/needle` command in chat to benchmark embedding latency and deterministic tool dispatching; added live telemetry indicator under Doctor diagnostics.
+### 16. Dendrite AutoHarness & Scripture Context Compression (`crates/paraclea-core/src/dendrite/`)
+- **Opportunity-Relative Usage Rate**: Measures retrieval frequency relative to user study inquiries ($\frac{\text{Retrievals}}{\text{Inquiries Since Creation}}$), ensuring notes never expire while the system is powered down.
+- **50-Inquiry Probation Shield**: Protects freshly learned theological or herbal/medical notes from premature eviction during early study.
+- **Theological Umbrella Consolidation**: Collapses multiple fragmented notes into unified overarching procedures (`topic_*`), reducing token load by up to 75%.
+- **Scripture Read Receipts**: Tracks loaded Bible chapters and library passages via receipt anchors (`[paraclea-read #N]`), returning micro-stubs on subsequent dialogue turns to preserve ~1,500 tokens per session.
+- **Automated Needle 3 Weight Downloader**: Added `/pull-needle` in CLI and `/needle pull` in TUI to download weights (28.4 MB) from Hugging Face directly into `~/.paraclea/models/`.
 
 ---
 

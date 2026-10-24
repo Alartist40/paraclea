@@ -212,7 +212,7 @@ paraclea-gui
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
 | **Edge Acceleration** | Needle 3 Co-Processor (28.4 MB L3-Resident / Deterministic JSON) |
-| **Tests** | 49/49 passing |
+| **Tests** | 55/55 passing |
 | **Clippy** | 0 warnings (`--all-targets`) |
 
 ---

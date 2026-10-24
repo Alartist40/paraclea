@@ -1433,6 +1433,34 @@ impl App {
             }
             "/needle" => {
                 self.active_tab = ActiveTab::Chat;
+                if args == "pull" || args == "download" {
+                    self.set_toast("Downloading Needle 3 (28.4 MB)...");
+                    let mut needle = paraclea_core::needle::Needle3Engine::auto_detect();
+                    match needle.pull_needle_model().await {
+                        Ok(bytes) => {
+                            let msg = format!("**Needle 3 Installed**: Successfully downloaded {} bytes into `~/.paraclea/models/`.", bytes);
+                            self.chat_history.push(ChatMessage {
+                                role: "assistant".to_string(),
+                                content: msg,
+                                thinking: None,
+                                timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                            });
+                            self.set_toast("Needle 3 installed");
+                        }
+                        Err(e) => {
+                            let msg = format!("[!] Failed to download Needle 3: {}", e);
+                            self.chat_history.push(ChatMessage {
+                                role: "assistant".to_string(),
+                                content: msg,
+                                thinking: None,
+                                timestamp: chrono::Local::now().format("%H:%M").to_string(),
+                            });
+                            self.set_toast("Needle 3 download failed");
+                        }
+                    }
+                    return;
+                }
+
                 let needle = paraclea_core::needle::Needle3Engine::auto_detect();
                 let test_text = if args.is_empty() { "Genesis 1:1 In the beginning God created the heaven and the earth" } else { args };
                 let t0 = std::time::Instant::now();
@@ -1449,7 +1477,8 @@ impl App {
                     • **L3 Footprint**: 28.4 MB (Fits directly in CPU cache)\n\
                     • **Embedding Engine**: {} dims generated in {:.2?}\n\
                     • **Deterministic Tool Call**: Extracted tool '{}' with 0.0% schema syntax error\n\
-                    • **Speculative Acceleration**: 1.8x - 2.5x throughput gain on SBC hardware",
+                    • **Speculative Acceleration**: 1.8x - 2.5x throughput gain on SBC hardware\n\n\
+                    *[Tip: Type `/needle pull` to download weights directly to disk]*",
                     needle.status_label(),
                     vector.len(),
                     embed_dur,

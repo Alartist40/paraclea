@@ -140,6 +140,44 @@ impl Needle3Engine {
         }
     }
 
+    /// Automatically downloads Needle 3 weights from Hugging Face into destination path.
+    pub async fn pull_needle_model(&mut self) -> anyhow::Result<usize> {
+        let dest = self
+            .config
+            .model_path
+            .clone()
+            .unwrap_or_else(|| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".paraclea")
+                    .join("models")
+                    .join(NEEDLE3_DEFAULT_FILENAME)
+            });
+
+        if let Some(parent) = dest.parent() {
+            let _ = tokio::fs::create_dir_all(parent).await;
+        }
+
+        let url = format!(
+            "https://huggingface.co/{}/resolve/main/{}",
+            NEEDLE3_REPO, NEEDLE3_DEFAULT_FILENAME
+        );
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()?;
+
+        let resp = client.get(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("Failed to download Needle 3: HTTP status {}", resp.status());
+        }
+
+        let bytes = resp.bytes().await?;
+        tokio::fs::write(&dest, &bytes).await?;
+        self.is_loaded = true;
+        Ok(bytes.len())
+    }
+
     /// Embed input text into a normalized 512-dimensional semantic vector.
     /// Uses deterministic Hadamard-weighted projection over character and n-gram tensors.
     pub fn embed_text(&self, text: &str) -> Vec<f32> {

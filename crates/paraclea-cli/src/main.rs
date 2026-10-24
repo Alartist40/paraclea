@@ -1648,6 +1648,17 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             continue;
         }
 
+        if cmd_lower == "/pull-needle" || cmd_lower == "/needle-pull" {
+            println!("{}", print_purple("Downloading Needle 3 (28.4 MB) from Hugging Face..."));
+            let mut needle = paraclea_core::needle::Needle3Engine::auto_detect();
+            match needle.pull_needle_model().await {
+                Ok(bytes) => println!("  {}", print_gold(&format!("[OK] Needle 3 weights installed successfully ({} bytes) in ~/.paraclea/models/", bytes))),
+                Err(e) => eprintln!("  {}", format!("[!] Failed to download Needle 3: {}", e).red()),
+            }
+            println!();
+            continue;
+        }
+
         if cmd_lower == "/library" || cmd_lower == "/books" {
             let category_filter = if args.is_empty() { None } else { Some(args) };
             println!("\n{}", print_gold("=== Paraclea Multi-Category Book Library ==="));
