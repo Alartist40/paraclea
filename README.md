@@ -219,6 +219,7 @@ paraclea-gui
 
 ## Architectural Guides & Technical Documentation
 
+- **[Dendrite AutoHarness & Context Optimization](docs/DENDRITE_AUTOHARNESS_AND_CONTEXT_OPTIMIZATION.md)**: Biological self-learning, opportunity-relative dynamic pruning, scripture read receipts, and massive database context management for small local models.
 - **[Audio Streaming Optimization Guide](docs/AUDIO_STREAMING_OPTIMIZATION.md)**: Asynchronous double-buffered jitter ring and low-latency audio playback pipeline.
 - **[Reticulum Off-Grid Guide](docs/RETICULUM_OFFGRID_GUIDE.md)**: Autonomous cryptographic mesh networking and packet forwarding.
 - **[USB Sneakernet Sync Guide](docs/USB_SNEAKERNET_SYNC_GUIDE.md)**: Air-gapped database synchronization via USB storage devices.
