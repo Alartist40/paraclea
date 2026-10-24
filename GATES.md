@@ -24,3 +24,8 @@
   CHECK: python3 -c "import re, glob; pat = re.compile(r'[\U00010000-\U0010ffff]|[\u2600-\u27bf]|[\u2300-\u23ff]|[\u2b50-\u2b55]|[\u203c-\u2049]'); files = glob.glob('crates/**/*.rs', recursive=True); m = [l for f in files for l in open(f) if pat.search(l) and not any(k in l for k in ['core_glyphs', 'star_glyphs', '✦', '太初有道'])]; assert len(m) == 0, f'Found {len(m)} emojis'; print('ZERO_EMOJIS_VERIFIED')"
   EXPECT: ZERO_EMOJIS_VERIFIED
   EVIDENCE: ZERO_EMOJIS_VERIFIED (exit code 0)
+
+- [x] G6: Needle 3 Edge Acceleration Engine & In-Process Vector Embeddings
+  CHECK: cargo test -p paraclea-core --lib needle::tests
+  EXPECT: test result: ok. 3 passed
+  EVIDENCE: test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured (exit code 0)

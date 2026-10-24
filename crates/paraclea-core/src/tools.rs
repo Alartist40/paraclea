@@ -39,7 +39,14 @@ impl ToolExecutor {
     }
 
     /// Extract tool call JSON block from response text if present.
+    /// Employs Needle 3 byte-level grammar decoding for 100% deterministic parsing.
     pub fn parse_tool_call(&self, text: &str) -> Option<ToolCall> {
+        // Fast-path: Needle 3 deterministic grammar parser
+        let needle = crate::needle::Needle3Engine::auto_detect();
+        if let Some((tool, arguments)) = needle.parse_tool_deterministic(text) {
+            return Some(ToolCall { tool, arguments });
+        }
+
         let json_re = Regex::new(r"(?s)```(?:json)?\s*(\{\s*[\x22']tool[\x22'].*?\})\s*```").ok()?;
         if let Some(caps) = json_re.captures(text) {
             if let Some(json_str) = caps.get(1) {

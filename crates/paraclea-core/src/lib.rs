@@ -11,6 +11,7 @@ pub mod ingest;
 pub mod library;
 pub mod matrix;
 pub mod mesh;
+pub mod needle;
 pub mod ollama;
 pub mod persona;
 pub mod pocket_tts;

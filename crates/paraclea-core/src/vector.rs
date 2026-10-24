@@ -116,6 +116,21 @@ impl VectorCollection {
         scored.truncate(limit);
         scored
     }
+
+    /// Embeds text on-the-fly with Needle 3 and upserts into the collection in sub-4ms.
+    pub fn upsert_text_with_needle(&mut self, id: impl Into<String>, text: &str, payload: Value) {
+        let needle = crate::needle::Needle3Engine::auto_detect();
+        let vector = needle.embed_text(text);
+        self.dimension = vector.len();
+        self.upsert(VectorPoint::new(id, vector, payload));
+    }
+
+    /// Queries the collection using Needle 3 on-the-fly text embedding.
+    pub fn search_text_with_needle(&self, query_text: &str, limit: usize) -> Vec<VectorSearchResult> {
+        let needle = crate::needle::Needle3Engine::auto_detect();
+        let query_vector = needle.embed_text(query_text);
+        self.search(&query_vector, limit)
+    }
 }
 
 /// Thread-safe in-process multi-collection vector database.

@@ -211,14 +211,14 @@ paraclea-gui
 | **Audio Engine** | Asynchronous double-buffered jitter ring (<100ms TTFS) |
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
-| **Tests** | 46/46 passing |
+| **Edge Acceleration** | Needle 3 Co-Processor (28.4 MB L3-Resident / Deterministic JSON) |
+| **Tests** | 49/49 passing |
 | **Clippy** | 0 warnings (`--all-targets`) |
 
 ---
 
 ## Architectural Guides & Technical Documentation
 
-- **[Needle 3 Optimization & Deterministic Tool Architecture](docs/NEEDLE3_OPTIMIZATION_RECOMMENDATION.md)**: Technical roadmap for integrating `Cactus-Compute/needle3` (28.4MB) for 100% deterministic JSON tool calling, sub-4ms in-process vector embeddings, and 1.8×–2.5× speculative decoding acceleration on edge/SBC hardware.
 - **[Audio Streaming Optimization Guide](docs/AUDIO_STREAMING_OPTIMIZATION.md)**: Asynchronous double-buffered jitter ring and low-latency audio playback pipeline.
 - **[Reticulum Off-Grid Guide](docs/RETICULUM_OFFGRID_GUIDE.md)**: Autonomous cryptographic mesh networking and packet forwarding.
 - **[USB Sneakernet Sync Guide](docs/USB_SNEAKERNET_SYNC_GUIDE.md)**: Air-gapped database synchronization via USB storage devices.

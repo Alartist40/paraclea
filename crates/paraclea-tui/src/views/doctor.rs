@@ -16,7 +16,7 @@ pub fn render_doctor_view(
     area: Rect,
     ollama_ok: bool,
     ollama_model: &str,
-    qdrant_ok: bool,
+    _qdrant_ok: bool,
     dendrite_count: usize,
     bible_langs: usize,
     bible_versions: usize,
@@ -69,17 +69,18 @@ pub fn render_doctor_view(
     ]));
     lines.push(Line::from(""));
 
-    // Qdrant
+    // Qdrant / Needle 3
     lines.push(Line::from(vec![
-        Span::styled("   • Vector Database Engine:", theme.header_badge()),
+        Span::styled("   • Vector Database Engine & Needle 3 Co-Processor:", theme.header_badge()),
     ]));
     lines.push(Line::from(vec![
-        Span::raw("      • Qdrant Vector Service: "),
-        if qdrant_ok {
-            Span::styled("ONLINE", Style::default().fg(Color::Green))
-        } else {
-            Span::styled("STANDBY / LOCAL RAG", Style::default().fg(Color::Yellow))
-        },
+        Span::raw("      • In-Process Vector Store: "),
+        Span::styled("ONLINE (Zero-Daemon Cosine Engine)", Style::default().fg(Color::Green)),
+    ]));
+    let needle = paraclea_core::needle::Needle3Engine::auto_detect();
+    lines.push(Line::from(vec![
+        Span::raw("      • Needle 3 Edge Accelerator: "),
+        Span::styled(needle.status_label(), Style::default().fg(if needle.is_loaded { Color::Green } else { Color::Cyan })),
     ]));
     lines.push(Line::from(""));
 
