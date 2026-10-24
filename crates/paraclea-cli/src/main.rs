@@ -186,7 +186,7 @@ async fn main() -> Result<()> {
             )
             .await
             {
-                Ok(msg) => println!("{}", format!("✓ {}", msg).truecolor(255, 215, 0).bold()),
+                Ok(msg) => println!("{}", format!("[OK] {}", msg).truecolor(255, 215, 0).bold()),
                 Err(e) => eprintln!("{}", format!("Ingestion failed: {}", e).red()),
             }
             return Ok(());
@@ -197,7 +197,7 @@ async fn main() -> Result<()> {
             match ingestor.ingest_json_file(Path::new(input)).await {
                 Ok(count) => println!(
                     "{}",
-                    format!("✓ Indexed {} verse chunks into collection '{}'", count, collection)
+                    format!("[OK] Indexed {} verse chunks into collection '{}'", count, collection)
                         .truecolor(255, 215, 0)
                         .bold()
                 ),
@@ -211,7 +211,7 @@ async fn main() -> Result<()> {
             match ingestor.ingest_book_directory(Path::new(input), collection).await {
                 Ok(count) => println!(
                     "{}",
-                    format!("✓ Indexed {} chapter sections into collection '{}'", count, collection)
+                    format!("[OK] Indexed {} chapter sections into collection '{}'", count, collection)
                         .truecolor(255, 215, 0)
                         .bold()
                 ),
@@ -540,7 +540,7 @@ async fn run_doctor(
     if !resolved.is_empty() {
         println!("{}", "Auto-Healed Diagnostics:".green().bold());
         for res in &resolved {
-            println!("     ✓ {}", res.green());
+            println!("     [OK] {}", res.green());
         }
         println!();
     }
@@ -800,7 +800,7 @@ async fn handle_bible_menu(rl: &mut Option<DefaultEditor>, cfg: &mut Config, con
                 "\n{} {}\n",
                 print_purple("Paraclea >"),
                 print_gold(&format!(
-                    "✓ Saved! Language: '{}' | Translation: '{}' | {} books, {} chapters, {} verses",
+                    "[OK] Saved! Language: '{}' | Translation: '{}' | {} books, {} chapters, {} verses",
                     cfg.bible.language, cfg.bible.translation, total_books, total_chapters, total_verses
                 ))
             );
@@ -809,7 +809,7 @@ async fn handle_bible_menu(rl: &mut Option<DefaultEditor>, cfg: &mut Config, con
                 "\n{} {}\n",
                 print_purple("Paraclea >"),
                 print_gold(&format!(
-                    "✓ Saved! Preferred Bible language set to '{}' and translation to '{}'.",
+                    "[OK] Saved! Preferred Bible language set to '{}' and translation to '{}'.",
                     cfg.bible.language, cfg.bible.translation
                 ))
             );
@@ -819,7 +819,7 @@ async fn handle_bible_menu(rl: &mut Option<DefaultEditor>, cfg: &mut Config, con
             "\n{} {}\n",
             print_purple("Paraclea >"),
             print_gold(&format!(
-                "✓ Saved! Preferred Bible language set to '{}' and translation to '{}'.",
+                "[OK] Saved! Preferred Bible language set to '{}' and translation to '{}'.",
                 cfg.bible.language, cfg.bible.translation
             ))
         );
@@ -948,7 +948,7 @@ async fn read_bible_flow(
             while history.len() > 20 {
                 history.pop_front();
             }
-            println!("\n{}", print_gold("✓ Passage loaded. Ask Paraclea any questions about this chapter!"));
+            println!("\n{}", print_gold("[OK] Passage loaded. Ask Paraclea any questions about this chapter!"));
         }
     } else if let Ok(verse_num) = v_str.parse::<usize>() {
         if verse_num >= 1 && verse_num <= verse_count {
@@ -966,7 +966,7 @@ async fn read_bible_flow(
                 while history.len() > 20 {
                     history.pop_front();
                 }
-                println!("\n{}", print_gold("✓ Passage loaded into conversation. Ask Paraclea anything about it!"));
+                println!("\n{}", print_gold("[OK] Passage loaded into conversation. Ask Paraclea anything about it!"));
             }
         } else {
             println!("{}", format!("Invalid verse number. Select 1-{}.", verse_count).red());
@@ -1043,7 +1043,7 @@ async fn read_non_scripture_category_flow(
         while history.len() > 20 {
             history.pop_front();
         }
-        println!("{}", print_gold("✓ Book chapter loaded into conversation context! Ask Paraclea anything about it."));
+        println!("{}", print_gold("[OK] Book chapter loaded into conversation context! Ask Paraclea anything about it."));
     } else {
         println!("{}", "Invalid chapter number.".red());
     }
@@ -1491,7 +1491,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             } else {
                 if let Some(ref mesh) = mesh_engine {
                     match mesh.send_message(parts[0], parts[1]) {
-                        Ok(msg) => println!("  {}", print_gold(&format!("✓ Off-Grid Message Queued! (ID: {}, Recipient: <{}>)", msg.id, msg.recipient))),
+                        Ok(msg) => println!("  {}", print_gold(&format!("[OK] Off-Grid Message Queued! (ID: {}, Recipient: <{}>)", msg.id, msg.recipient))),
                         Err(e) => eprintln!("  {}", format!("[!] Send error: {}", e).red()),
                     }
                 }
@@ -1561,7 +1561,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                         for e in entries.flatten() {
                             if e.path().is_dir() {
                                 target_dir = e.path();
-                                println!("  ✓ Auto-detected mounted USB flash drive: {:?}", target_dir);
+                                println!("  [OK] Auto-detected mounted USB flash drive: {:?}", target_dir);
                                 break;
                             }
                         }
@@ -1576,7 +1576,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 if db_path.exists() {
                     match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, passkey) {
                         Ok(bytes) => {
-                            println!("  {}", print_gold(&format!("✓ AES-256-GCM Encrypted USB Backup Created: {:?} ({} bytes)", backup_file, bytes)));
+                            println!("  {}", print_gold(&format!("[OK] AES-256-GCM Encrypted USB Backup Created: {:?} ({} bytes)", backup_file, bytes)));
                         }
                         Err(e) => {
                             println!("{}", format!("[!] Backup failed: {}", e).red());
@@ -1595,7 +1595,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                     "announce" => {
                         println!("{}", print_purple("Broadcasting Reticulum announcement packet..."));
                         match mesh.announce() {
-                            Ok(res) => println!("  {}", print_gold(&format!("✓ {}", res))),
+                            Ok(res) => println!("  {}", print_gold(&format!("[OK] {}", res))),
                             Err(e) => eprintln!("  {}", format!("[!] Announce error: {}", e).red()),
                         }
                     }
@@ -1717,7 +1717,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             if let Some((source_target, notes)) = raw_args.split_once(' ') {
                 if let Some((source, target)) = source_target.split_once("<->") {
                     match crossref_linker.create_cross_reference(source, target, notes) {
-                        Ok(id) => println!("  {}", print_gold(&format!("✓ Custom cross-reference created: {} ↔ {} (ID: {})", source.trim(), target.trim(), id))),
+                        Ok(id) => println!("  {}", print_gold(&format!("[OK] Custom cross-reference created: {} ↔ {} (ID: {})", source.trim(), target.trim(), id))),
                         Err(e) => eprintln!("  {}", format!("[!] Error creating cross-reference: {}", e).red()),
                     }
                 } else {
@@ -1756,7 +1756,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
         if cmd_lower == "/clear" {
             history.clear();
-            println!("{}", print_gold("✓ Conversation context cleared."));
+            println!("{}", print_gold("[OK] Conversation context cleared."));
             continue;
         }
 

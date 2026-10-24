@@ -120,8 +120,8 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(7860);
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    println!("{}", format!("  ✓ Server listening on http://{}", addr).green().bold());
-    println!("{}", "  ✓ Launching Desktop Web Browser...".yellow().bold());
+    println!("{}", format!("  [OK] Server listening on http://{}", addr).green().bold());
+    println!("{}", "  [OK] Launching Desktop Web Browser...".yellow().bold());
 
     tokio::spawn(async move {
         let _ = open::that(format!("http://{}", addr));

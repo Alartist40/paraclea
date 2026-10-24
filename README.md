@@ -216,6 +216,16 @@ paraclea-gui
 
 ---
 
+## Architectural Guides & Technical Documentation
+
+- **[Needle 3 Optimization & Deterministic Tool Architecture](docs/NEEDLE3_OPTIMIZATION_RECOMMENDATION.md)**: Technical roadmap for integrating `Cactus-Compute/needle3` (28.4MB) for 100% deterministic JSON tool calling, sub-4ms in-process vector embeddings, and 1.8×–2.5× speculative decoding acceleration on edge/SBC hardware.
+- **[Audio Streaming Optimization Guide](docs/AUDIO_STREAMING_OPTIMIZATION.md)**: Asynchronous double-buffered jitter ring and low-latency audio playback pipeline.
+- **[Reticulum Off-Grid Guide](docs/RETICULUM_OFFGRID_GUIDE.md)**: Autonomous cryptographic mesh networking and packet forwarding.
+- **[USB Sneakernet Sync Guide](docs/USB_SNEAKERNET_SYNC_GUIDE.md)**: Air-gapped database synchronization via USB storage devices.
+- **[AppImage Updates Guide](docs/APPIMAGE_UPDATES_GUIDE.md)**: Self-contained packaging and update distribution.
+
+---
+
 ## Terminal Palette & Styling
 
 Paraclea includes **6 switchable themes** (`Ctrl+T` or `/theme`):

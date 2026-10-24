@@ -495,6 +495,13 @@ Done (current gen) → push to chat_history; partial on cancel tagged [cancelled
   - Triggered via `/voice`, `/listen`, or `/stt` in prompt.
   - Zero C/C++ compiler or CMake build requirements, ensuring effortless cross-compilation on ARM64 and seamless single-binary AppImage packaging.
 
+### 14. Professional Terminal Typography & Emoji Elimination
+- System-wide removal of all emojis across the entire workspace:
+  - **TUI views & decks**: Chat headers, user prompts, assistant labels, modal pickers, Bible comparison headers, library categories, knowledge graph, Reticulum mesh mailbox, RF packet oscilloscope, and doctor telemetry.
+  - **CLI & Core**: System doctor diagnostics, vector database progress lines, comparative topic matrix outputs, and log outputs.
+  - Replaced with crisp, unambiguous ASCII labels and bracketed status indicators (`[User]`, `[Paraclea]`, `[Target]`, `[Controls]`, `[NOTIFY]`, `[SUCCESS]`, `[ERROR]`, `[!]`, `->`).
+  - Eliminates terminal column misalignment, broken character boundaries, and visual clipping across diverse terminal emulators (Kitty, Alacritty, WezTerm, Linux VT consoles).
+
 ---
 
 ## Verification

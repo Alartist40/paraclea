@@ -116,7 +116,7 @@ impl ReflectionWorker {
             let _ = s.save(&node);
         }
 
-        info!("✓ [Dendrite Memory] Distilled & stored user reflection node: {}", node_id);
+        info!("[OK] [Dendrite Memory] Distilled & stored user reflection node: {}", node_id);
         Ok(())
     }
 }
