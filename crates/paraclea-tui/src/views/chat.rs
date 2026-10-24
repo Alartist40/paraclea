@@ -77,19 +77,19 @@ pub fn build_chat_lines(
         lines.push(Line::from(""));
         if msg.role == "user" {
             lines.push(Line::from(vec![
-                Span::styled(format!(" 👤 You [{}]", msg.timestamp), theme.user_prompt()),
+                Span::styled(format!(" [User] [{}]", msg.timestamp), theme.user_prompt()),
             ]));
             lines.push(Line::from(vec![
                 Span::styled(format!("   {}", msg.content), Style::default().fg(theme.text())),
             ]));
         } else {
             lines.push(Line::from(vec![
-                Span::styled(format!(" 🕊️ Paraclea [{}]", msg.timestamp), theme.assistant_header()),
+                Span::styled(format!(" [Paraclea] [{}]", msg.timestamp), theme.assistant_header()),
             ]));
 
             if let Some(ref think) = msg.thinking {
                 lines.push(Line::from(vec![
-                    Span::styled(format!("   💭 Thinking: {}", think), theme.thinking_block()),
+                    Span::styled(format!("   Thinking: {}", think), theme.thinking_block()),
                 ]));
             }
 
@@ -110,7 +110,7 @@ pub fn build_chat_lines(
     if is_streaming {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled(" 🕊️ Paraclea [Generating... Press Esc to Cancel]", theme.assistant_header()),
+            Span::styled(" [Paraclea] [Generating... Press Esc to Cancel]", theme.assistant_header()),
         ]));
         for line_content in streaming_text.lines() {
             lines.push(Line::from(vec![
@@ -190,12 +190,12 @@ pub fn render_chat_view(
             "⣦⣶⣿⣶⣤⣄",
             "⣶⣿⣶⣤⣄⣀",
         ];
-        format!(" 🔊 [{}] Diana Voice Active... ", waves[t as usize])
+        format!(" [{}] Diana Voice Active... ", waves[t as usize])
     } else {
         String::new()
     };
     let block = Block::default()
-        .title(format!(" 💬 Conversation & AI Study Commentary{} ", status_str))
+        .title(format!(" Conversation & AI Study Commentary{} ", status_str))
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())

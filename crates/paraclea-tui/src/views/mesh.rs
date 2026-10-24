@@ -36,7 +36,7 @@ pub fn render_mesh_view(
     // Top Header: Reticulum Network Identity & Mode
     let mut header_lines = Vec::new();
     header_lines.push(Line::from(vec![
-        Span::styled(" 🕸 RETICULUM OFF-GRID MESH PROTOCOL (RNS) — PURE RUST / NATIVE STACK", theme.header_title()),
+        Span::styled(" RETICULUM OFF-GRID MESH PROTOCOL (RNS) — PURE RUST / NATIVE STACK", theme.header_title()),
     ]));
     header_lines.push(Line::from(vec![
         Span::styled("   Local Identity Hash: ", theme.header_badge()),
@@ -83,7 +83,7 @@ pub fn render_mesh_view(
     }
 
     let left_block = Block::default()
-        .title(" 📡 Link Interface & Propagation Status ")
+        .title(" Link Interface & Propagation Status ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())
@@ -110,7 +110,7 @@ pub fn render_mesh_view(
     }
 
     let mail_block = Block::default()
-        .title(" 📬 Store-and-Forward Encrypted Mailbox ")
+        .title(" Store-and-Forward Encrypted Mailbox ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())

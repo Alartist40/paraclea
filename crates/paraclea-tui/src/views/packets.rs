@@ -97,7 +97,7 @@ pub fn render_packets_view(
     // 1. Header: Interface State & RF Parameters
     let header_lines = vec![
         Line::from(vec![
-            Span::styled(" 📡 LoRa RNode Packet Monitor & RF Oscilloscope ", theme.header_title()),
+            Span::styled(" LoRa RNode Packet Monitor & RF Oscilloscope ", theme.header_title()),
             Span::styled(format!(" [Interface: {}] ", interface_name), theme.header_badge()),
         ]),
         Line::from(vec![
@@ -134,7 +134,7 @@ pub fn render_packets_view(
         ]),
     ];
     let scope_block = Block::default()
-        .title(" 📊 RF Carrier Signal Oscilloscope ")
+        .title(" RF Carrier Signal Oscilloscope ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_normal())
@@ -180,7 +180,7 @@ pub fn render_packets_view(
     }
 
     let log_block = Block::default()
-        .title(" 📋 Raw Encrypted Packet Trace ")
+        .title(" Raw Encrypted Packet Trace ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_normal())

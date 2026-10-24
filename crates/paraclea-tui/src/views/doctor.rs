@@ -41,7 +41,7 @@ pub fn render_doctor_view(
 
     // Hardware
     lines.push(Line::from(vec![
-        Span::styled("   💻 System Target & CPU Topology:", theme.header_badge()),
+        Span::styled("   • System Target & CPU Topology:", theme.header_badge()),
     ]));
     lines.push(Line::from(vec![
         Span::raw("      • OS: "),
@@ -53,7 +53,7 @@ pub fn render_doctor_view(
 
     // Ollama Server
     lines.push(Line::from(vec![
-        Span::styled("   🤖 Ollama LLM Inference Engine:", theme.header_badge()),
+        Span::styled("   • Ollama LLM Inference Engine:", theme.header_badge()),
     ]));
     lines.push(Line::from(vec![
         Span::raw("      • Server Connectivity: "),
@@ -71,7 +71,7 @@ pub fn render_doctor_view(
 
     // Qdrant
     lines.push(Line::from(vec![
-        Span::styled("   ⚡ Vector Database Engine:", theme.header_badge()),
+        Span::styled("   • Vector Database Engine:", theme.header_badge()),
     ]));
     lines.push(Line::from(vec![
         Span::raw("      • Qdrant Vector Service: "),
@@ -85,7 +85,7 @@ pub fn render_doctor_view(
 
     // Dendrite Knowledge Graph
     lines.push(Line::from(vec![
-        Span::styled("   🧬 Dendrite v2 Knowledge Graph:", theme.header_badge()),
+        Span::styled("   • Dendrite v2 Knowledge Graph:", theme.header_badge()),
     ]));
     lines.push(Line::from(vec![
         Span::raw("      • SQLite Database Storage: "),
@@ -99,7 +99,7 @@ pub fn render_doctor_view(
 
     // Bible Database
     lines.push(Line::from(vec![
-        Span::styled("   📚 Scripture & Multi-Category Library Database:", theme.header_badge()),
+        Span::styled("   • Scripture & Multi-Category Library Database:", theme.header_badge()),
     ]));
     lines.push(Line::from(vec![
         Span::raw("      • Bible Languages Covered: "),
@@ -116,7 +116,7 @@ pub fn render_doctor_view(
     // Backup
     if let Some(bk) = backup_status {
         lines.push(Line::from(vec![
-            Span::styled(format!("   🔒 Backup Action: {}", bk), Style::default().fg(Color::Yellow)),
+            Span::styled(format!("   [Backup Action] {}", bk), Style::default().fg(Color::Yellow)),
         ]));
         lines.push(Line::from(""));
     }
@@ -126,7 +126,7 @@ pub fn render_doctor_view(
     ]));
 
     let block = Block::default()
-        .title(" 🩺 System Diagnostic & Self-Healing Telemetry ")
+        .title(" System Diagnostic & Self-Healing Telemetry ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())

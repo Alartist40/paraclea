@@ -94,7 +94,7 @@ pub fn render_help_modal(f: &mut Frame, area: Rect, theme: &AppTheme) {
     ];
 
     let block = Block::default()
-        .title(" 💡 Keyboard Shortcuts & Help ")
+        .title(" Keyboard Shortcuts & Help ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())
@@ -233,7 +233,7 @@ pub fn render_command_palette_modal(
 
     // Search bar
     let search_block = Block::default()
-        .title(" ⚡ Paraclea Slash Commands (/ dropdown) ")
+        .title(" Paraclea Slash Commands (/ dropdown) ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())

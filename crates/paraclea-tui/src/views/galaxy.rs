@@ -161,9 +161,9 @@ impl<'a> Widget for GalaxyView<'a> {
             .style(Style::default().bg(self.theme.panel_bg()))
             .title(Span::styled(
                 if self.state.system.sim_paused {
-                    " 🌌 PARACLEA GALAXY ATLAS — PAUSED "
+                    " PARACLEA GALAXY ATLAS — PAUSED "
                 } else {
-                    " 🌌 PARACLEA GALAXY ATLAS — GOLDEN RATIO 3D DISK "
+                    " PARACLEA GALAXY ATLAS — GOLDEN RATIO 3D DISK "
                 },
                 self.theme.header_title(),
             ));
@@ -186,10 +186,10 @@ impl<'a> Widget for GalaxyView<'a> {
         let selected_node = self.state.system.nodes.get(self.state.selected_index);
         let node_info = if let Some(n) = selected_node {
             let type_str = match n.entity_type {
-                EntityType::Sun => "☀️ CORE SCRIPTURE",
-                EntityType::Planet => "🪐 LANGUAGE ANCHOR",
-                EntityType::Moon => "🌕 TRANSLATION",
-                EntityType::Asteroid => "☄️ KNOWLEDGE DECK",
+                EntityType::Sun => "CORE SCRIPTURE",
+                EntityType::Planet => "LANGUAGE ANCHOR",
+                EntityType::Moon => "TRANSLATION",
+                EntityType::Asteroid => "KNOWLEDGE DECK",
             };
             format!(
                 "Target: {} [{}] | Pos: ({:.1}, {:.1}, {:.1}) | Lum: {:.2}",
@@ -208,13 +208,13 @@ impl<'a> Widget for GalaxyView<'a> {
         };
         let hud_text = vec![
             Line::from(vec![
-                Span::styled(" [🔭 TARGET] ", Style::default().fg(self.theme.primary()).add_modifier(Modifier::BOLD)),
+                Span::styled(" [TARGET] ", Style::default().fg(self.theme.primary()).add_modifier(Modifier::BOLD)),
                 Span::styled(node_info, Style::default().fg(Color::Rgb(220, 230, 255))),
                 Span::raw(" | "),
                 Span::styled("[@ Core > o Book > * Chapter > . Verse]", Style::default().fg(self.theme.secondary())),
             ]),
             Line::from(vec![
-                Span::styled(" [🎮 CONTROLS] ", Style::default().fg(self.theme.secondary()).add_modifier(Modifier::BOLD)),
+                Span::styled(" [CONTROLS] ", Style::default().fg(self.theme.secondary()).add_modifier(Modifier::BOLD)),
                 Span::raw("←/→/↑/↓: Orbit | +/-: Zoom | Space: ["),
                 Span::styled(spin_status, Style::default().fg(if self.state.system.sim_paused { Color::Yellow } else if self.state.camera.auto_spin { Color::Green } else { Color::Rgb(160, 160, 180) })),
                 Span::raw("] | Tab/[: Cycle | Enter: Inspect | Mouse: Drag"),

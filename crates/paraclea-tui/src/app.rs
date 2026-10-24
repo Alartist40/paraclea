@@ -412,7 +412,7 @@ impl App {
                             self.set_toast(format!("Ollama Error: {}", err));
                             self.chat_history.push(ChatMessage {
                                 role: "assistant".to_string(),
-                                content: format!("⚠️ Ollama Error: {}", err),
+                                content: format!("[!] Ollama Error: {}", err),
                                 thinking: None,
                                 timestamp: chrono::Local::now().format("%H:%M").to_string(),
                             });
@@ -1091,19 +1091,19 @@ impl App {
                 );
             }
             ActiveModal::LanguagePicker => render_list_picker_modal(
-                f, size, "🌐 Select Scripture Language",
+                f, size, "Select Scripture Language",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
             ),
             ActiveModal::TranslationPicker => render_list_picker_modal(
-                f, size, "📖 Select Scripture Translation",
+                f, size, "Select Scripture Translation",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
             ),
             ActiveModal::ModelPicker => render_list_picker_modal(
-                f, size, "🤖 Select Active Ollama AI Model",
+                f, size, "Select Active Ollama AI Model",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
             ),
             ActiveModal::BackupPrompt => render_input_modal(
-                f, size, "🔒 Enter Backup Encryption Passphrase",
+                f, size, "Enter Backup Encryption Passphrase",
                 "Passphrase", &self.input_modal_buffer, true, &self.theme,
             ),
             _ => {}
@@ -1134,12 +1134,12 @@ impl App {
 
         let title = if let Some((ref toast, ref instant)) = self.toast_message {
             if instant.elapsed() < std::time::Duration::from_secs(4) {
-                format!(" 🕊️ PARACLEA SCHOLAR │ 🔔 {} ", toast)
+                format!(" PARACLEA SCHOLAR │ [NOTIFY] {} ", toast)
             } else {
-                " 🕊️ PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ".to_string()
+                " PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ".to_string()
             }
         } else {
-            " 🕊️ PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ".to_string()
+            " PARACLEA SCHOLAR — ADVANCED OFFLINE ASSISTANT ".to_string()
         };
 
         let model_label = format!(" Model: {} ", self.cfg.model.ollama.model);
@@ -1171,20 +1171,20 @@ impl App {
         let mut items = Vec::new();
 
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("📖 Scripture Engine", self.theme.header_title()),
+            Span::styled("Scripture Engine", self.theme.header_title()),
         ])));
         items.push(ListItem::new(format!("  • Active: {}", self.bible_state.active_translation)).style(Style::default().fg(self.theme.text())));
         items.push(ListItem::new(format!("  • Available: {} across {} langs", self.bible_version_count, self.bible_lang_count)).style(Style::default().fg(self.theme.text())));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("🌌 Paraclea Galaxy", self.theme.header_title()),
+            Span::styled("Paraclea Galaxy", self.theme.header_title()),
         ])));
         items.push(ListItem::new(format!("  • Celestial Nodes: {}", self.galaxy_state.system.nodes.len())).style(Style::default().fg(self.theme.primary())));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("📚 Multi-Category Library", self.theme.header_title()),
+            Span::styled("Multi-Category Library", self.theme.header_title()),
         ])));
         for cat in &self.library_categories {
             items.push(ListItem::new(format!("  • [{}]", cat.to_uppercase())).style(Style::default().fg(self.theme.secondary())));
@@ -1192,19 +1192,19 @@ impl App {
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("🧬 Knowledge Graph", self.theme.header_title()),
+            Span::styled("Knowledge Graph", self.theme.header_title()),
         ])));
         items.push(ListItem::new(format!("  • Dendrite Nodes: {}", self.dendrite_graph.len())).style(Style::default().fg(self.theme.text())));
         items.push(ListItem::new(""));
 
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("🕸 Reticulum Mesh", self.theme.header_title()),
+            Span::styled("Reticulum Mesh", self.theme.header_title()),
         ])));
         let mesh_status = if self.mesh_engine.is_some() { "ONLINE (Ad-hoc)" } else { "STANDBY" };
         items.push(ListItem::new(format!("  • Interface: {}", mesh_status)).style(Style::default().fg(Color::Green)));
 
         let block = Block::default()
-            .title(" 🧭 Navigation & Decks ")
+            .title(" Navigation & Decks ")
             .borders(Borders::ALL)
             .border_type(self.theme.border_type())
             .border_style(if self.active_focus == ActiveFocus::Sidebar { self.theme.border_focused() } else { self.theme.border_normal() })
@@ -1277,7 +1277,7 @@ impl App {
 
     fn render_input_bar(&self, f: &mut Frame, area: Rect) {
         let block = Block::default()
-            .title(" ⌨️ Command & Study Prompt (Type '/' for commands, '?' for Help) ")
+            .title(" Command & Study Prompt (Type '/' for commands, '?' for Help) ")
             .borders(Borders::ALL)
             .border_type(self.theme.border_type())
             .border_style(if self.active_focus == ActiveFocus::PromptInput { self.theme.border_focused() } else { self.theme.border_normal() })
@@ -1395,7 +1395,7 @@ impl App {
             "/strongs" => {
                 self.active_tab = ActiveTab::Chat;
                 if args.is_empty() {
-                    let text = "📖 **Strong's Hebrew & Greek Lexicon Inspector**\n\nUsage: `/strongs <code or word>` (e.g. `/strongs H7225`, `/strongs G3056`, `/strongs Sabbath`)\n\nFoundational Keys:\n- `H7225` (reshith — Beginning / Firstfruits)\n- `H1254` (bara — Created / Divine formation)\n- `H430`  (Elohim — God of Majesty)\n- `H7676` (shabbath — Sabbath Holy Rest)\n- `G3056` (logos — Word, Divine Expression)\n- `G3875` (parakletos — Paraclete / Comforter / Advocate)\n- `G4102` (pistis — Faith)\n- `G5485` (charis — Grace)\n- `G26`   (agape — Divine Love)";
+                    let text = "**Strong's Hebrew & Greek Lexicon Inspector**\n\nUsage: `/strongs <code or word>` (e.g. `/strongs H7225`, `/strongs G3056`, `/strongs Sabbath`)\n\nFoundational Keys:\n- `H7225` (reshith — Beginning / Firstfruits)\n- `H1254` (bara — Created / Divine formation)\n- `H430`  (Elohim — God of Majesty)\n- `H7676` (shabbath — Sabbath Holy Rest)\n- `G3056` (logos — Word, Divine Expression)\n- `G3875` (parakletos — Paraclete / Comforter / Advocate)\n- `G4102` (pistis — Faith)\n- `G5485` (charis — Grace)\n- `G26`   (agape — Divine Love)";
                     self.chat_history.push(ChatMessage {
                         role: "assistant".to_string(),
                         content: text.to_string(),
@@ -1404,7 +1404,7 @@ impl App {
                     });
                 } else if let Some(entry) = paraclea_core::strongs::lookup(args) {
                     let formatted = format!(
-                        "🏛️ **Strong's {} ({})**\n\n• **Lemma**: {}\n• **Transliteration**: {}\n• **Pronunciation**: {}\n• **Definition**: {}\n• **KJV Translation**: {}",
+                        "**Strong's {} ({})**\n\n• **Lemma**: {}\n• **Transliteration**: {}\n• **Pronunciation**: {}\n• **Definition**: {}\n• **KJV Translation**: {}",
                         entry.number, entry.language, entry.lemma, entry.transliteration, entry.pronunciation, entry.definition, entry.kjv_translation
                     );
                     self.chat_history.push(ChatMessage {
@@ -1418,7 +1418,7 @@ impl App {
                     if results.is_empty() {
                         self.set_toast(format!("No Strong's entry found for '{}'", args));
                     } else {
-                        let mut list_str = format!("🔍 **Strong's search results for '{}':**\n\n", args);
+                        let mut list_str = format!("**Strong's search results for '{}':**\n\n", args);
                         for r in results.iter().take(5) {
                             list_str.push_str(&format!("- `{}` ({}): {} — *{}*\n", r.number, r.lemma, r.transliteration, r.definition));
                         }
@@ -1435,11 +1435,11 @@ impl App {
                 self.active_tab = ActiveTab::Chat;
                 let count = self.crossref_linker.seed_prophetic_synthesis_chains().unwrap_or(0);
                 let content = format!(
-                    "⛓️ **Topical Prophetic Synthesis Chains Active ({} Links Synced):**\n\n\
-                    1. 🕊️ **Sanctuary Doctrine**: Exodus 25:8 ↔ Hebrews 8:1-2 ↔ *The Great Controversy Ch 23*\n\
-                    2. ⏳ **2300-Day Prophetic Timeline**: Daniel 8:14 ↔ Daniel 9:24-27 ↔ *The Great Controversy Ch 18*\n\
-                    3. 🌿 **The Sabbath Institution**: Genesis 2:1-3 ↔ Mark 2:27-28 ↔ *The Desire of Ages Ch 29*\n\
-                    4. 🏕️ **Wilderness Health & Triage**: Leviticus 11 ↔ *Libre Survival & Bushcraft Manual Ch 8*\n\n\
+                    "**Topical Prophetic Synthesis Chains Active ({} Links Synced):**\n\n\
+                    1. **Sanctuary Doctrine**: Exodus 25:8 ↔ Hebrews 8:1-2 ↔ *The Great Controversy Ch 23*\n\
+                    2. **2300-Day Prophetic Timeline**: Daniel 8:14 ↔ Daniel 9:24-27 ↔ *The Great Controversy Ch 18*\n\
+                    3. **The Sabbath Institution**: Genesis 2:1-3 ↔ Mark 2:27-28 ↔ *The Desire of Ages Ch 29*\n\
+                    4. **Wilderness Health & Triage**: Leviticus 11 ↔ *Libre Survival & Bushcraft Manual Ch 8*\n\n\
                     *These themes are indexed in Dendrite graph memory for immediate cross-theological inquiry.*",
                     count
                 );
@@ -1456,14 +1456,14 @@ impl App {
                 let graph_nodes = self.dendrite_graph.len();
                 let mesh_status = self.mesh_engine.as_ref().map(|m| m.status()).unwrap_or_else(|| "Reticulum Mesh Standby".to_string());
                 let content = format!(
-                    "🌅 **PARACLEA SOVEREIGN MORNING & FIELD BRIEFING**\n\n\
-                    📖 **Verse of the Day**:\n\
+                    "**PARACLEA SOVEREIGN MORNING & FIELD BRIEFING**\n\n\
+                    **Verse of the Day**:\n\
                     *\"Thy word is a lamp unto my feet, and a light unto my path.\"* — Psalm 119:105\n\n\
-                    🏕️ **Wilderness & Medical Field Tip**:\n\
+                    **Wilderness & Medical Field Tip**:\n\
                     *Prioritize the Rule of Threes in remote terrain: 3 minutes without air, 3 hours without shelter in harsh weather, 3 days without water, 3 weeks without food. Always purify collected water with rolling boil or solar disinfection.* — FM 21-76\n\n\
-                    🧠 **Dendrite Memory Graph**: {} nodes indexed in SQLite WAL.\n\
-                    📡 **Off-Grid Mesh**: {}.\n\
-                    🌌 **Mazzaroth Atlas**: Golden Ratio 3D celestial orbit initialized.",
+                    • **Dendrite Memory Graph**: {} nodes indexed in SQLite WAL.\n\
+                    • **Off-Grid Mesh**: {}.\n\
+                    • **Mazzaroth Atlas**: Golden Ratio 3D celestial orbit initialized.",
                     graph_nodes, mesh_status
                 );
                 self.chat_history.push(ChatMessage {
@@ -1760,7 +1760,7 @@ impl App {
     pub fn execute_encrypted_backup(&mut self, passkey: &str) {
         let trimmed_key = passkey.trim();
         if trimmed_key.is_empty() {
-            self.backup_status = Some("⚠️ Backup cancelled: Passphrase is required for encryption.".to_string());
+            self.backup_status = Some("[!] Backup cancelled: Passphrase is required for encryption.".to_string());
             self.set_toast("Backup cancelled: Passphrase required");
             return;
         }
@@ -1811,18 +1811,18 @@ impl App {
         if db_path.exists() {
             match paraclea_core::backup::EncryptedBackup::create_backup(&db_path, &backup_file, trimmed_key) {
                 Ok(bytes) => {
-                    self.backup_status = Some(format!("✓ AES-256-GCM Backup Saved: {:?} ({} bytes)", backup_file, bytes));
-                    self.set_toast("✓ 1-Click Encrypted Backup Complete");
+                    self.backup_status = Some(format!("[SUCCESS] AES-256-GCM Backup Saved: {:?} ({} bytes)", backup_file, bytes));
+                    self.set_toast("1-Click Encrypted Backup Complete");
                     return;
                 }
                 Err(e) => {
-                    self.backup_status = Some(format!("⚠️ Backup failed: {}", e));
-                    self.set_toast("⚠️ Backup Failed");
+                    self.backup_status = Some(format!("[ERROR] Backup failed: {}", e));
+                    self.set_toast("Backup Failed");
                     return;
                 }
             }
         }
-        self.backup_status = Some("⚠️ No dendrite.db found to backup yet.".to_string());
-        self.set_toast("⚠️ No dendrite.db found to backup");
+        self.backup_status = Some("[ERROR] No dendrite.db found to backup yet.".to_string());
+        self.set_toast("No dendrite.db found to backup");
     }
 }

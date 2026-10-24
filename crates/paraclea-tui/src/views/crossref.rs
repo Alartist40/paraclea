@@ -47,7 +47,7 @@ pub fn render_crossref_view(
     };
 
     let list_block = Block::default()
-        .title(" 🧬 Knowledge Nodes & Cross-Refs ")
+        .title(" Knowledge Nodes & Cross-Refs ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())
@@ -71,7 +71,7 @@ pub fn render_crossref_view(
         for line in content.lines() {
             if line.contains("[[") && line.contains("]]") {
                 lines.push(Line::from(vec![
-                    Span::styled(format!("   🔗 {}", line), theme.header_badge()),
+                    Span::styled(format!("   -> {}", line), theme.header_badge()),
                 ]));
             } else {
                 lines.push(Line::from(vec![
@@ -90,7 +90,7 @@ pub fn render_crossref_view(
     }
 
     let detail_block = Block::default()
-        .title(" 🔍 Node Association & Linkage Details ")
+        .title(" Node Association & Linkage Details ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())

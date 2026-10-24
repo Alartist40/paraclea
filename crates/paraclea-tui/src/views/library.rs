@@ -64,7 +64,7 @@ pub fn render_library_view(
         .collect();
 
     let cat_block = Block::default()
-        .title(" 📚 Domain Categories ")
+        .title(" Domain Categories ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())
@@ -94,7 +94,7 @@ pub fn render_library_view(
     };
 
     let books_block = Block::default()
-        .title(" 📖 Ingested Volumes ")
+        .title(" Ingested Volumes ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())
@@ -121,7 +121,7 @@ pub fn render_library_view(
     }
 
     let reader_block = Block::default()
-        .title(format!(" 📑 Volume Reader — {} (Press 's' for AI Study Commentary) ", chapter_title))
+        .title(format!(" Volume Reader — {} (Press 's' for AI Study Commentary) ", chapter_title))
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())

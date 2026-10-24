@@ -21,6 +21,9 @@ All notable changes to the **Paraclea** project will be documented in this file.
 - **Candle Offline Speech-to-Text Engine (`crates/paraclea-core/src/candle_stt.rs`, `/voice`)**: Pure Rust offline audio preprocessing, 80-bin log-Mel filterbank extraction, 16kHz linear PCM decoding, and Whisper inference pipeline with zero C/C++ or external runtime dependencies.
 - **Audio Streaming Optimization Guide (`docs/AUDIO_STREAMING_OPTIMIZATION.md`)**: Complete technical reference on ring-buffer streaming, double buffering, and audio jitter elimination.
 
+### Changed
+- **Professional Terminal Typography Overhaul (`crates/paraclea-tui/`)**: Removed all emojis across the entire terminal user interface (header bar, sidebar deck list, command prompt, chat message headers, modal titles, Bible reader, library browser, knowledge graph, Reticulum mesh monitor, RF packet oscilloscope, and doctor diagnostics). Replaced with crisp, standard ASCII tags (`[User]`, `[Paraclea]`, `[Target]`, `[Controls]`, `[NOTIFY]`, `[SUCCESS]`, `[ERROR]`, `->`), eliminating font misalignment and clipping across varied terminal emulators for a clean, sovereign scholar aesthetic.
+
 ## [0.9.0] - 2026-09-26
 
 ### Added

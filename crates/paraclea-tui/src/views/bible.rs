@@ -107,7 +107,7 @@ pub fn render_bible_view(
         .collect();
 
     let books_block = Block::default()
-        .title(" 📖 Scripture Books ")
+        .title(" Scripture Books ")
         .borders(Borders::ALL)
         .border_type(theme.border_type())
         .border_style(theme.border_focused())
@@ -178,7 +178,7 @@ pub fn render_bible_view(
 
         let reader_block = Block::default()
             .title(format!(
-                " 📜 {} Chapter {} [{}] (Press 'c' for Compare, 'x' for Interlinear) ",
+                " {} Chapter {} [{}] (Press 'c' for Compare, 'x' for Interlinear) ",
                 current_book, state.selected_chapter, state.active_translation
             ))
             .borders(Borders::ALL)
