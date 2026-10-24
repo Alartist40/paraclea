@@ -169,7 +169,7 @@ impl ReticulumEngine {
 
         let text = String::from_utf8_lossy(&output.stdout);
         if text.trim().is_empty() {
-            Ok("🌐 Local Mesh Loopback Active (1 local node active, identity: <a2f8386e3fa060e28a17b4ebf2b971a7>)".to_string())
+            Ok("Local Mesh Loopback Active (1 local node active, identity: <a2f8386e3fa060e28a17b4ebf2b971a7>)".to_string())
         } else {
             Ok(text.to_string())
         }

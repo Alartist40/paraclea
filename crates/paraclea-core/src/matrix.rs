@@ -75,20 +75,20 @@ impl TopicMatrixEngine {
 
         // Format Markdown Table
         let mut md = String::new();
-        md.push_str(&format!("# 📊 Comparative Matrix: Topic \"{}\"\n\n", topic));
+        md.push_str(&format!("# Comparative Matrix: Topic \"{}\"\n\n", topic));
         md.push_str("| Category | Source & Reference | Insight & Text Excerpt |\n");
         md.push_str("| :--- | :--- | :--- |\n");
 
         for item in &scripture_matches {
-            md.push_str(&format!("| 📜 **{}** | `{}` ({}) | {} |\n", item.category, item.reference, item.source, item.excerpt.replace('\n', " ")));
+            md.push_str(&format!("| **{}** | `{}` ({}) | {} |\n", item.category, item.reference, item.source, item.excerpt.replace('\n', " ")));
         }
 
         for item in &egw_matches {
-            md.push_str(&format!("| ✨ **EGW Prophecy** | {} - {} | {} |\n", item.source, item.reference, item.excerpt.replace('\n', " ")));
+            md.push_str(&format!("| **EGW Prophecy** | {} - {} | {} |\n", item.source, item.reference, item.excerpt.replace('\n', " ")));
         }
 
         for item in &survival_matches {
-            md.push_str(&format!("| 🛠️ **Practical Survival** | {} - {} | {} |\n", item.source, item.reference, item.excerpt.replace('\n', " ")));
+            md.push_str(&format!("| **Practical Survival** | {} - {} | {} |\n", item.source, item.reference, item.excerpt.replace('\n', " ")));
         }
 
         MatrixResult {

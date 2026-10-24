@@ -378,7 +378,7 @@ async fn handle_chat(
         Err(err) => Err((
             StatusCode::BAD_GATEWAY,
             Json(ChatResponse {
-                reply: format!("⚠️ Unable to connect to Ollama model: {}", err),
+                reply: format!("[!] Unable to connect to Ollama model: {}", err),
             }),
         )),
     }

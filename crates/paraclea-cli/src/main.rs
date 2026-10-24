@@ -171,7 +171,7 @@ async fn main() -> Result<()> {
             let ftype = FileType::from_path(input_path);
             println!(
                 "{}",
-                format!("📦 Ingesting file {:?} ({}) into collection '{}'...", input_path.file_name().unwrap_or_default(), ftype.label(), collection)
+                format!("Ingesting file {:?} ({}) into collection '{}'...", input_path.file_name().unwrap_or_default(), ftype.label(), collection)
                     .truecolor(177, 74, 237)
                     .bold()
             );
@@ -192,7 +192,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         Some(Commands::IngestBible { input, collection }) => {
-            println!("{}", print_purple("📖 Ingesting Bible dataset into Qdrant..."));
+            println!("{}", print_purple("Ingesting Bible dataset into Qdrant..."));
             let ingestor = BibleIngestor::new(&ollama, &qdrant, &cfg.model.ollama.embed_model, collection);
             match ingestor.ingest_json_file(Path::new(input)).await {
                 Ok(count) => println!(
@@ -206,7 +206,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         Some(Commands::IngestBook { input, collection }) => {
-            println!("{}", print_purple("📚 Ingesting book skill directory into Qdrant..."));
+            println!("{}", print_purple("Ingesting book skill directory into Qdrant..."));
             let ingestor = BookIngestor::new(&ollama, &qdrant, &cfg.model.ollama.embed_model);
             match ingestor.ingest_book_directory(Path::new(input), collection).await {
                 Ok(count) => println!(
@@ -220,7 +220,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         Some(Commands::Ocr { image }) => {
-            println!("{}", print_purple("👁️ Running Ollama Vision OCR document extraction..."));
+            println!("{}", print_purple("Running Ollama Vision OCR document extraction..."));
             match ollama.ocr_image(Path::new(image), &cfg.model.ollama.ocr_model).await {
                 Ok(text) => {
                     println!("\n{}", print_gold("=== EXTRACTED OCR MARKDOWN ==="));
@@ -328,7 +328,7 @@ async fn run_doctor(
     let mut resolved = Vec::new();
 
     // 1. Hardware Architecture & CPU Probe
-    println!("{}", print_purple("  💻 System Hardware & CPU Architecture:"));
+    println!("{}", print_purple("  System Hardware & CPU Architecture:"));
     println!("     • OS Target:          {}", print_gold(std::env::consts::OS));
     println!("     • Architecture:       {}", print_gold(std::env::consts::ARCH));
     let logical_cpus = std::thread::available_parallelism().map(|u| u.get()).unwrap_or(1);
@@ -336,7 +336,7 @@ async fn run_doctor(
     println!();
 
     // 2. Binary Installation & PATH Auto-Fix
-    println!("{}", print_purple("  🛠  Binary Installation & PATH Status:"));
+    println!("{}", print_purple("  Binary Installation & PATH Status:"));
     let exe_path = std::env::current_exe().unwrap_or_default();
     println!("     • Current Executable: {}", print_gold(&exe_path.display().to_string()));
     let in_local_bin = exe_path.to_string_lossy().contains(".local/bin") || exe_path.to_string_lossy().contains("Paraclea/bin");
@@ -363,7 +363,7 @@ async fn run_doctor(
     println!();
 
     // 3. Ollama Server & Live Forward-Pass Test
-    println!("{}", print_purple("  🤖 Ollama Server & Active Inference Test:"));
+    println!("{}", print_purple("  Ollama Server & Active Inference Test:"));
     let mut ollama_ok = ollama.health_check().await.unwrap_or(false);
     if !ollama_ok {
         let log_file = paraclea_core::temp_dir().join("ollama.log");
@@ -415,7 +415,7 @@ async fn run_doctor(
     println!();
 
     // 4. Model Registry Diagnostics
-    println!("{}", print_purple("  🧠 Model Registry Category Coverage:"));
+    println!("{}", print_purple("  Model Registry Category Coverage:"));
     let reg = ollama.discover_models().await;
     println!("     • Embedding Model:     {} ", reg.embed.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0));
     println!("     • Default Chat Model:  {} ", reg.chat.as_deref().unwrap_or("MISSING").truecolor(255, 215, 0));
@@ -431,7 +431,7 @@ async fn run_doctor(
     println!();
 
     // 5. Qdrant Vector DB Integrity & Auto-Creation
-    println!("{}", print_purple("  ⚡ Qdrant Vector Database Status:"));
+    println!("{}", print_purple("  Qdrant Vector Database Status:"));
     let mut qdrant_ok = qdrant.health_check().await;
     if !qdrant_ok {
         let home = paraclea_core::home_dir();
@@ -471,7 +471,7 @@ async fn run_doctor(
     println!();
 
     // 6. Reticulum Mesh Auto-Repair & Status
-    println!("{}", print_purple("  🕸  Reticulum Mesh Stack Integrity:"));
+    println!("{}", print_purple("  Reticulum Mesh Stack Integrity:"));
     if let Ok(mesh) = ReticulumEngine::new() {
         let rns_ok = mesh.ensure_daemon();
         println!("     • RNS Shared Instance:  {}", if rns_ok { "ONLINE".green().bold() } else { "OFFLINE".yellow().bold() });
@@ -484,7 +484,7 @@ async fn run_doctor(
     println!();
 
     // 7. Dendrite v2 Knowledge Graph DB Integrity Check
-    println!("{}", print_purple("  🧬 Dendrite v2 Knowledge Graph DB Integrity:"));
+    println!("{}", print_purple("  Dendrite v2 Knowledge Graph DB Integrity:"));
     let home = paraclea_core::home_dir();
     let db_path = home.join(".paraclea/dendrite.db");
     match DendriteStore::open(&db_path) {
@@ -501,13 +501,13 @@ async fn run_doctor(
     println!();
 
     // 8. Pocket TTS Check
-    println!("{}", print_purple("  🔊 Pocket TTS Voice Engine:"));
+    println!("{}", print_purple("  Pocket TTS Voice Engine:"));
     let tts_ok = tts.health_check().await;
     println!("     • Voice Synthesis:     {}", if tts_ok { "ONLINE".green().bold() } else { "CLI FALLBACK (OK)".yellow().bold() });
     println!();
 
     // 9. Multi-Language Bible & Multi-Category Library Database Diagnostics
-    println!("{}", print_purple("  📚 Mega Bible & Multi-Category Library Database:"));
+    println!("{}", print_purple("  Mega Bible & Multi-Category Library Database:"));
     let bibles_dir = home.join(".paraclea/bibles");
     let mut lang_count = 0;
     let mut bible_version_count = 0;
@@ -538,7 +538,7 @@ async fn run_doctor(
 
     // Summary Verdict & Resolution Report
     if !resolved.is_empty() {
-        println!("{}", "✨ Auto-Healed Diagnostics:".green().bold());
+        println!("{}", "Auto-Healed Diagnostics:".green().bold());
         for res in &resolved {
             println!("     ✓ {}", res.green());
         }
@@ -546,9 +546,9 @@ async fn run_doctor(
     }
 
     if issues.is_empty() {
-        println!("{}", "🎉 Paraclea System Doctor Check Complete: ALL SYSTEMS OPERATIONAL!".green().bold());
+        println!("{}", "Paraclea System Doctor Check Complete: ALL SYSTEMS OPERATIONAL!".green().bold());
     } else {
-        println!("{}", "⚠️  Paraclea System Doctor Detected Actionable Items:".yellow().bold());
+        println!("{}", "[!] Paraclea System Doctor Detected Actionable Items:".yellow().bold());
         for issue in &issues {
             println!("     • {}", issue.yellow());
         }
@@ -882,7 +882,7 @@ fn prompt_select_book(rl: &mut Option<DefaultEditor>, reader: &BibleReader) -> O
                 if let Some(b) = reader.find_book(searched) {
                     return Some(b.name.clone());
                 } else {
-                    println!("{}", format!("⚠️ Book '{}' not found in Bible database.", searched).red());
+                    println!("{}", format!("[!] Book '{}' not found in Bible database.", searched).red());
                 }
             }
             None
@@ -900,13 +900,13 @@ async fn read_bible_flow(
     let book_meta = match reader.find_book(selected_book_name) {
         Some(b) => b,
         None => {
-            println!("{}", format!("⚠️ Book '{}' not found in Bible database.", selected_book_name).red());
+            println!("{}", format!("[!] Book '{}' not found in Bible database.", selected_book_name).red());
             return Ok(());
         }
     };
 
     println!(
-        "  📖 {}",
+        "  {}",
         print_gold(&format!("'{}' has {} chapters.", book_meta.name, book_meta.total_chapters))
     );
 
@@ -920,7 +920,7 @@ async fn read_bible_flow(
 
     let verse_count = book_meta.chapter_verse_counts.get(chapter_num.saturating_sub(1)).copied().unwrap_or(0);
     println!(
-        "  📌 {}",
+        "  • {}",
         print_gold(&format!("'{} Chapter {}' has {} verses.", book_meta.name, chapter_num, verse_count))
     );
 
@@ -997,7 +997,7 @@ async fn read_non_scripture_category_flow(
     }
 
     if books.is_empty() {
-        println!("{}", format!("⚠️ No books found in '{}' category.", cat_title).yellow());
+        println!("{}", format!("[!] No books found in '{}' category.", cat_title).yellow());
         return Ok(());
     }
 
@@ -1148,7 +1148,7 @@ async fn handle_compare_cmd(
     let book_meta = match reader.find_book(&selected_book_name) {
         Some(b) => b,
         None => {
-            println!("{}", format!("⚠️ Book '{}' not found.", selected_book_name).red());
+            println!("{}", format!("[!] Book '{}' not found.", selected_book_name).red());
             return Ok(());
         }
     };
@@ -1258,7 +1258,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     ensure_valid_chat_model(&available, &mut cfg);
     ollama.model = cfg.model.ollama.model.clone();
 
-    print!("{}", print_purple("🔍 Checking Ollama... "));
+    print!("{}", print_purple("Checking Ollama... "));
     io::stdout().flush()?;
     let mut ollama_online = ollama.health_check().await.unwrap_or(false);
     if !ollama_online {
@@ -1286,7 +1286,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
 
     // 3. Initialize Qdrant Client
     let qdrant = QdrantClient::new(&cfg.vector_db.qdrant_url)?;
-    print!("{}", print_purple("🔍 Checking Qdrant Vector DB... "));
+    print!("{}", print_purple("Checking Qdrant Vector DB... "));
     io::stdout().flush()?;
     let mut qdrant_online = qdrant.health_check().await;
     if !qdrant_online {
@@ -1326,7 +1326,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         Some(&cfg.voice.pocket_tts_cli),
     )?;
 
-    print!("{}", print_purple("🔍 Checking TTS... "));
+    print!("{}", print_purple("Checking TTS... "));
     io::stdout().flush()?;
     if pocket_tts.health_check().await {
         println!("{}", print_gold("ONLINE"));
@@ -1340,7 +1340,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     if !missing.is_empty() {
         println!(
             "{}",
-            "⚠️  Recommended models missing: run 'paraclea doctor' for details".yellow()
+            "[!] Recommended models missing: run 'paraclea doctor' for details".yellow()
         );
     }
 
@@ -1375,7 +1375,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     let crossref_linker = CrossReferenceLinker::new(dendrite_graph.clone(), dendrite_store.clone());
     let library_engine = LibraryEngine::load_auto();
 
-    print!("{}", print_purple("🔍 Checking Reticulum Mesh... "));
+    print!("{}", print_purple("Checking Reticulum Mesh... "));
     io::stdout().flush()?;
     if let Some(ref mesh) = mesh_engine {
         if let Some(ref id) = mesh.identity_hash {
@@ -1387,12 +1387,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         println!("{}", "STANDBY".yellow());
     }
 
-    print!("{}", print_purple("🔍 Checking Dendrite Graph Memory... "));
+    print!("{}", print_purple("Checking Dendrite Graph Memory... "));
     io::stdout().flush()?;
     let node_count = dendrite_graph.len();
     println!("{} {}", print_gold("ONLINE"), format!("({} nodes loaded)", node_count).purple());
 
-    print!("{}", print_purple("🔍 Checking Multi-Category Library... "));
+    print!("{}", print_purple("Checking Multi-Category Library... "));
     io::stdout().flush()?;
     let lib_books = library_engine.books.len();
     let lib_cats = library_engine.list_categories().len();
@@ -1409,7 +1409,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
     );
     println!(
         "{}\n",
-        print_gold("✨ Paraclea is ready! Type your message (or '/help' for options, '/bye' to quit).")
+        print_gold("Paraclea is ready! Type your message (or '/help' for options, '/bye' to quit).")
     );
 
     loop {
@@ -1454,7 +1454,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             if let Some(ref reader) = bible_reader {
                 let _ = handle_read_cmd(&mut rl, reader, &library_engine, &cfg, &mut history).await;
             } else {
-                println!("{}", "⚠️ Bible database not loaded.".red());
+                println!("{}", "[!] Bible database not loaded.".red());
             }
             continue;
         }
@@ -1463,7 +1463,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             if let Some(ref reader) = bible_reader {
                 let _ = handle_compare_cmd(&mut rl, reader, &ollama, &mut history).await;
             } else {
-                println!("{}", "⚠️ Bible database not loaded.".red());
+                println!("{}", "[!] Bible database not loaded.".red());
             }
             continue;
         }
@@ -1471,9 +1471,9 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         if cmd_lower == "/matrix" {
             let topic = args;
             if topic.is_empty() {
-                println!("{}", "⚠️ Please specify a topic: /matrix <topic> (e.g. /matrix Faith)".yellow());
+                println!("{}", "[!] Please specify a topic: /matrix <topic> (e.g. /matrix Faith)".yellow());
             } else {
-                println!("{}", print_purple(&format!("📊 Generating Comparative Matrix for '{}'...", topic)));
+                println!("{}", print_purple(&format!("Generating Comparative Matrix for '{}'...", topic)));
                 let reader = bible_reader.as_ref().cloned().unwrap_or_else(|| paraclea_core::bible::BibleReader {
                     books: Vec::new(),
                     raw_data: None,
@@ -1487,12 +1487,12 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         if cmd_lower == "/mesh-send" {
             let parts: Vec<&str> = args.splitn(2, ' ').collect();
             if parts.len() < 2 || parts[0].is_empty() || parts[1].is_empty() {
-                println!("{}", "⚠️ Usage: /mesh-send <recipient_identity> <message_text>".yellow());
+                println!("{}", "[!] Usage: /mesh-send <recipient_identity> <message_text>".yellow());
             } else {
                 if let Some(ref mesh) = mesh_engine {
                     match mesh.send_message(parts[0], parts[1]) {
                         Ok(msg) => println!("  {}", print_gold(&format!("✓ Off-Grid Message Queued! (ID: {}, Recipient: <{}>)", msg.id, msg.recipient))),
-                        Err(e) => eprintln!("  {}", format!("⚠️ Send error: {}", e).red()),
+                        Err(e) => eprintln!("  {}", format!("[!] Send error: {}", e).red()),
                     }
                 }
             }
@@ -1523,11 +1523,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             };
 
             if passkey_input.is_empty() {
-                println!("{}", "⚠️ Backup cancelled: an encryption passphrase is required for security.".yellow());
+                println!("{}", "[!] Backup cancelled: an encryption passphrase is required for security.".yellow());
                 continue;
             }
             let passkey = &passkey_input;
-            println!("{}", print_purple("🔒 Exporting 1-Click Encrypted USB Backup (AES-256 / SHA-256)..."));
+            println!("{}", print_purple("Exporting 1-Click Encrypted USB Backup (AES-256 / SHA-256)..."));
             
             let home = paraclea_core::home_dir();
             let db_path = home.join(".paraclea/dendrite.db");
@@ -1579,11 +1579,11 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                             println!("  {}", print_gold(&format!("✓ AES-256-GCM Encrypted USB Backup Created: {:?} ({} bytes)", backup_file, bytes)));
                         }
                         Err(e) => {
-                            println!("{}", format!("⚠️ Backup failed: {}", e).red());
+                            println!("{}", format!("[!] Backup failed: {}", e).red());
                         }
                     }
                 } else {
-                    println!("{}", "⚠️ No dendrite.db found to backup yet.".yellow());
+                    println!("{}", "[!] No dendrite.db found to backup yet.".yellow());
                 }
             continue;
         }
@@ -1596,7 +1596,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                         println!("{}", print_purple("Broadcasting Reticulum announcement packet..."));
                         match mesh.announce() {
                             Ok(res) => println!("  {}", print_gold(&format!("✓ {}", res))),
-                            Err(e) => eprintln!("  {}", format!("⚠️ Announce error: {}", e).red()),
+                            Err(e) => eprintln!("  {}", format!("[!] Announce error: {}", e).red()),
                         }
                     }
                     "peers" | "paths" => {
@@ -1617,7 +1617,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                     }
                 }
             } else {
-                println!("{}", "⚠️ Reticulum mesh module unavailable.".red());
+                println!("{}", "[!] Reticulum mesh module unavailable.".red());
             }
             continue;
         }
@@ -1666,7 +1666,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         if cmd_lower == "/read-book" {
             let parts: Vec<&str> = args.split_whitespace().collect();
             if parts.is_empty() {
-                println!("{}", "⚠️ Usage: /read-book <book> [chapter]".yellow());
+                println!("{}", "[!] Usage: /read-book <book> [chapter]".yellow());
             } else {
                 let book_query = parts[0];
                 let ch_num: usize = if parts.len() > 1 { parts[1].parse().unwrap_or(1) } else { 1 };
@@ -1675,7 +1675,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                     println!("{}\n", chapter.title.purple().bold());
                     println!("{}\n", chapter.content);
                 } else {
-                    println!("{}", format!("⚠️ Book or chapter not found: '{}'", book_query).red());
+                    println!("{}", format!("[!] Book or chapter not found: '{}'", book_query).red());
                 }
             }
             continue;
@@ -1684,7 +1684,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         if cmd_lower == "/study-book" {
             let parts: Vec<&str> = args.split_whitespace().collect();
             if parts.is_empty() {
-                println!("{}", "⚠️ Usage: /study-book <book> [chapter]".yellow());
+                println!("{}", "[!] Usage: /study-book <book> [chapter]".yellow());
             } else {
                 let book_query = parts[0];
                 let ch_num: usize = if parts.len() > 1 { parts[1].parse().unwrap_or(1) } else { 1 };
@@ -1706,7 +1706,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                     }).await;
                     println!("\n");
                 } else {
-                    println!("{}", format!("⚠️ Book or chapter not found: '{}'", book_query).red());
+                    println!("{}", format!("[!] Book or chapter not found: '{}'", book_query).red());
                 }
             }
             continue;
@@ -1718,7 +1718,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
                 if let Some((source, target)) = source_target.split_once("<->") {
                     match crossref_linker.create_cross_reference(source, target, notes) {
                         Ok(id) => println!("  {}", print_gold(&format!("✓ Custom cross-reference created: {} ↔ {} (ID: {})", source.trim(), target.trim(), id))),
-                        Err(e) => eprintln!("  {}", format!("⚠️ Error creating cross-reference: {}", e).red()),
+                        Err(e) => eprintln!("  {}", format!("[!] Error creating cross-reference: {}", e).red()),
                     }
                 } else {
                     println!("  {}", "Usage: /crossref SourcePassage <-> TargetPassage Your Study Notes".yellow());
@@ -1742,7 +1742,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
         if cmd_lower == "/model" {
             let target = args;
             if target.is_empty() {
-                println!("{}", "⚠️ Usage: /model <name or number> (run '/models' to list available)".yellow());
+                println!("{}", "[!] Usage: /model <name or number> (run '/models' to list available)".yellow());
             } else {
                 let available_models = ollama.fetch_available_models().await;
                 if let Err(e) = select_and_apply_model(target, &available_models, &mut cfg) {
@@ -1865,7 +1865,7 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             }
             Err(e) => {
                 println!();
-                eprintln!("{}", format!("⚠️ Ollama Error: {}\n", e).red().bold());
+                eprintln!("{}", format!("[!] Ollama Error: {}\n", e).red().bold());
             }
         }
     }
