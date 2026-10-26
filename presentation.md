@@ -131,9 +131,9 @@ paraclea/
 ├── install.sh                          # Universal installer (Debian/Arch/Alpine/macOS/Windows/Android)
 ├── persona/                            # Persona files (SOUL, IDENTITY, USER, MEMORY, TOOLS, HEARTBEAT)
 ├── crates/
-│   ├── paraclea-core/                  # Library crate — all domain logic (23 modules)
+│   ├── paraclea-core/                  # Library crate — all domain logic (31 modules)
 │   │   └── src/
-│   │       ├── lib.rs                  # Module hub — 23 modules
+│   │       ├── lib.rs                  # Module hub — 31 modules
 │   │       ├── bible.rs                # 219-version Bible navigator, 30-language code mapping
 │   │       ├── library.rs              # Multi-category library (EGW, survival, medical, psychology)
 │   │       ├── crossref.rs             # 340,000+ cross-references & prophetic synthesis chains
@@ -143,6 +143,14 @@ paraclea/
 │   │       ├── candle_stt.rs           # Candle pure Rust offline speech-to-text (16kHz log-Mel)
 │   │       ├── audio.rs                # Double-buffered async audio streamer (<100ms TTFS)
 │   │       ├── sneakernet.rs           # Offline USB sneakernet sync with AES-256-GCM encryption
+│   │       ├── heatmap.rs              # 66-book visual study & cross-reference tree-map (░▒▓█)
+│   │       ├── mmap_bible.rs           # Zero-copy flat file (.parabible) multi-translation paging
+│   │       ├── timeline.rs             # Multi-column prophetic timeline matrix (Daniel/Revelation/History)
+│   │       ├── bulletin.rs             # Off-grid Reticulum mesh store-and-forward theological wire
+│   │       ├── aligner.rs              # Acoustic read-along text highlighter for TTS audio viewports
+│   │       ├── compressor.rs           # Context protection: 5-item reader limits & disk spillover (~/.paraclea/spill)
+│   │       ├── security.rs             # Pre-flight security shield (Strix/OWASP) blocking path traversal & shell injection
+│   │       ├── loopguard.rs            # Two-phase loop tracker & breaker preventing runaway tool streaks
 │   │       ├── backup.rs               # 1-click encrypted database backup appliance
 │   │       ├── matrix.rs               # Comparative theological & practical topic matrix
 │   │       ├── rag.rs                  # RAG with Ollama embeddings + Qdrant vector search
