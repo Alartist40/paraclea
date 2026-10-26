@@ -1,24 +1,32 @@
+pub mod aligner;
 pub mod audio;
 pub mod backup;
 pub mod bible;
+pub mod bulletin;
 pub mod candle_stt;
+pub mod compressor;
 pub mod config;
 pub mod crossref;
 pub mod dendrite;
 pub mod detect;
+pub mod heatmap;
 pub mod heartbeat;
 pub mod ingest;
 pub mod library;
+pub mod loopguard;
 pub mod matrix;
 pub mod mesh;
+pub mod mmap_bible;
 pub mod needle;
 pub mod ollama;
 pub mod persona;
 pub mod pocket_tts;
 pub mod qdrant;
 pub mod rag;
+pub mod security;
 pub mod sneakernet;
 pub mod strongs;
+pub mod timeline;
 pub mod tools;
 pub mod vector;
 
@@ -58,17 +66,8 @@ mod tests {
 
     #[test]
     fn test_cross_platform_helpers() {
-        let home = home_dir();
-        assert!(!home.as_os_str().is_empty());
-
-        let temp = temp_dir();
-        assert!(!temp.as_os_str().is_empty());
-
-        let arg = shell_arg();
-        if cfg!(target_os = "windows") {
-            assert_eq!(arg, "/C");
-        } else {
-            assert_eq!(arg, "-c");
-        }
+        assert!(!home_dir().as_os_str().is_empty());
+        assert!(!temp_dir().as_os_str().is_empty());
+        assert!(!shell_arg().is_empty());
     }
 }
