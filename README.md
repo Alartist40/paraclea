@@ -200,6 +200,9 @@ paraclea-gui
 | **Language** | 100% Pure Rust (Edition 2021) |
 | **Binary Size** | ~12 MB (`paraclea`), ~14 MB (`paraclea-gui`) |
 | **Idle CPU Overhead** | **0.0% CPU** |
+| **Core Architecture** | 34 Pure Rust Modules (`crates/paraclea-core`) |
+| **Database Engine** | Unified SQLite WAL Mode + FTS5 BM25 Virtual Table (`verses_fts`) |
+| **Hallucination Shield** | ExactQuoteGuard (Verbatim Scripture Divergence Interceptor) |
 | **RAM Footprint** | ~25 MB base memory |
 | **Bible Database** | 160 Formatted JSON Files (30 Languages, 66 Books) |
 | **Non-Scripture Library** | 7 Books across 4 Categories (211 Total Chapters) |
@@ -212,13 +215,14 @@ paraclea-gui
 | **Galaxy Engine** | Mazzaroth — standalone, database-agnostic 3D renderer |
 | **Supported OS** | Linux (ARM64/x86_64), macOS (Intel/Apple Silicon), Windows (x86_64) |
 | **Edge Acceleration** | Needle 3 Co-Processor (28.4 MB L3-Resident / Deterministic JSON) |
-| **Tests** | 55/55 passing |
+| **Tests** | 69/69 passing |
 | **Clippy** | 0 warnings (`--all-targets`) |
 
 ---
 
 ## Architectural Guides & Technical Documentation
 
+- **[Communication & Anti-Slop Optimization](docs/COMMUNICATION_AND_SLOP_OPTIMIZATION.md)**: SlopMonster-inspired 32-token micro-directive eliminating conversational AI boilerplate.
 - **[Dendrite AutoHarness & Context Optimization](docs/DENDRITE_AUTOHARNESS_AND_CONTEXT_OPTIMIZATION.md)**: Biological self-learning, opportunity-relative dynamic pruning, scripture read receipts, and massive database context management for small local models.
 - **[Audio Streaming Optimization Guide](docs/AUDIO_STREAMING_OPTIMIZATION.md)**: Asynchronous double-buffered jitter ring and low-latency audio playback pipeline.
 - **[Reticulum Off-Grid Guide](docs/RETICULUM_OFFGRID_GUIDE.md)**: Autonomous cryptographic mesh networking and packet forwarding.
