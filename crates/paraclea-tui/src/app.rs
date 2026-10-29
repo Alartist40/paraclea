@@ -553,24 +553,43 @@ impl App {
             }
         }
 
-        // Global Alt+1-7 Deck Shortcuts (works from any focus including Prompt)
+        // Global Alt+1-7 Deck Shortcuts & Quick Breadcrumbs
         if mods.contains(KeyModifiers::ALT) {
-            if let KeyCode::Char(c @ '1'..='7') = code {
-                self.active_modal = ActiveModal::None;
-                match c {
-                    '1' => self.active_tab = ActiveTab::Chat,
-                    '2' => self.active_tab = ActiveTab::Bible,
-                    '3' => self.active_tab = ActiveTab::Library,
-                    '4' => self.active_tab = ActiveTab::Crossref,
-                    '5' => self.active_tab = ActiveTab::Galaxy,
-                    '6' => self.active_tab = ActiveTab::Mesh,
-                    '7' => {
-                        self.active_tab = ActiveTab::Doctor;
-                        self.refresh_doctor_status().await;
+            match code {
+                KeyCode::Char(c @ '1'..='7') => {
+                    self.active_modal = ActiveModal::None;
+                    match c {
+                        '1' => self.active_tab = ActiveTab::Chat,
+                        '2' => self.active_tab = ActiveTab::Bible,
+                        '3' => self.active_tab = ActiveTab::Library,
+                        '4' => self.active_tab = ActiveTab::Crossref,
+                        '5' => self.active_tab = ActiveTab::Galaxy,
+                        '6' => self.active_tab = ActiveTab::Mesh,
+                        '7' => {
+                            self.active_tab = ActiveTab::Doctor;
+                            self.refresh_doctor_status().await;
+                        }
+                        _ => {}
                     }
-                    _ => {}
+                    return Ok(false);
                 }
-                return Ok(false);
+                KeyCode::Char('c') | KeyCode::Char('C') => {
+                    // Alt+C: Quick-Copy current scripture breadcrumb into Chat prompt
+                    let book_name = self.bible_books.get(self.bible_state.selected_book_idx).cloned().unwrap_or_else(|| "Genesis".to_string());
+                    let citation = format!("Explain {} {}: ", book_name, self.bible_state.selected_chapter);
+                    self.input_buffer = citation;
+                    self.active_tab = ActiveTab::Chat;
+                    self.active_focus = ActiveFocus::PromptInput;
+                    self.set_toast("Pasted scripture citation into Chat prompt");
+                    return Ok(false);
+                }
+                KeyCode::Char('h') | KeyCode::Char('H') => {
+                    // Alt+H: Jump directly to Galaxy / Study Heatmap
+                    self.active_tab = ActiveTab::Galaxy;
+                    self.set_toast("Navigated to Mazzaroth 3D Celestial & Study Atlas");
+                    return Ok(false);
+                }
+                _ => {}
             }
         }
 

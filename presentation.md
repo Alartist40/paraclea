@@ -131,9 +131,9 @@ paraclea/
 ├── install.sh                          # Universal installer (Debian/Arch/Alpine/macOS/Windows/Android)
 ├── persona/                            # Persona files (SOUL, IDENTITY, USER, MEMORY, TOOLS, HEARTBEAT)
 ├── crates/
-│   ├── paraclea-core/                  # Library crate — all domain logic (31 modules)
+│   ├── paraclea-core/                  # Library crate — all domain logic (34 modules)
 │   │   └── src/
-│   │       ├── lib.rs                  # Module hub — 31 modules
+│   │       ├── lib.rs                  # Module hub — 34 modules
 │   │       ├── bible.rs                # 219-version Bible navigator, 30-language code mapping
 │   │       ├── library.rs              # Multi-category library (EGW, survival, medical, psychology)
 │   │       ├── crossref.rs             # 340,000+ cross-references & prophetic synthesis chains
@@ -143,6 +143,9 @@ paraclea/
 │   │       ├── candle_stt.rs           # Candle pure Rust offline speech-to-text (16kHz log-Mel)
 │   │       ├── audio.rs                # Double-buffered async audio streamer (<100ms TTFS)
 │   │       ├── sneakernet.rs           # Offline USB sneakernet sync with AES-256-GCM encryption
+│       ├── db_bible.rs             # Unified SQLite WAL + FTS5 Bible engine (zero-RAM sub-ms lookups)
+│       ├── quote_guard.rs          # ExactQuoteGuard anti-hallucination verbatim citation verifier
+│       ├── doctor.rs               # Autonomous diagnostic & self-healing telemetry engine
 │   │       ├── heatmap.rs              # 66-book visual study & cross-reference tree-map (░▒▓█)
 │   │       ├── mmap_bible.rs           # Zero-copy flat file (.parabible) multi-translation paging
 │   │       ├── timeline.rs             # Multi-column prophetic timeline matrix (Daniel/Revelation/History)
