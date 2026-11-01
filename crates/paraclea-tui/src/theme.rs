@@ -14,16 +14,33 @@ pub enum AppTheme {
 }
 
 impl AppTheme {
+    pub const ALL: &'static [AppTheme] = &[
+        AppTheme::RoyalByzantium,
+        AppTheme::CrimsonCodex,
+        AppTheme::CyberScholar,
+        AppTheme::EmeraldMatrix,
+        AppTheme::CelestialMidnight,
+        AppTheme::WildernessEInk,
+    ];
+
+    pub fn all() -> &'static [AppTheme] {
+        Self::ALL
+    }
+
     pub fn from_name(s: &str) -> Option<Self> {
-        match s {
-            "RoyalByzantium" => Some(Self::RoyalByzantium),
-            "CrimsonCodex" => Some(Self::CrimsonCodex),
-            "CyberScholar" => Some(Self::CyberScholar),
-            "EmeraldMatrix" => Some(Self::EmeraldMatrix),
-            "CelestialMidnight" => Some(Self::CelestialMidnight),
-            "WildernessEInk" => Some(Self::WildernessEInk),
-            _ => None,
+        let trimmed = s.trim();
+        for &t in Self::ALL {
+            if t.to_str().eq_ignore_ascii_case(trimmed) {
+                return Some(t);
+            }
         }
+        let lower = trimmed.to_lowercase();
+        for &t in Self::ALL {
+            if t.name().to_lowercase().contains(&lower) {
+                return Some(t);
+            }
+        }
+        None
     }
 
     pub fn to_str(&self) -> &'static str {
@@ -49,14 +66,9 @@ impl AppTheme {
     }
 
     pub fn next(&self) -> Self {
-        match self {
-            AppTheme::RoyalByzantium => AppTheme::CrimsonCodex,
-            AppTheme::CrimsonCodex => AppTheme::CyberScholar,
-            AppTheme::CyberScholar => AppTheme::EmeraldMatrix,
-            AppTheme::EmeraldMatrix => AppTheme::CelestialMidnight,
-            AppTheme::CelestialMidnight => AppTheme::WildernessEInk,
-            AppTheme::WildernessEInk => AppTheme::RoyalByzantium,
-        }
+        let all = Self::ALL;
+        let pos = all.iter().position(|t| t == self).unwrap_or(0);
+        all[(pos + 1) % all.len()]
     }
 
     pub fn border_type(&self) -> BorderType {

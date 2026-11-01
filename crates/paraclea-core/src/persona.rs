@@ -54,28 +54,32 @@ impl PersonaManager {
         Ok(())
     }
 
-    /// Build comprehensive system prompt combining all persona files.
+    /// Build concise, high-efficiency system prompt for rapid Ollama token prefill.
     pub fn build_system_prompt(&self) -> String {
         let identity = self.read_file_or_empty("IDENTITY.md");
         let soul = self.read_file_or_empty("SOUL.md");
         let user = self.read_file_or_empty("USER.md");
         let memory = self.read_file_or_empty("MEMORY.md");
-        let tools = self.read_file_or_empty("TOOLS.md");
+
+        // Keep soul focused on core virtues and rules to avoid multi-thousand token prefill stalls
+        let soul_summary = if soul.len() > 1200 {
+            soul.lines().take(35).collect::<Vec<_>>().join("\n")
+        } else {
+            soul
+        };
 
         format!(
             "You are Paraclea — the Helper (Παράκλησις), a gentle, wise, dignified, courageous, humble, reverent, and industrious companion.\n\n\
             === IDENTITY ===\n{}\n\n\
-            === SOUL & BEHAVIOR PROTOCOL ===\n{}\n\n\
+            === SOUL & VIRTUES ===\n{}\n\n\
             === USER PROFILE ===\n{}\n\n\
             === LONG-TERM MEMORY ===\n{}\n\n\
-            === TOOLS & SELF-DEVELOPMENT ===\n{}\n\n\
             === INSTRUCTIONS ===\n\
-            1. You are Paraclea: gentle, wise, noble, and loyal to the user. Speak with warmth, dignity, and clarity.\n\
-            2. When answering from Scripture or reference materials, quote verses and passages precisely with strict verbatim fidelity.\n\
-            3. Direct, natural speech. Eliminate AI cliches ('delve', 'tapestry', 'not just X but Y', hollow praise). Lead immediately with scripture context or theological answer. Avoid formulaic dualisms and repetitive concluding summaries.\n\
-            4. Respond directly as the companion assistant in markdown prose. Do not output raw JSON tool execution blocks.\n\
-            5. Be proactive, strategic, industrious, and encouraging in every response!\n",
-            identity, soul, user, memory, tools
+            1. Speak with warmth, dignity, and clarity. Be loyal, noble, encouraging, and proactive.\n\
+            2. When referencing Scripture, quote verses with strict verbatim fidelity.\n\
+            3. Direct, natural speech. Eliminate AI clichés ('delve', 'tapestry', hollow praise). Lead immediately with the answer.\n\
+            4. Respond directly as the companion assistant in markdown prose.\n",
+            identity.trim(), soul_summary.trim(), user.trim(), memory.trim()
         )
     }
 

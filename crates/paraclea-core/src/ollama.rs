@@ -51,6 +51,8 @@ pub struct OllamaChatRequest {
     pub stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<OllamaOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_alive: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -256,6 +258,7 @@ impl OllamaClient {
                 repeat_penalty: 1.18,
                 num_predict: 1024,
             }),
+            keep_alive: Some("30m".to_string()),
         };
 
         debug!("Sending chat request to Ollama model '{}'", model_name);
@@ -307,6 +310,7 @@ impl OllamaClient {
                 repeat_penalty: 1.18,
                 num_predict: 1024,
             }),
+            keep_alive: Some("30m".to_string()),
         };
 
         debug!("Sending streaming chat request to Ollama model '{}'", model_name);
@@ -342,11 +346,15 @@ impl OllamaClient {
                 }
 
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-                    if let Some(content) = val["message"]["content"].as_str() {
-                        if !content.is_empty() {
-                            token_cb(content);
-                            full_response.push_str(content);
-                        }
+                    let content = val["message"]["content"].as_str().unwrap_or("");
+                    let thinking = val["message"]["thinking"].as_str().unwrap_or("");
+
+                    if !content.is_empty() {
+                        token_cb(content);
+                        full_response.push_str(content);
+                    } else if !thinking.is_empty() {
+                        token_cb(thinking);
+                        full_response.push_str(thinking);
                     }
                 }
             }
@@ -354,11 +362,15 @@ impl OllamaClient {
 
         if !buffer.trim().is_empty() {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(buffer.trim()) {
-                if let Some(content) = val["message"]["content"].as_str() {
-                    if !content.is_empty() {
-                        token_cb(content);
-                        full_response.push_str(content);
-                    }
+                let content = val["message"]["content"].as_str().unwrap_or("");
+                let thinking = val["message"]["thinking"].as_str().unwrap_or("");
+
+                if !content.is_empty() {
+                    token_cb(content);
+                    full_response.push_str(content);
+                } else if !thinking.is_empty() {
+                    token_cb(thinking);
+                    full_response.push_str(thinking);
                 }
             }
         }
@@ -377,5 +389,15 @@ impl OllamaClient {
         F: FnMut(&str),
     {
         self.chat_with_model_stream(&self.model, messages, token_cb).await
+    }
+
+    /// Preload active model into GPU memory with keep_alive to eliminate first-token cold start latency.
+    pub async fn preload_model(&self, model_name: &str) {
+        let url = format!("{}/api/chat", self.endpoint);
+        let req = serde_json::json!({
+            "model": model_name,
+            "keep_alive": "30m"
+        });
+        let _ = self.client.post(&url).json(&req).send().await;
     }
 }

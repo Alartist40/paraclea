@@ -462,6 +462,37 @@ mod tests {
             assert_eq!(app.modal_items.get(app.modal_selected_idx), Some(&target_item));
         }
     }
+
+    #[tokio::test]
+    async fn test_interactive_theme_picker_navigation_and_cancel() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+        assert_eq!(app.theme, AppTheme::RoyalByzantium);
+
+        // 1. Running /theme opens ThemePicker modal
+        app.process_command("/theme").await;
+        assert_eq!(app.active_modal, ActiveModal::ThemePicker);
+        assert_eq!(app.modal_selected_idx, 0);
+
+        // 2. Down arrow navigates and previews next theme live
+        let _ = app.handle_key_event(KeyCode::Down, KeyModifiers::NONE).await;
+        assert_eq!(app.modal_selected_idx, 1);
+        assert_eq!(app.theme, AppTheme::CrimsonCodex);
+
+        // 3. Esc cancels and restores original theme
+        let _ = app.handle_key_event(KeyCode::Esc, KeyModifiers::NONE).await;
+        assert_eq!(app.active_modal, ActiveModal::None);
+        assert_eq!(app.theme, AppTheme::RoyalByzantium);
+
+        // 4. Reopen and press Enter to confirm selection
+        app.process_command("/theme").await;
+        assert_eq!(app.active_modal, ActiveModal::ThemePicker);
+        let _ = app.handle_key_event(KeyCode::Down, KeyModifiers::NONE).await;
+        assert_eq!(app.theme, AppTheme::CrimsonCodex);
+        let _ = app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE).await;
+        assert_eq!(app.active_modal, ActiveModal::None);
+        assert_eq!(app.theme, AppTheme::CrimsonCodex);
+    }
 }
 
 

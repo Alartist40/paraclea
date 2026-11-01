@@ -284,5 +284,46 @@ pub fn render_command_palette_modal(
     f.render_stateful_widget(list, chunks[1], &mut state);
 }
 
+pub fn render_theme_picker_modal(
+    f: &mut Frame,
+    area: Rect,
+    themes: &[AppTheme],
+    selected_idx: usize,
+    preview_theme: &AppTheme,
+    persisted_theme: &str,
+) {
+    let modal_area = centered_rect(62, 50, area);
+    f.render_widget(Clear, modal_area);
+
+    let mut items = Vec::new();
+    for (idx, th) in themes.iter().enumerate() {
+        let is_cursor = idx == selected_idx;
+        let is_active = th.to_str() == persisted_theme;
+        let prefix = if is_cursor { " ▶ " } else { "   " };
+        let mark = if is_active { " [Active]" } else { "" };
+        let style = if is_cursor {
+            preview_theme.highlight_item()
+        } else {
+            Style::default().fg(preview_theme.text())
+        };
+        let line = Line::from(vec![
+            Span::styled(prefix, style),
+            Span::styled(format!("{:<42}", th.name()), style),
+            Span::styled(mark, Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+        ]);
+        items.push(ListItem::new(line));
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(preview_theme.border_type())
+        .title(" Visual Theme Switcher (↑/↓ to Preview │ Enter: Apply │ Esc: Cancel) ")
+        .border_style(preview_theme.border_focused())
+        .style(Style::default().bg(preview_theme.panel_bg()));
+
+    let list = List::new(items).block(block);
+    f.render_widget(list, modal_area);
+}
+
 
 

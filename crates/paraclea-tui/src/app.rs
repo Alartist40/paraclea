@@ -10,13 +10,13 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Frame, Terminal,
 };
 use tokio::sync::mpsc;
 
 use paraclea_core::{
-    audio::AudioPlayer,
+    audio::AsyncAudioStreamer,
     bible::BibleReader,
     config::Config,
     crossref::CrossReferenceLinker,
@@ -29,7 +29,7 @@ use paraclea_core::{
     qdrant::QdrantClient,
 };
 
-use crate::modals::{render_help_modal, render_input_modal, render_list_picker_modal};
+use crate::modals::{render_help_modal, render_input_modal, render_list_picker_modal, render_theme_picker_modal};
 use crate::theme::AppTheme;
 use crate::views::{
     bible::{render_bible_view, BibleViewState},
@@ -43,7 +43,7 @@ use crate::views::{
 
 pub const COMMAND_PALETTE: &[(&str, &str)] = &[
     ("/help", "Show help and keyboard shortcuts"),
-    ("/theme", "Cycle color themes (6 presets incl. Wilderness E-Ink)"),
+    ("/theme", "Open Theme Picker modal (or pass name e.g. /theme CyberScholar)"),
     ("/strongs", "Strong's Greek & Hebrew Lexicon inspector"),
     ("/chains", "Topical prophetic synthesis chains"),
     ("/dashboard", "Daily Devotional & Field Briefing"),
@@ -88,6 +88,7 @@ pub enum ActiveModal {
     None,
     Help,
     CommandPalette,
+    ThemePicker,
     LanguagePicker,
     TranslationPicker,
     ModelPicker,
@@ -98,6 +99,7 @@ pub enum StreamEvent {
     Token(u64, String),
     Done(u64),
     Error(u64, String),
+    TtsAudioChunk(u64, Vec<u8>),
     TtsStart,
     TtsDone,
     TtsError(String),
@@ -122,6 +124,7 @@ pub struct App {
     pub qdrant: QdrantClient,
     pub persona: PersonaManager,
     pub pocket_tts: PocketTtsEngine,
+    pub audio_streamer: AsyncAudioStreamer,
 
     // System Health & Doctor state
     pub ollama_online: bool,
@@ -134,6 +137,7 @@ pub struct App {
     // Views State
     pub chat_history: Vec<ChatMessage>,
     pub streaming_text: String,
+    pub tts_sentence_buffer: String,
     pub is_streaming: bool,
     pub is_speaking: bool,
     pub chat_scroll: usize,
@@ -168,6 +172,7 @@ pub struct App {
     pub all_modal_items: Vec<String>,
     pub modal_items: Vec<String>,
     pub modal_selected_idx: usize,
+    pub saved_theme_before_picker: Option<AppTheme>,
     pub command_palette_items: Vec<(&'static str, &'static str)>,
     pub input_modal_buffer: String,
 
@@ -273,6 +278,7 @@ impl App {
             qdrant,
             persona,
             pocket_tts,
+            audio_streamer: AsyncAudioStreamer::new(),
 
             ollama_online: false,
             qdrant_online: false,
@@ -283,6 +289,7 @@ impl App {
 
             chat_history: Vec::new(),
             streaming_text: String::new(),
+            tts_sentence_buffer: String::new(),
             is_streaming: false,
             is_speaking: false,
             chat_scroll: 0,
@@ -314,6 +321,7 @@ impl App {
             all_modal_items: Vec::new(),
             modal_items: Vec::new(),
             modal_selected_idx: 0,
+            saved_theme_before_picker: None,
             command_palette_items: COMMAND_PALETTE.to_vec(),
             input_modal_buffer: String::new(),
 
@@ -346,6 +354,7 @@ impl App {
                 });
             }
             self.streaming_text.clear();
+            self.tts_sentence_buffer.clear();
         }
     }
 
@@ -357,6 +366,16 @@ impl App {
         &mut self,
         terminal: &mut Terminal<B>,
     ) -> Result<()> {
+        // Preload active Ollama model in background to eliminate first-token cold start latency
+        let ollama_preload = self.ollama.clone();
+        let active_model = self.cfg.model.ollama.model.clone();
+        tokio::spawn(async move {
+            ollama_preload.preload_model(&active_model).await;
+        });
+
+        // Ensure Pocket-TTS background server daemon is active
+        self.pocket_tts.ensure_server_running();
+
         loop {
             // Clean up expired toast message
             if let Some((_, instant)) = self.toast_message {
@@ -371,6 +390,44 @@ impl App {
                     StreamEvent::Token(gen_id, tok) => {
                         if gen_id == self.stream_generation_id {
                             self.streaming_text.push_str(&tok);
+                            self.tts_sentence_buffer.push_str(&tok);
+
+                            // Detect sentence boundary for pipelined TTS
+                            let has_boundary = self.tts_sentence_buffer.contains(". ")
+                                || self.tts_sentence_buffer.contains("? ")
+                                || self.tts_sentence_buffer.contains("! ")
+                                || self.tts_sentence_buffer.contains(".\n")
+                                || self.tts_sentence_buffer.contains("?\n")
+                                || self.tts_sentence_buffer.contains("!\n")
+                                || self.tts_sentence_buffer.contains("\n\n");
+
+                            if has_boundary {
+                                let punct_idx = self.tts_sentence_buffer
+                                    .rfind(". ")
+                                    .or_else(|| self.tts_sentence_buffer.rfind("? "))
+                                    .or_else(|| self.tts_sentence_buffer.rfind("! "))
+                                    .or_else(|| self.tts_sentence_buffer.rfind(".\n"))
+                                    .or_else(|| self.tts_sentence_buffer.rfind("?\n"))
+                                    .or_else(|| self.tts_sentence_buffer.rfind("!\n"))
+                                    .or_else(|| self.tts_sentence_buffer.rfind("\n\n"));
+
+                                if let Some(split_pos) = punct_idx {
+                                    let sentence = self.tts_sentence_buffer[..split_pos + 1].trim().to_string();
+                                    self.tts_sentence_buffer = self.tts_sentence_buffer[split_pos + 1..].to_string();
+
+                                    if !sentence.is_empty() {
+                                        let tts = self.pocket_tts.clone();
+                                        let tx_tts = self.tx_stream.clone();
+                                        tokio::spawn(async move {
+                                            if let Ok(wav_bytes) = tts.synthesize(&sentence).await {
+                                                if !wav_bytes.is_empty() {
+                                                    let _ = tx_tts.send(StreamEvent::TtsAudioChunk(gen_id, wav_bytes));
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                     StreamEvent::Done(gen_id) => {
@@ -384,24 +441,27 @@ impl App {
                                 thinking: None,
                                 timestamp: now_str,
                             });
-                            let spoken_text = self.streaming_text.clone();
                             self.streaming_text.clear();
 
-                            // Async TTS Voice Playback
-                            let tts = self.pocket_tts.clone();
-                            let tx_tts = self.tx_stream.clone();
-                            tokio::spawn(async move {
-                                let _ = tx_tts.send(StreamEvent::TtsStart);
-                                match tts.synthesize(&spoken_text).await {
-                                    Ok(audio_bytes) => {
-                                        let _ = AudioPlayer::play_wav_bytes(&audio_bytes);
-                                        let _ = tx_tts.send(StreamEvent::TtsDone);
+                            // Synthesize remaining sentence tail if any
+                            let remaining = self.tts_sentence_buffer.trim().to_string();
+                            self.tts_sentence_buffer.clear();
+                            if !remaining.is_empty() {
+                                let tts = self.pocket_tts.clone();
+                                let tx_tts = self.tx_stream.clone();
+                                tokio::spawn(async move {
+                                    if let Ok(wav_bytes) = tts.synthesize(&remaining).await {
+                                        if !wav_bytes.is_empty() {
+                                            let _ = tx_tts.send(StreamEvent::TtsAudioChunk(gen_id, wav_bytes));
+                                        }
                                     }
-                                    Err(e) => {
-                                        let _ = tx_tts.send(StreamEvent::TtsError(e.to_string()));
-                                    }
-                                }
-                            });
+                                });
+                            }
+                        }
+                    }
+                    StreamEvent::TtsAudioChunk(gen_id, wav_bytes) => {
+                        if gen_id == self.stream_generation_id {
+                            let _ = self.audio_streamer.enqueue_chunk(wav_bytes);
                         }
                     }
                     StreamEvent::Error(gen_id, err) => {
@@ -409,6 +469,7 @@ impl App {
                             self.is_streaming = false;
                             self.current_stream_abort = None;
                             self.streaming_text.clear();
+                            self.tts_sentence_buffer.clear();
                             self.set_toast(format!("Ollama Error: {}", err));
                             self.chat_history.push(ChatMessage {
                                 role: "assistant".to_string(),
@@ -430,6 +491,9 @@ impl App {
                     }
                 }
             }
+
+            // Sync active speaking status with audio streamer
+            self.is_speaking = self.audio_streamer.is_playing();
 
             // Update galaxy simulation clock only when active
             if self.active_tab == ActiveTab::Galaxy {
@@ -593,6 +657,12 @@ impl App {
             }
         }
 
+        // F2: Quick open Theme Picker modal
+        if code == KeyCode::F(2) {
+            self.open_theme_picker();
+            return Ok(false);
+        }
+
         // Global Streaming Cancellation via Esc
         if code == KeyCode::Esc && self.is_streaming {
             self.cancel_active_stream();
@@ -673,26 +743,59 @@ impl App {
 
             match code {
                 KeyCode::Esc => {
+                    if self.active_modal == ActiveModal::ThemePicker {
+                        if let Some(prev) = self.saved_theme_before_picker.take() {
+                            self.theme = prev;
+                        }
+                    }
                     self.active_modal = ActiveModal::None;
                     self.modal_filter.clear();
                 }
                 KeyCode::Up => {
-                    if self.modal_selected_idx > 0 {
+                    if self.active_modal == ActiveModal::ThemePicker {
+                        let len = AppTheme::ALL.len();
+                        if len > 0 {
+                            if self.modal_selected_idx > 0 {
+                                self.modal_selected_idx -= 1;
+                            } else {
+                                self.modal_selected_idx = len - 1;
+                            }
+                            self.preview_selected_theme();
+                        }
+                    } else if self.modal_selected_idx > 0 {
                         self.modal_selected_idx -= 1;
                     }
                 }
                 KeyCode::Down => {
-                    if self.modal_selected_idx + 1 < self.modal_items.len() {
+                    if self.active_modal == ActiveModal::ThemePicker {
+                        let len = AppTheme::ALL.len();
+                        if len > 0 {
+                            self.modal_selected_idx = (self.modal_selected_idx + 1) % len;
+                            self.preview_selected_theme();
+                        }
+                    } else if self.modal_selected_idx + 1 < self.modal_items.len() {
                         self.modal_selected_idx += 1;
                     }
                 }
                 KeyCode::Backspace => {
-                    self.modal_filter.pop();
-                    self.filter_modal_items();
+                    if self.active_modal != ActiveModal::ThemePicker {
+                        self.modal_filter.pop();
+                        self.filter_modal_items();
+                    }
                 }
                 KeyCode::Char(c) => {
-                    self.modal_filter.push(c);
-                    self.filter_modal_items();
+                    if self.active_modal == ActiveModal::ThemePicker {
+                        if c == 'q' || c == 'Q' {
+                            if let Some(prev) = self.saved_theme_before_picker.take() {
+                                self.theme = prev;
+                            }
+                            self.active_modal = ActiveModal::None;
+                            self.modal_filter.clear();
+                        }
+                    } else {
+                        self.modal_filter.push(c);
+                        self.filter_modal_items();
+                    }
                 }
                 KeyCode::Enter => {
                     self.apply_modal_selection();
@@ -1073,13 +1176,24 @@ impl App {
         let bg_block = Block::default().style(Style::default().bg(self.theme.bg()));
         f.render_widget(bg_block, size);
 
-        // 1. Top Status Header
+        // 1. Top Status Header & Dynamic Bottom Prompt Height
+        let prompt_prefix_len = 12; // " Paraclea > "
+        let prompt_inner_width = (size.width.saturating_sub(4) as usize).max(20);
+        let avail_per_line = prompt_inner_width.saturating_sub(prompt_prefix_len).max(10);
+        let input_char_count = self.input_buffer.chars().count();
+        let prompt_lines = if input_char_count == 0 {
+            1
+        } else {
+            (input_char_count / avail_per_line + 1).min(4)
+        };
+        let prompt_box_height = (prompt_lines as u16 + 2).clamp(3, 6);
+
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Top Header / Tabs
                 Constraint::Min(10),   // Viewport + Sidebar
-                Constraint::Length(3), // Bottom Prompt Input
+                Constraint::Length(prompt_box_height), // Bottom Prompt Input
             ])
             .split(size);
 
@@ -1109,6 +1223,9 @@ impl App {
                     f, size, &self.command_palette_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
                 );
             }
+            ActiveModal::ThemePicker => render_theme_picker_modal(
+                f, size, AppTheme::ALL, self.modal_selected_idx, &self.theme, &self.cfg.theme,
+            ),
             ActiveModal::LanguagePicker => render_list_picker_modal(
                 f, size, "Select Scripture Language",
                 &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
@@ -1308,13 +1425,36 @@ impl App {
             Span::raw("")
         };
 
-        let prompt_line = Line::from(vec![
-            Span::styled(" Paraclea > ", self.theme.user_prompt()),
-            Span::styled(&self.input_buffer, Style::default().fg(self.theme.text())),
-            cursor_span,
-        ]);
+        let inner_width = (area.width.saturating_sub(2) as usize).max(10);
+        let prefix_len = 12; // " Paraclea > "
+        let avail_first_line = inner_width.saturating_sub(prefix_len).max(5);
+        let inner_height = (area.height.saturating_sub(2) as usize).max(1);
 
-        let p = Paragraph::new(prompt_line).block(block);
+        // If inner_height is 1 line (3-row box), use horizontal sliding window so cursor and tail are always in view
+        let prompt_line = if inner_height == 1 {
+            let total_chars = self.input_buffer.chars().count();
+            let display_text = if total_chars > avail_first_line {
+                let skip = total_chars.saturating_sub(avail_first_line);
+                self.input_buffer.chars().skip(skip).collect::<String>()
+            } else {
+                self.input_buffer.clone()
+            };
+            Line::from(vec![
+                Span::styled(" Paraclea > ", self.theme.user_prompt()),
+                Span::styled(display_text, Style::default().fg(self.theme.text())),
+                cursor_span,
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(" Paraclea > ", self.theme.user_prompt()),
+                Span::styled(&self.input_buffer, Style::default().fg(self.theme.text())),
+                cursor_span,
+            ])
+        };
+
+        let p = Paragraph::new(prompt_line)
+            .block(block)
+            .wrap(Wrap { trim: false });
         f.render_widget(p, area);
     }
 
@@ -1339,10 +1479,16 @@ impl App {
                 self.active_modal = ActiveModal::Help;
             }
             "/theme" => {
-                self.theme = self.theme.next();
-                self.cfg.theme = self.theme.to_str().to_string();
-                self.set_toast(format!("Theme: {}", self.theme.name()));
-                let _ = self.cfg.save(&self.config_path);
+                if args.is_empty() {
+                    self.open_theme_picker();
+                } else if let Some(t) = AppTheme::from_name(args) {
+                    self.theme = t;
+                    self.cfg.theme = t.to_str().to_string();
+                    self.set_toast(format!("Theme: {}", t.name()));
+                    let _ = self.cfg.save(&self.config_path);
+                } else {
+                    self.open_theme_picker();
+                }
             }
             "/language" | "/lang" => {
                 self.open_language_picker();
@@ -1693,6 +1839,10 @@ impl App {
             self.active_modal = ActiveModal::None;
             self.modal_filter.clear();
             self.input_buffer.clear();
+            if cmd == "/theme" {
+                self.open_theme_picker();
+                return;
+            }
             self.process_command(cmd).await;
         } else {
             self.active_modal = ActiveModal::None;
@@ -1795,8 +1945,33 @@ impl App {
         self.modal_selected_idx = 0;
     }
 
+    pub fn preview_selected_theme(&mut self) {
+        if let Some(&t) = AppTheme::ALL.get(self.modal_selected_idx) {
+            self.theme = t;
+        }
+    }
+
+    pub fn open_theme_picker(&mut self) {
+        self.saved_theme_before_picker = Some(self.theme);
+        self.modal_selected_idx = AppTheme::ALL
+            .iter()
+            .position(|t| t == &self.theme)
+            .unwrap_or(0);
+        self.modal_filter.clear();
+        self.active_modal = ActiveModal::ThemePicker;
+    }
+
     pub fn apply_modal_selection(&mut self) {
         match self.active_modal {
+            ActiveModal::ThemePicker => {
+                if let Some(&t) = AppTheme::ALL.get(self.modal_selected_idx) {
+                    self.theme = t;
+                    self.cfg.theme = t.to_str().to_string();
+                    self.saved_theme_before_picker = None;
+                    self.set_toast(format!("Theme: {}", t.name()));
+                    let _ = self.cfg.save(&self.config_path);
+                }
+            }
             ActiveModal::LanguagePicker => {
                 if let Some(sel) = self.modal_items.get(self.modal_selected_idx).cloned() {
                     if let Some(start) = sel.rfind('(') {
@@ -1823,6 +1998,11 @@ impl App {
             ActiveModal::ModelPicker => {
                 if let Some(sel) = self.modal_items.get(self.modal_selected_idx) {
                     self.cfg.model.ollama.model = sel.clone();
+                    let ollama_preload = self.ollama.clone();
+                    let model_to_preload = sel.clone();
+                    tokio::spawn(async move {
+                        ollama_preload.preload_model(&model_to_preload).await;
+                    });
                     self.set_toast(format!("Active AI Model: {}", sel));
                     let _ = self.cfg.save(&self.config_path);
                 }

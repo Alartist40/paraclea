@@ -39,12 +39,28 @@ impl AudioPlayer {
             .status();
 
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        let _ = Command::new("aplay")
-            .arg("-q")
-            .arg(&temp_file)
-            .status()
-            .or_else(|_| Command::new("paplay").arg(&temp_file).status())
-            .or_else(|_| Command::new("pw-play").arg(&temp_file).status());
+        {
+            let played = Command::new("pw-play")
+                .arg(&temp_file)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if !played {
+                let played_pulse = Command::new("paplay")
+                    .arg(&temp_file)
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+
+                if !played_pulse {
+                    let _ = Command::new("aplay")
+                        .arg("-q")
+                        .arg(&temp_file)
+                        .status();
+                }
+            }
+        }
 
         let _ = fs::remove_file(&temp_file);
         Ok(())
