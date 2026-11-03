@@ -29,18 +29,11 @@ impl AppTheme {
 
     pub fn from_name(s: &str) -> Option<Self> {
         let trimmed = s.trim();
-        for &t in Self::ALL {
-            if t.to_str().eq_ignore_ascii_case(trimmed) {
-                return Some(t);
-            }
+        if let Some(&t) = Self::ALL.iter().find(|&&t| t.to_str().eq_ignore_ascii_case(trimmed)) {
+            return Some(t);
         }
         let lower = trimmed.to_lowercase();
-        for &t in Self::ALL {
-            if t.name().to_lowercase().contains(&lower) {
-                return Some(t);
-            }
-        }
-        None
+        Self::ALL.iter().find(|&&t| t.name().to_lowercase().contains(&lower)).copied()
     }
 
     pub fn to_str(&self) -> &'static str {

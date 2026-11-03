@@ -5,6 +5,8 @@
 //! content; backlinks are auto-wired and kept in sync on every mutation.
 
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
@@ -19,7 +21,8 @@ fn tag_pattern() -> &'static Regex {
 }
 
 /// Classifies what kind of knowledge a node holds across the 4-tier memory model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum NodeType {
     /// Core self / agent persona (L3)
     Identity,
@@ -104,8 +107,8 @@ impl std::fmt::Display for NodeType {
     }
 }
 
-/// A single knowledge node in the graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A single knowledge node in the graph with Engram evolutionary memory metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node {
     pub id: String,
     pub title: String,
@@ -118,9 +121,100 @@ pub struct Node {
     pub backlinks: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Canonical topic key for in-place evolutionary upserts (Engram pattern)
+    #[serde(default)]
+    pub topic_key: Option<String>,
+    /// Number of evolutionary updates/revisions this topic has undergone
+    #[serde(default = "default_revision_count")]
+    pub revision_count: u32,
+    /// SHA-256 fingerprint of content for rolling deduplication
+    #[serde(default)]
+    pub content_hash: Option<String>,
+    /// Duplicate hit counter when identical content is re-encountered
+    #[serde(default)]
+    pub duplicate_count: u32,
+    /// Timestamp of most recent observation or access
+    #[serde(default)]
+    pub last_seen_at: i64,
+    /// Optional expiration / review timestamp for memory hygiene
+    #[serde(default)]
+    pub review_after: Option<i64>,
+    /// State flag: "active", "needs_review", "decayed"
+    #[serde(default = "default_state")]
+    pub state: String,
+}
+
+fn default_revision_count() -> u32 {
+    1
+}
+
+fn default_state() -> String {
+    "active".to_string()
+}
+
+pub fn compute_content_hash(text: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(text.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+/// Layer 1: Compact preview card for celestial orbital nodes and quick index (~100-150 tokens)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompactNodeCard {
+    pub id: String,
+    pub title: String,
+    pub node_type: NodeType,
+    pub topic_key: Option<String>,
+    pub preview: String,
+    pub tags: Vec<String>,
+    pub revision_count: u32,
+    pub updated_at: i64,
+}
+
+/// Layer 2: Cluster context showing surrounding constellation/connections
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClusterContext {
+    pub central_id: String,
+    pub central_title: String,
+    pub outgoing_links: Vec<String>,
+    pub backlinks: Vec<String>,
+    pub neighbor_titles: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 impl Node {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        content: impl Into<String>,
+        node_type: NodeType,
+    ) -> Node {
+        let now = timestamp();
+        let content_str = content.into();
+        let hash = compute_content_hash(&content_str);
+        let links = parse_links(&content_str);
+        let tags = parse_tags(&content_str);
+
+        Node {
+            id: id.into(),
+            title: title.into(),
+            content: content_str,
+            node_type,
+            tags,
+            links,
+            backlinks: Vec::new(),
+            created_at: now,
+            updated_at: now,
+            topic_key: None,
+            revision_count: 1,
+            content_hash: Some(hash),
+            duplicate_count: 0,
+            last_seen_at: now,
+            review_after: None,
+            state: "active".to_string(),
+        }
+    }
+
     fn placeholder(id: String, now: i64) -> Node {
         Node {
             title: id.clone(),
@@ -132,6 +226,43 @@ impl Node {
             backlinks: Vec::new(),
             created_at: now,
             updated_at: now,
+            topic_key: None,
+            revision_count: 1,
+            content_hash: None,
+            duplicate_count: 0,
+            last_seen_at: now,
+            review_after: None,
+            state: "active".to_string(),
+        }
+    }
+
+    pub fn to_compact_card(&self, max_chars: usize) -> CompactNodeCard {
+        let max_len = if max_chars == 0 { 150 } else { max_chars };
+        let char_count = self.content.chars().count();
+        let preview = if char_count > max_len {
+            let truncated: String = self.content.chars().take(max_len).collect();
+            format!("{}...", truncated)
+        } else {
+            self.content.clone()
+        };
+
+        CompactNodeCard {
+            id: self.id.clone(),
+            title: self.title.clone(),
+            node_type: self.node_type,
+            topic_key: self.topic_key.clone(),
+            preview,
+            tags: self.tags.clone(),
+            revision_count: self.revision_count,
+            updated_at: self.updated_at,
+        }
+    }
+
+    pub fn is_stale_or_needs_review(&self, now: i64) -> bool {
+        if let Some(review_after) = self.review_after {
+            now >= review_after
+        } else {
+            false
         }
     }
 }
@@ -217,6 +348,7 @@ impl Dendrite {
             }
         }
 
+        let hash = compute_content_hash(content);
         let node = match inner.nodes.entry(id.to_string()) {
             std::collections::hash_map::Entry::Occupied(mut e) => {
                 let n = e.get_mut();
@@ -225,7 +357,10 @@ impl Dendrite {
                 n.node_type = node_type;
                 n.tags = tags;
                 n.links = links.clone();
+                n.revision_count = n.revision_count.saturating_add(1);
+                n.content_hash = Some(hash);
                 n.updated_at = now;
+                n.last_seen_at = now;
                 n.clone()
             }
             std::collections::hash_map::Entry::Vacant(e) => {
@@ -239,6 +374,13 @@ impl Dendrite {
                     backlinks: Vec::new(),
                     created_at: now,
                     updated_at: now,
+                    topic_key: None,
+                    revision_count: 1,
+                    content_hash: Some(hash),
+                    duplicate_count: 0,
+                    last_seen_at: now,
+                    review_after: None,
+                    state: "active".to_string(),
                 };
                 e.insert(n.clone());
                 n
@@ -409,6 +551,210 @@ impl Dendrite {
             .filter(|n| contains_str_fold(&n.tags, tag))
             .cloned()
             .collect()
+    }
+
+    /// Evolutionary upsert with topic_key and rolling deduplication (Engram pattern).
+    ///
+    /// If a topic_key is provided and already exists:
+    /// - If the content is unchanged, increments duplicate_count and updates last_seen_at.
+    /// - If content changed, performs an in-place evolutionary update, incrementing revision_count.
+    ///
+    /// If no topic_key matches, but content_hash matches an existing node, increments duplicate_count.
+    ///
+    /// Otherwise, creates a new node. Returns `(resulting_node, was_mutated_or_created)`.
+    pub fn upsert_by_topic(&self, mut node: Node) -> (Node, bool) {
+        let now = timestamp();
+        let content_hash = node
+            .content_hash
+            .clone()
+            .unwrap_or_else(|| compute_content_hash(&node.content));
+        node.content_hash = Some(content_hash.clone());
+
+        let mut inner = lock_inner(&self.inner);
+
+        // 1. Check existing node by topic_key if provided
+        if let Some(ref tk) = node.topic_key {
+            let existing_id = inner
+                .nodes
+                .values()
+                .find(|n| n.topic_key.as_deref() == Some(tk.as_str()))
+                .map(|n| n.id.clone());
+
+            if let Some(eid) = existing_id {
+                let (is_dup, old_links) = {
+                    let existing = inner.nodes.get_mut(&eid).unwrap();
+                    if existing.content == node.content || existing.content_hash.as_deref() == Some(&content_hash) {
+                        existing.duplicate_count = existing.duplicate_count.saturating_add(1);
+                        existing.last_seen_at = now;
+                        (true, Vec::new())
+                    } else {
+                        (false, existing.links.clone())
+                    }
+                };
+
+                if is_dup {
+                    let ret = inner.nodes.get(&eid).cloned().unwrap();
+                    drop(inner);
+                    return (ret, false);
+                }
+
+                // In-place revision: remove old backlinks
+                for old_link in &old_links {
+                    if let Some(target) = inner.nodes.get_mut(old_link) {
+                        target.backlinks = remove_str(&target.backlinks, &eid);
+                    }
+                }
+
+                let new_links = parse_links(&node.content);
+                let new_tags = if node.tags.is_empty() {
+                    parse_tags(&node.content)
+                } else {
+                    node.tags.clone()
+                };
+
+                let updated_node = {
+                    let existing = inner.nodes.get_mut(&eid).unwrap();
+                    existing.title = node.title;
+                    existing.content = node.content;
+                    existing.node_type = node.node_type;
+                    existing.tags = new_tags;
+                    existing.links = new_links.clone();
+                    existing.revision_count = existing.revision_count.saturating_add(1);
+                    existing.updated_at = now;
+                    existing.last_seen_at = now;
+                    existing.content_hash = Some(content_hash);
+                    existing.review_after = node.review_after;
+                    existing.state = "active".to_string();
+                    existing.clone()
+                };
+
+                // Wire new backlinks
+                for link in &new_links {
+                    if !inner.nodes.contains_key(link) {
+                        inner.nodes.insert(link.clone(), Node::placeholder(link.clone(), now));
+                    }
+                    if let Some(target) = inner.nodes.get_mut(link) {
+                        if !target.backlinks.contains(&updated_node.id) {
+                            target.backlinks.push(updated_node.id.clone());
+                        }
+                    }
+                }
+
+                drop(inner);
+                self.notify();
+                return (updated_node, true);
+            }
+        }
+
+        // 2. Rolling deduplication: check if identical content_hash already exists
+        let dedup_id = inner
+            .nodes
+            .values()
+            .find(|n| n.content_hash.as_deref() == Some(&content_hash) && !n.content.trim().is_empty())
+            .map(|n| n.id.clone());
+
+        if let Some(did) = dedup_id {
+            let existing = inner.nodes.get_mut(&did).unwrap();
+            existing.duplicate_count = existing.duplicate_count.saturating_add(1);
+            existing.last_seen_at = now;
+            let ret = existing.clone();
+            drop(inner);
+            return (ret, false);
+        }
+
+        // 3. New insertion
+        let id = if node.id.is_empty() {
+            to_node_id(&node.title)
+        } else {
+            node.id.clone()
+        };
+        node.id = id.clone();
+        node.links = parse_links(&node.content);
+        if node.tags.is_empty() {
+            node.tags = parse_tags(&node.content);
+        }
+        node.created_at = now;
+        node.updated_at = now;
+        node.last_seen_at = now;
+        node.revision_count = 1;
+        node.duplicate_count = 0;
+
+        // Wire backlinks
+        for link in &node.links {
+            if !inner.nodes.contains_key(link) {
+                inner.nodes.insert(link.clone(), Node::placeholder(link.clone(), now));
+            }
+            if let Some(target) = inner.nodes.get_mut(link) {
+                if !target.backlinks.contains(&node.id) {
+                    target.backlinks.push(node.id.clone());
+                }
+            }
+        }
+
+        inner.nodes.insert(id, node.clone());
+        drop(inner);
+        self.notify();
+        (node, true)
+    }
+
+    /// Find node by its canonical topic_key.
+    pub fn find_by_topic_key(&self, topic_key: &str) -> Option<Node> {
+        let inner = lock_inner(&self.inner);
+        inner
+            .nodes
+            .values()
+            .find(|n| n.topic_key.as_deref() == Some(topic_key))
+            .cloned()
+    }
+
+    /// Find node by exact SHA-256 content hash.
+    pub fn find_by_content_hash(&self, hash: &str) -> Option<Node> {
+        let inner = lock_inner(&self.inner);
+        inner
+            .nodes
+            .values()
+            .find(|n| n.content_hash.as_deref() == Some(hash))
+            .cloned()
+    }
+
+    /// Progressive Disclosure Layer 1: Compact orbital cards for 3D atlas or index preview.
+    pub fn get_layer1_cards(&self, limit: usize) -> Vec<CompactNodeCard> {
+        let all_nodes = self.all();
+        let iter = all_nodes.into_iter();
+        if limit > 0 {
+            iter.take(limit).map(|n| n.to_compact_card(150)).collect()
+        } else {
+            iter.map(|n| n.to_compact_card(150)).collect()
+        }
+    }
+
+    /// Progressive Disclosure Layer 2: Cluster / constellation context surrounding a target node.
+    pub fn get_cluster_context(&self, id: &str) -> Option<ClusterContext> {
+        let inner = lock_inner(&self.inner);
+        let node = inner.nodes.get(id)?;
+
+        let mut neighbor_titles = Vec::new();
+        for link in &node.links {
+            if let Some(neighbor) = inner.nodes.get(link) {
+                neighbor_titles.push(neighbor.title.clone());
+            }
+        }
+        for backlink in &node.backlinks {
+            if let Some(neighbor) = inner.nodes.get(backlink) {
+                if !neighbor_titles.contains(&neighbor.title) {
+                    neighbor_titles.push(neighbor.title.clone());
+                }
+            }
+        }
+
+        Some(ClusterContext {
+            central_id: node.id.clone(),
+            central_title: node.title.clone(),
+            outgoing_links: node.links.clone(),
+            backlinks: node.backlinks.clone(),
+            neighbor_titles,
+            tags: node.tags.clone(),
+        })
     }
 
     pub fn len(&self) -> usize {

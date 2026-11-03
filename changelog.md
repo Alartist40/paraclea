@@ -2,6 +2,23 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.11.0] - 2026-11-03
+
+### Added
+- **Engram Evolutionary Memory for Dendrite & Mazzaroth (`crates/paraclea-core/src/dendrite/`)**:
+  - `topic_key` canonical node addressing with `revision_count` in-place evolutionary updates, eliminating duplicate row sprawl across study sessions.
+  - Rolling deduplication via SHA-256 `content_hash`, `duplicate_count`, and `last_seen_at` timestamps.
+  - 3-Layer Progressive Disclosure: Layer 1 compact cards (`CompactNodeCard`), Layer 2 constellation cluster context (`ClusterContext`), and Layer 3 full scripture nodes.
+  - Non-destructive SQLite schema migration preserving all historical notes and activating WAL + FTS5 indexing.
+- **Two-Zone Prompt Architecture (`crates/paraclea-core/src/persona.rs`, `crates/paraclea-tui/src/app.rs`, `crates/paraclea-cli/src/main.rs`)**:
+  - Zone A byte-stable invariant prefix (Identity, Soul Virtues, User Profile, Persona Instructions) pinned in Ollama/llama.cpp KV-cache across all turns to eliminate prompt prefill latency.
+  - Zone B variable tail (Scripture context, recalled Dendrite memories, sliding conversation log, and user query).
+- **Dual-Tier Dynamic Inference Routing (`crates/paraclea-core/src/rag.rs`, `crates/paraclea-tui/src/app.rs`)**:
+  - Dynamic query classification via `route_model_for_query`: standard turns route to Tier 1 fast model (3B), while deep theological queries, Greek/Hebrew exegesis, prophecy, and typology automatically route to Tier 2 heavy model (8B/9B).
+- **Session Event & USB Triad Boundaries**:
+  - Strict separation between transient streaming chunks and durable chat history events.
+  - Permission triad enforcement restricting encrypted backups strictly to sanctioned media mountpoints (`/media/*`, `/run/media/*`, `/mnt/*`, `~/.paraclea/backups`).
+
 ## [0.10.0] - 2026-10-23
 
 ### Added

@@ -59,9 +59,11 @@ Ingested multi-chapter JSON collections stored under `~/.paraclea/library/`:
 - **[4] Psychology & Educational Category (2 Full Chapters)**:
   - **Principles of Mind & Wellness** (2 Full Chapters)
 
-### 340,000 Scripture Cross-References & Graph Memory
+### 340,000 Scripture Cross-References & Engram Evolutionary Memory
 - **340,000 Cross-References**: Treasury of Scripture Knowledge (TSK) verse linker connecting biblical passages dynamically.
-- **Dendrite v2 Knowledge Graph Memory (`~/.paraclea/dendrite.db`)**: SQLite WAL-backed graph memory that tracks user study patterns, preferences, and key notes across conversations.
+- **Dendrite v2 Knowledge Graph with Engram Architecture (`~/.paraclea/dendrite.db`)**: SQLite WAL-backed graph memory with canonical `topic_key` in-place revisions, SHA-256 rolling deduplication, and 3-Layer Progressive Disclosure (Compact cards, Cluster constellations, Full nodes).
+- **Two-Zone Prompt Architecture**: Invariant Zone A prefix (cached in Ollama KV-cache) and variable Zone B tail, cutting prefill latency to zero.
+- **Dual-Tier Inference Routing**: Automatically routes queries between Tier 1 fast model and Tier 2 heavy synthesis model based on theological complexity.
 
 ### 3D Galaxy Atlas (Mazzaroth Engine)
 - **Mazzaroth**: Standalone, database-agnostic 3D celestial renderer extracted from Paraclea.

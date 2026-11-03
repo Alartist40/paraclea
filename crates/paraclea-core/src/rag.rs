@@ -83,6 +83,11 @@ impl<'a> RagEngine<'a> {
 
     /// Route model selection based on question complexity and keywords.
     pub fn route_model<'b>(&self, query: &str, default_model: &'b str, heavy_model: &'b str) -> &'b str {
+        Self::route_model_for_query(query, default_model, heavy_model)
+    }
+
+    /// Static router for model selection without instantiating full RAG engine.
+    pub fn route_model_for_query<'b>(query: &str, default_model: &'b str, heavy_model: &'b str) -> &'b str {
         let q_lower = query.to_lowercase();
         let is_complex = query.len() > 180
             || q_lower.contains("compare")

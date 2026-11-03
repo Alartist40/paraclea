@@ -1711,21 +1711,59 @@ impl App {
                 self.chat_auto_scroll = true;
             }
             _ => {
-                // Dispatch AI Streaming Prompt to Ollama
+                // Dispatch AI Streaming Prompt to Ollama with Two-Zone compilation and Dual-Tier routing
                 self.cancel_active_stream();
                 self.active_tab = ActiveTab::Chat;
                 self.is_streaming = true;
                 let gen_id = self.stream_generation_id;
                 let tx = self.tx_stream.clone();
-                let model = self.cfg.model.ollama.model.clone();
-                let ollama = self.ollama.clone();
-                let persona_prompt = self.persona.build_system_prompt();
                 let query = input.to_string();
+
+                // 1. Dual-tier inference routing (Tier 1 fast model vs Tier 2 heavy model)
+                let model = paraclea_core::rag::RagEngine::route_model_for_query(
+                    &query,
+                    &self.cfg.model.ollama.model,
+                    &self.cfg.model.ollama.heavy_model,
+                ).to_string();
+                let ollama = self.ollama.clone();
+
+                // 2. Scripture context if active
+                let scripture_context = if let Some(ref _reader) = self.bible_reader {
+                    let book_name = self.bible_books.get(self.bible_state.selected_book_idx).cloned().unwrap_or_default();
+                    if !book_name.is_empty() {
+                        Some(format!("Active Reading: {} Chapter {}", book_name, self.bible_state.selected_chapter))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                // 3. Recalled memory nodes from Dendrite (top BM25 results)
+                let recalled = self.dendrite_graph.search_bm25(&query, 3);
+                let mut recalled_text = String::new();
+                for (node, _score) in recalled {
+                    recalled_text.push_str(&format!("## {}\n{}\n\n", node.title, node.content));
+                }
+
+                // 4. Sliding conversation history (last 4 turns)
+                let mut hist_text = String::new();
+                for msg in self.chat_history.iter().rev().take(4).rev() {
+                    hist_text.push_str(&format!("{}: {}\n", msg.role.to_uppercase(), msg.content));
+                }
+
+                // 5. Two-zone prompt compilation: Zone A (invariant prefix) + Zone B (variable tail)
+                let (zone_a, zone_b) = self.persona.compile_prompt(
+                    scripture_context.as_deref(),
+                    if recalled_text.is_empty() { None } else { Some(&recalled_text) },
+                    if hist_text.is_empty() { None } else { Some(&hist_text) },
+                    &query,
+                );
 
                 let handle = tokio::spawn(async move {
                     let msgs = vec![
-                        OllamaChatMessage { role: "system".to_string(), content: persona_prompt },
-                        OllamaChatMessage { role: "user".to_string(), content: query },
+                        OllamaChatMessage { role: "system".to_string(), content: zone_a },
+                        OllamaChatMessage { role: "user".to_string(), content: zone_b },
                     ];
                     let tx_token = tx.clone();
                     let res = ollama.chat_with_model_stream(&model, msgs, move |tok| {

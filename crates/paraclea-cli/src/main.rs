@@ -1798,33 +1798,35 @@ async fn start_paraclea_repl(cfg: Config) -> Result<()> {
             &cfg.model.ollama.heavy_model,
         );
 
-        let query_prompt = if !rag_ret.context_text.is_empty() {
-            format!(
-                "Use the following reference passages to answer the question. Quote verses precisely.\n\nContext:\n{}\n\nUser Question: {}\n",
-                rag_ret.context_text, input_str
-            )
+        // Two-Zone Prompt compilation: Zone A (invariant KV-cached prefix) + Zone B (variable tail)
+        let zone_a = persona.compile_zone_a_prefix();
+        let dendrite_memories = dendrite_ctx.build_prompt(input_str, 3000);
+        let scripture_context = if !rag_ret.context_text.is_empty() {
+            Some(rag_ret.context_text.as_str())
         } else {
-            input_str.to_string()
+            None
         };
-
-        // Assemble Dendrite-Enriched System Prompt
-        let dendrite_memories = dendrite_ctx.build_prompt(input_str, 4000);
-        let base_sys_prompt = persona.build_system_prompt();
-        let full_sys_prompt = if !dendrite_memories.trim().is_empty() {
-            format!("{}\n\n# User Study Memories & Context Graph:\n{}", base_sys_prompt, dendrite_memories)
+        let memories_ref = if !dendrite_memories.trim().is_empty() {
+            Some(dendrite_memories.as_str())
         } else {
-            base_sys_prompt
+            None
         };
+        let zone_b = PersonaManager::compile_zone_b_tail(
+            scripture_context,
+            memories_ref,
+            None,
+            input_str,
+        );
 
         let mut messages = Vec::new();
         messages.push(ChatMessage {
             role: "system".to_string(),
-            content: full_sys_prompt,
+            content: zone_a,
         });
         messages.extend(history.clone());
         messages.push(ChatMessage {
             role: "user".to_string(),
-            content: query_prompt,
+            content: zone_b,
         });
 
         print!("{}", print_purple("thinking... "));
