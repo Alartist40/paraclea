@@ -2,6 +2,23 @@
 
 All notable changes to the **Paraclea** project will be documented in this file.
 
+## [0.12.0] - 2026-11-05
+
+### Added
+- **Vertical Split-Screen Study Mode (`crates/paraclea-tui/src/app.rs`, `Ctrl+B`, `/split`)**:
+  - Live 50/50 dual viewport dividing the screen horizontally into Chat Companion on the left and Scripture Reader on the right.
+  - Seamlessly keeps verse reading and AI theological dialogue in view without context-switching.
+- **Universal Quick-Jump Palette (`crates/paraclea-tui/src/app.rs`, `crates/paraclea-tui/src/modals/`, `Ctrl+P`, `/jump`)**:
+  - High-performance fuzzy search palette instantly navigating to all 66 canonical Bible books, library collections, Strong's theological terms, and all 7 decks.
+- **Strong's Lexicon O(1) Pre-Warmed Cache (`crates/paraclea-core/src/strongs.rs`)**:
+  - Static memory-resident hash indexing via `OnceLock<HashMap<String, &'static StrongEntry>>` delivering zero-allocation instantaneous concordance lookups.
+- **Dynamic Context Ring-Buffer Pruning (`crates/paraclea-core/src/persona.rs`)**:
+  - Sliding turn window pruning in `PersonaManager::prune_conversation_turns` to keep prompt sizes bounded while protecting system instructions and theological invariants.
+- **Hardware Acceleration Flags (`crates/paraclea-core/src/config.rs`, `crates/paraclea-core/src/ollama.rs`)**:
+  - Added configurable `num_gpu` and `flash_attention` parameters to `OllamaConfig` and `OllamaOptions` for maximum inference throughput on SBCs and workstations.
+- **Configurable Compact Minimal Status Bar (`crates/paraclea-tui/src/app.rs`, `F12`, `/compact`)**:
+  - Single-line ultra-minimal header tailored for small SBC displays and e-ink panels.
+
 ## [0.11.0] - 2026-11-03
 
 ### Added

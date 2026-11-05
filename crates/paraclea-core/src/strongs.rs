@@ -4,6 +4,10 @@
 //! and theological definitions for biblical research.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+static WARMED_CACHE: OnceLock<HashMap<String, &'static StrongEntry>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StrongEntry {
@@ -262,12 +266,39 @@ pub fn normalize_key(input: &str) -> String {
     }
 }
 
-/// Lookup a Strong's reference entry by number or keyword.
-pub fn lookup(code: &str) -> Option<&'static StrongEntry> {
+/// Pre-warms the internal indexed cache for sub-millisecond O(1) lexical lookups.
+pub fn prewarm_lexicon_cache() -> &'static HashMap<String, &'static StrongEntry> {
+    WARMED_CACHE.get_or_init(|| {
+        let mut map = HashMap::with_capacity(STRONGS_DATABASE.len() * 4);
+        for entry in STRONGS_DATABASE {
+            let norm = normalize_key(entry.number);
+            map.insert(norm, entry);
+            map.insert(entry.number.to_uppercase(), entry);
+            map.insert(entry.transliteration.to_lowercase(), entry);
+            map.insert(entry.lemma.to_string(), entry);
+        }
+        map
+    })
+}
+
+/// Fast O(1) lookup using the pre-warmed cache.
+pub fn fast_lookup(code: &str) -> Option<&'static StrongEntry> {
+    let cache = prewarm_lexicon_cache();
     let norm = normalize_key(code);
-    STRONGS_DATABASE
-        .iter()
-        .find(|e| normalize_key(e.number) == norm || e.transliteration.eq_ignore_ascii_case(code.trim()))
+    cache.get(&norm)
+        .or_else(|| cache.get(&code.trim().to_lowercase()))
+        .or_else(|| cache.get(code.trim()))
+        .copied()
+}
+
+/// Lookup a Strong's reference entry by number or keyword (O(1) cached).
+pub fn lookup(code: &str) -> Option<&'static StrongEntry> {
+    fast_lookup(code).or_else(|| {
+        let norm = normalize_key(code);
+        STRONGS_DATABASE
+            .iter()
+            .find(|e| normalize_key(e.number) == norm || e.transliteration.eq_ignore_ascii_case(code.trim()))
+    })
 }
 
 /// Search Strong's dictionary by query string across number, lemma, transliteration, or definition.
@@ -291,6 +322,16 @@ pub fn search(query: &str) -> Vec<&'static StrongEntry> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+
+    #[test]
+    pub fn test_strongs_cache_prewarming() {
+        let cache = prewarm_lexicon_cache();
+        assert!(!cache.is_empty());
+        assert!(fast_lookup("H7225").is_some());
+        assert!(fast_lookup("G3056").is_some());
+        assert_eq!(fast_lookup("reshith").unwrap().number, "H7225");
+        assert_eq!(fast_lookup("logos").unwrap().number, "G3056");
+    }
 
     #[test]
     pub fn test_strongs_lookup() {

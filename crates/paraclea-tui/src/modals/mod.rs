@@ -57,7 +57,11 @@ pub fn render_help_modal(f: &mut Frame, area: Rect, theme: &AppTheme) {
         ]),
         Line::from(vec![
             Span::styled("Ctrl + B         ", theme.header_badge()),
-            Span::styled("Toggle left sidebar visibility", Style::default().fg(theme.text())),
+            Span::styled("Toggle Split-Screen Study Mode (Chat + Scripture)", Style::default().fg(theme.text())),
+        ]),
+        Line::from(vec![
+            Span::styled("Ctrl + S         ", theme.header_badge()),
+            Span::styled("Toggle Sidebar Visibility", Style::default().fg(theme.text())),
         ]),
         Line::from(vec![
             Span::styled("Ctrl + T         ", theme.header_badge()),
@@ -65,7 +69,11 @@ pub fn render_help_modal(f: &mut Frame, area: Rect, theme: &AppTheme) {
         ]),
         Line::from(vec![
             Span::styled("Ctrl + P         ", theme.header_badge()),
-            Span::styled("Quick Translation & Language Picker modal", Style::default().fg(theme.text())),
+            Span::styled("Universal Quick-Jump Palette (Bible, Strongs, Library, Decks)", Style::default().fg(theme.text())),
+        ]),
+        Line::from(vec![
+            Span::styled("F12              ", theme.header_badge()),
+            Span::styled("Toggle Compact Minimal Status Bar (E-Ink / Small SBC screens)", Style::default().fg(theme.text())),
         ]),
         Line::from(vec![
             Span::styled("Ctrl + M         ", theme.header_badge()),

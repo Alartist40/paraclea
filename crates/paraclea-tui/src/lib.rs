@@ -110,9 +110,9 @@ mod tests {
         let _ = app.handle_key_event(KeyCode::Char('3'), KeyModifiers::NONE).await;
         assert_eq!(app.active_tab, ActiveTab::Library);
 
-        // Toggle sidebar with Ctrl+B
+        // Toggle sidebar with Ctrl+S
         assert!(app.is_sidebar_open);
-        let _ = app.handle_key_event(KeyCode::Char('b'), KeyModifiers::CONTROL).await;
+        let _ = app.handle_key_event(KeyCode::Char('s'), KeyModifiers::CONTROL).await;
         assert!(!app.is_sidebar_open);
 
         // Cycle theme with Ctrl+T
@@ -492,6 +492,42 @@ mod tests {
         let _ = app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE).await;
         assert_eq!(app.active_modal, ActiveModal::None);
         assert_eq!(app.theme, AppTheme::CrimsonCodex);
+    }
+
+    #[tokio::test]
+    async fn test_split_screen_and_quick_jump() {
+        let cfg = Config::default();
+        let mut app = App::new(cfg);
+        assert!(!app.split_study_mode);
+        assert!(!app.compact_status_bar);
+
+        // 1. Test Ctrl+B toggles Split-Screen Study Mode
+        let _ = app.handle_key_event(KeyCode::Char('b'), KeyModifiers::CONTROL).await;
+        assert!(app.split_study_mode);
+        assert_eq!(app.active_tab, ActiveTab::Chat);
+
+        // 2. Test F12 toggles Compact Status Bar
+        let _ = app.handle_key_event(KeyCode::F(12), KeyModifiers::NONE).await;
+        assert!(app.compact_status_bar);
+
+        // 3. Test Ctrl+P opens Quick-Jump modal
+        let _ = app.handle_key_event(KeyCode::Char('p'), KeyModifiers::CONTROL).await;
+        assert_eq!(app.active_modal, ActiveModal::QuickJump);
+        assert!(!app.modal_items.is_empty());
+
+        // 4. Test selecting a scripture entry in Quick-Jump
+        app.modal_filter = "genesis".to_string();
+        app.filter_modal_items();
+        assert!(!app.modal_items.is_empty());
+        let _ = app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE).await;
+        assert_eq!(app.active_modal, ActiveModal::None);
+        assert_eq!(app.active_tab, ActiveTab::Bible);
+
+        // 5. Test galaxy memory constellation toggle 'k'
+        app.active_tab = ActiveTab::Galaxy;
+        assert!(!app.show_galaxy_memory_overlay);
+        let _ = app.handle_key_event(KeyCode::Char('k'), KeyModifiers::NONE).await;
+        assert!(app.show_galaxy_memory_overlay);
     }
 }
 

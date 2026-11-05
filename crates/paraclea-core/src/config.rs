@@ -44,6 +44,10 @@ pub struct OllamaConfig {
     pub embed_model: String,
     #[serde(default = "default_ocr_model")]
     pub ocr_model: String,
+    #[serde(default)]
+    pub num_gpu: Option<i32>,
+    #[serde(default)]
+    pub flash_attention: Option<bool>,
 }
 
 fn default_heavy_model() -> String {
@@ -146,6 +150,8 @@ impl Default for Config {
                     heavy_model: "qwen3:8b".to_string(),
                     embed_model: "nomic-embed-text".to_string(),
                     ocr_model: "frob/unlimited-ocr:q8_0".to_string(),
+                    num_gpu: None,
+                    flash_attention: None,
                 },
                 local: LocalConfig {
                     path: "models".to_string(),

@@ -62,6 +62,9 @@ pub const COMMAND_PALETTE: &[(&str, &str)] = &[
     ("/backup", "1-Click AES-256-GCM encrypted USB backup"),
     ("/crossref", "Cross-reference lookup"),
     ("/voice", "Trigger Candle voice transcription & speech input"),
+    ("/split", "Toggle vertical split-screen study mode (Chat + Bible)"),
+    ("/jump", "Open universal quick-jump palette (Ctrl+P)"),
+    ("/compact", "Toggle compact status bar for small/e-ink screens (F12)"),
     ("/clear", "Clear chat history"),
 ];
 
@@ -93,6 +96,7 @@ pub enum ActiveModal {
     TranslationPicker,
     ModelPicker,
     BackupPrompt,
+    QuickJump,
 }
 
 pub enum StreamEvent {
@@ -177,6 +181,9 @@ pub struct App {
     pub input_modal_buffer: String,
 
     pub backup_status: Option<String>,
+    pub split_study_mode: bool,
+    pub compact_status_bar: bool,
+    pub show_galaxy_memory_overlay: bool,
     pub toast_message: Option<(String, std::time::Instant)>,
     pub rx_stream: mpsc::UnboundedReceiver<StreamEvent>,
     pub tx_stream: mpsc::UnboundedSender<StreamEvent>,
@@ -326,6 +333,9 @@ impl App {
             input_modal_buffer: String::new(),
 
             backup_status: None,
+            split_study_mode: false,
+            compact_status_bar: false,
+            show_galaxy_memory_overlay: false,
             toast_message: None,
             rx_stream,
             tx_stream,
@@ -598,11 +608,22 @@ impl App {
                     return Ok(false);
                 }
                 KeyCode::Char('b') => {
+                    self.split_study_mode = !self.split_study_mode;
+                    if self.split_study_mode {
+                        self.active_tab = ActiveTab::Chat;
+                        self.set_toast("Split Study Mode: ON (Chat + Scripture)");
+                    } else {
+                        self.set_toast("Split Study Mode: OFF (Full Viewport)");
+                    }
+                    return Ok(false);
+                }
+                KeyCode::Char('s') => {
                     self.is_sidebar_open = !self.is_sidebar_open;
+                    self.set_toast(if self.is_sidebar_open { "Sidebar: Visible" } else { "Sidebar: Hidden" });
                     return Ok(false);
                 }
                 KeyCode::Char('p') => {
-                    self.open_translation_picker();
+                    self.open_quick_jump();
                     return Ok(false);
                 }
                 KeyCode::Char('m') => {
@@ -615,6 +636,12 @@ impl App {
                 }
                 _ => {}
             }
+        }
+
+        if code == KeyCode::F(12) {
+            self.compact_status_bar = !self.compact_status_bar;
+            self.set_toast(if self.compact_status_bar { "Compact Status Bar: ON" } else { "Compact Status Bar: OFF" });
+            return Ok(false);
         }
 
         // Global Alt+1-7 Deck Shortcuts & Quick Breadcrumbs
@@ -1079,6 +1106,16 @@ impl App {
                         self.active_focus = ActiveFocus::PromptInput;
                         return Ok(false);
                     }
+                    if code == KeyCode::Char('k') || code == KeyCode::Char('K') {
+                        self.show_galaxy_memory_overlay = !self.show_galaxy_memory_overlay;
+                        let count = self.dendrite_graph.len();
+                        self.set_toast(if self.show_galaxy_memory_overlay {
+                            format!("Galaxy Memory Constellation Overlay: ON ({} Nodes)", count)
+                        } else {
+                            "Galaxy Memory Constellation Overlay: OFF".to_string()
+                        });
+                        return Ok(false);
+                    }
                     match self.galaxy_state.handle_key(code, mods) {
                         crate::views::galaxy::GalaxyAction::Handled => return Ok(false),
                         crate::views::galaxy::GalaxyAction::Inspect(node) => {
@@ -1242,11 +1279,39 @@ impl App {
                 f, size, "Enter Backup Encryption Passphrase",
                 "Passphrase", &self.input_modal_buffer, true, &self.theme,
             ),
+            ActiveModal::QuickJump => render_list_picker_modal(
+                f, size, "Universal Quick-Jump Palette (Ctrl+P / Esc to Close)",
+                &self.modal_items, self.modal_selected_idx, &self.modal_filter, &self.theme,
+            ),
             _ => {}
         }
     }
 
     fn render_header(&self, f: &mut Frame, area: Rect) {
+        if self.compact_status_bar {
+            let toast_info = if let Some((ref toast, ref instant)) = self.toast_message {
+                if instant.elapsed() < std::time::Duration::from_secs(4) {
+                    format!(" │ [NOTIFY] {}", toast)
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+            let line = Line::from(vec![
+                Span::styled(" PARACLEA ", self.theme.header_title()),
+                Span::styled(format!("│ Deck: {:?} ", self.active_tab), self.theme.header_badge()),
+                Span::styled(format!("│ {} ", self.cfg.model.ollama.model), self.theme.tab_active()),
+                Span::styled(format!("│ Trans: {} ", self.bible_state.active_translation), self.theme.tab_inactive()),
+                Span::styled(toast_info, self.theme.highlight_item()),
+            ]);
+            let block = Block::default()
+                .borders(Borders::BOTTOM)
+                .style(Style::default().bg(self.theme.panel_bg()));
+            f.render_widget(Paragraph::new(line).block(block), area);
+            return;
+        }
+
         let tabs = vec![
             (ActiveTab::Chat, "[1] Chat"),
             (ActiveTab::Bible, "[2] Bible"),
@@ -1353,15 +1418,39 @@ impl App {
     fn render_main_viewport(&self, f: &mut Frame, area: Rect) {
         match self.active_tab {
             ActiveTab::Chat => {
-                let max_scroll = chat_max_scroll(
-                    &self.chat_history, &self.streaming_text, self.is_streaming,
-                    area.width, area.height, &self.theme,
-                );
-                self.chat_max_scroll.set(max_scroll);
-                render_chat_view(
-                    f, area, &self.chat_history, &self.streaming_text,
-                    self.is_streaming, self.is_speaking, self.chat_scroll, self.chat_auto_scroll, &self.theme,
-                );
+                if self.split_study_mode {
+                    let chunks = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                        .split(area);
+
+                    let max_scroll = chat_max_scroll(
+                        &self.chat_history, &self.streaming_text, self.is_streaming,
+                        chunks[0].width, chunks[0].height, &self.theme,
+                    );
+                    self.chat_max_scroll.set(max_scroll);
+                    render_chat_view(
+                        f, chunks[0], &self.chat_history, &self.streaming_text,
+                        self.is_streaming, self.is_speaking, self.chat_scroll, self.chat_auto_scroll, &self.theme,
+                    );
+
+                    let comp_refs: Vec<(&str, Vec<(usize, String)>)> = self.bible_comparison.iter()
+                        .map(|(tag, v)| (tag.as_str(), v.clone()))
+                        .collect();
+                    render_bible_view(
+                        f, chunks[1], &self.bible_state, &self.bible_books, &self.bible_verses, &comp_refs, &self.theme,
+                    );
+                } else {
+                    let max_scroll = chat_max_scroll(
+                        &self.chat_history, &self.streaming_text, self.is_streaming,
+                        area.width, area.height, &self.theme,
+                    );
+                    self.chat_max_scroll.set(max_scroll);
+                    render_chat_view(
+                        f, area, &self.chat_history, &self.streaming_text,
+                        self.is_streaming, self.is_speaking, self.chat_scroll, self.chat_auto_scroll, &self.theme,
+                    );
+                }
             }
             ActiveTab::Bible => {
                 let comp_refs: Vec<(&str, Vec<(usize, String)>)> = self.bible_comparison.iter()
@@ -1529,6 +1618,22 @@ impl App {
                         self.refresh_library_category();
                     }
                 }
+            }
+            "/split" => {
+                self.split_study_mode = !self.split_study_mode;
+                if self.split_study_mode {
+                    self.active_tab = ActiveTab::Chat;
+                    self.set_toast("Split Study Mode: ON (Chat + Scripture)");
+                } else {
+                    self.set_toast("Split Study Mode: OFF (Full Viewport)");
+                }
+            }
+            "/jump" => {
+                self.open_quick_jump();
+            }
+            "/compact" => {
+                self.compact_status_bar = !self.compact_status_bar;
+                self.set_toast(if self.compact_status_bar { "Compact Status Bar: ON" } else { "Compact Status Bar: OFF" });
             }
             "/galaxy" => {
                 self.active_tab = ActiveTab::Galaxy;
@@ -1946,6 +2051,36 @@ impl App {
         self.active_modal = ActiveModal::ModelPicker;
     }
 
+    pub fn open_quick_jump(&mut self) {
+        let mut items = vec![
+            "[Deck] 1 - Chat & Faithful AI Companion".to_string(),
+            "[Deck] 2 - Scripture Treasury & Reader".to_string(),
+            "[Deck] 3 - Historical & Spiritual Library".to_string(),
+            "[Deck] 4 - Cross-Reference Graph & Strongs".to_string(),
+            "[Deck] 5 - Mazzaroth 3D Celestial Galaxy".to_string(),
+            "[Deck] 6 - Reticulum Off-Grid Mesh & LoRa".to_string(),
+            "[Deck] 7 - System Doctor & Hardware Status".to_string(),
+        ];
+
+        for b in &self.bible_books {
+            items.push(format!("[Bible] {}", b));
+        }
+
+        for cat in &self.library_categories {
+            items.push(format!("[Library] {}", cat));
+        }
+
+        for entry in paraclea_core::strongs::STRONGS_DATABASE.iter().take(25) {
+            items.push(format!("[Strongs] {} - {} ({})", entry.number, entry.transliteration, entry.definition.chars().take(40).collect::<String>()));
+        }
+
+        self.all_modal_items = items.clone();
+        self.modal_items = items;
+        self.modal_selected_idx = 0;
+        self.modal_filter.clear();
+        self.active_modal = ActiveModal::QuickJump;
+    }
+
     pub fn filter_modal_items(&mut self) {
         let prev_selected = self.modal_items.get(self.modal_selected_idx).cloned();
         let q = self.modal_filter.trim().to_lowercase();
@@ -2043,6 +2178,51 @@ impl App {
                     });
                     self.set_toast(format!("Active AI Model: {}", sel));
                     let _ = self.cfg.save(&self.config_path);
+                }
+            }
+            ActiveModal::QuickJump => {
+                if let Some(sel) = self.modal_items.get(self.modal_selected_idx).cloned() {
+                    if sel.starts_with("[Deck] 1") {
+                        self.active_tab = ActiveTab::Chat;
+                        self.set_toast("Jumped to Chat Deck");
+                    } else if sel.starts_with("[Deck] 2") {
+                        self.active_tab = ActiveTab::Bible;
+                        self.set_toast("Jumped to Bible Deck");
+                    } else if sel.starts_with("[Deck] 3") {
+                        self.active_tab = ActiveTab::Library;
+                        self.set_toast("Jumped to Library Deck");
+                    } else if sel.starts_with("[Deck] 4") {
+                        self.active_tab = ActiveTab::Crossref;
+                        self.set_toast("Jumped to Cross-Ref Deck");
+                    } else if sel.starts_with("[Deck] 5") {
+                        self.active_tab = ActiveTab::Galaxy;
+                        self.set_toast("Jumped to 3D Galaxy Deck");
+                    } else if sel.starts_with("[Deck] 6") {
+                        self.active_tab = ActiveTab::Mesh;
+                        self.set_toast("Jumped to Mesh Deck");
+                    } else if sel.starts_with("[Deck] 7") {
+                        self.active_tab = ActiveTab::Doctor;
+                        self.set_toast("Jumped to System Doctor");
+                    } else if let Some(stripped) = sel.strip_prefix("[Bible] ") {
+                        let book = stripped.trim();
+                        if let Some(idx) = self.bible_books.iter().position(|b| b.eq_ignore_ascii_case(book)) {
+                            self.bible_state.selected_book_idx = idx;
+                            self.bible_state.selected_chapter = 1;
+                            self.load_active_bible_chapter();
+                        }
+                        self.active_tab = ActiveTab::Bible;
+                        self.set_toast(format!("Jumped to Scripture: {}", book));
+                    } else if sel.starts_with("[Library] ") {
+                        self.active_tab = ActiveTab::Library;
+                        self.set_toast("Jumped to Library Collection");
+                    } else if sel.starts_with("[Strongs] ") {
+                        let parts: Vec<&str> = sel.split_whitespace().collect();
+                        if parts.len() > 1 {
+                            let code = parts[1];
+                            self.active_tab = ActiveTab::Crossref;
+                            self.set_toast(format!("Jumped to Strong's: {}", code));
+                        }
+                    }
                 }
             }
             _ => {}

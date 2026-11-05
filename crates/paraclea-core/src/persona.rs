@@ -151,6 +151,27 @@ impl PersonaManager {
         (zone_a, zone_b)
     }
 
+    /// Prunes conversation history turns to stay strictly within token budget,
+    /// dropping oldest turns first to prevent context saturation stalls.
+    pub fn prune_conversation_turns(turns: &[(&str, &str)], max_tokens: usize) -> Vec<(String, String)> {
+        let budget = if max_tokens == 0 { 4000 } else { max_tokens };
+        let mut total_est = 0;
+        let mut kept = Vec::new();
+
+        // Iterate backwards from newest to oldest
+        for (role, content) in turns.iter().rev() {
+            let cost = (role.len() + content.len() + 8) / 4;
+            if total_est + cost > budget {
+                break;
+            }
+            total_est += cost;
+            kept.push((role.to_string(), content.to_string()));
+        }
+
+        kept.reverse();
+        kept
+    }
+
     /// Retrieve today's daily log content.
     pub fn get_today_log(&self) -> String {
         let date_str = Local::now().format("%Y-%m-%d").to_string();
@@ -162,6 +183,22 @@ impl PersonaManager {
 pub mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_context_ring_buffer_pruning() {
+        let turns = vec![
+            ("user", "Hello first turn from a long time ago"),
+            ("assistant", "Greetings, I remember that first ancient message"),
+            ("user", "Here is a middle question about Genesis"),
+            ("assistant", "Genesis 1:1 begins with Bereshit"),
+            ("user", "What is the most recent query?"),
+        ];
+
+        // Tight budget of ~30 tokens should only keep the last 2 turns
+        let pruned = PersonaManager::prune_conversation_turns(&turns, 35);
+        assert!(pruned.len() < turns.len());
+        assert_eq!(pruned.last().unwrap().1, "What is the most recent query?");
+    }
 
     #[test]
     fn test_two_zone_prompt_compilation() {

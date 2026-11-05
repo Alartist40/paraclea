@@ -42,6 +42,22 @@ pub struct OllamaOptions {
     pub temperature: f32,
     pub repeat_penalty: f32,
     pub num_predict: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_gpu: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flash_attention: Option<bool>,
+}
+
+impl Default for OllamaOptions {
+    fn default() -> Self {
+        Self {
+            temperature: 0.3,
+            repeat_penalty: 1.18,
+            num_predict: 1024,
+            num_gpu: None,
+            flash_attention: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -69,6 +85,7 @@ pub struct OllamaClient {
     client: Client,
     pub endpoint: String,
     pub model: String,
+    pub options: Option<OllamaOptions>,
 }
 
 impl OllamaClient {
@@ -83,7 +100,25 @@ impl OllamaClient {
             client,
             endpoint: endpoint.trim_end_matches('/').to_string(),
             model: model.to_string(),
+            options: Some(OllamaOptions::default()),
         })
+    }
+
+    /// Configure hardware acceleration options (num_gpu, flash_attention).
+    pub fn with_performance_options(mut self, num_gpu: Option<i32>, flash_attention: Option<bool>) -> Self {
+        if let Some(ref mut opts) = self.options {
+            opts.num_gpu = num_gpu;
+            opts.flash_attention = flash_attention;
+        } else {
+            self.options = Some(OllamaOptions {
+                temperature: 0.3,
+                repeat_penalty: 1.18,
+                num_predict: 1024,
+                num_gpu,
+                flash_attention,
+            });
+        }
+        self
     }
 
     /// Health check to verify Ollama server connectivity.
@@ -253,11 +288,7 @@ impl OllamaClient {
             model: model_name.to_string(),
             messages,
             stream: false,
-            options: Some(OllamaOptions {
-                temperature: 0.3,
-                repeat_penalty: 1.18,
-                num_predict: 1024,
-            }),
+            options: self.options.clone(),
             keep_alive: Some("30m".to_string()),
         };
 
@@ -305,11 +336,7 @@ impl OllamaClient {
             model: model_name.to_string(),
             messages,
             stream: true,
-            options: Some(OllamaOptions {
-                temperature: 0.3,
-                repeat_penalty: 1.18,
-                num_predict: 1024,
-            }),
+            options: self.options.clone(),
             keep_alive: Some("30m".to_string()),
         };
 
